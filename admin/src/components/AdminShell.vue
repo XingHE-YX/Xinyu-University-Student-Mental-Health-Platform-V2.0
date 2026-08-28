@@ -35,7 +35,7 @@ defineProps<{
 <style scoped>
 .admin-shell {
   display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
   min-height: 100vh;
 }
 
