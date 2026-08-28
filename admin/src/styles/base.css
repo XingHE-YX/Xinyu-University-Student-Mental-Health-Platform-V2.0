@@ -1,0 +1,33 @@
+:root {
+  color: var(--xinyu-color-text);
+  background: var(--xinyu-color-paper);
+  font-family: var(--xinyu-font-sans);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 1280px;
+  min-height: 100vh;
+  margin: 0;
+  background: var(--xinyu-color-paper);
+}
+
+button,
+input,
+a {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a {
+  color: inherit;
+}

@@ -1,0 +1,13 @@
+{
+  "name": "xinyu-v2-miniprogram",
+  "version": "0.1.0",
+  "private": true,
+  "description": "心语 V2 原生微信小程序学生端",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "miniprogram-api-typings": "5.2.3",
+    "typescript": "7.0.2"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "pages": [
+    "pages/onboarding/index",
+    "pages/identity-verification/index",
+    "pages/today/index",
+    "pages/assessment-center/index",
+    "pages/assessment-answer/index",
+    "pages/assessment-result/index",
+    "pages/safety-confirmation/index",
+    "pages/support-resources/index",
+    "pages/history/index",
+    "pages/treehole/index",
+    "pages/treehole-publish/index",
+    "pages/treehole-status/index",
+    "pages/treehole-detail/index",
+    "pages/my/index",
+    "pages/anonymous-identity/index",
+    "pages/my-content/index",
+    "pages/privacy/index",
+    "pages/account-stop/index",
+    "pages/account-recover/index",
+    "pages/delete-confirmation/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "心语",
+    "navigationBarBackgroundColor": "#F7F4EE",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F7F4EE",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#5F6E6A",
+    "selectedColor": "#2E6F68",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/today/index", "text": "今日" },
+      { "pagePath": "pages/assessment-center/index", "text": "自测" },
+      { "pagePath": "pages/treehole/index", "text": "树洞" },
+      { "pagePath": "pages/my/index", "text": "我的" }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

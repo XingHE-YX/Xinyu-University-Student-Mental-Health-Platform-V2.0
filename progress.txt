@@ -1,1 +1,3 @@
-项目开始。已完成：规范文档（PRD.md, APP_FLOW.md, TECH_STACK.md, FRONTEND_GUIDELINES.md, BACKEND_STRUCTURE.md, IMPLEMENTATION_PLAN.md）和 AGENT.md。待办：见IMPLEMENTATION_PLAN.md步骤1。
+项目开始。已完成：规范文档（PRD.md, APP_FLOW.md, TECH_STACK.md, FRONTEND_GUIDELINES.md, BACKEND_STRUCTURE.md, IMPLEMENTATION_PLAN.md）和 AGENT.md。
+已完成：项目初始化与依赖安装。学生端、独立桌面 Web 后台和 Python 3.11.11 后端骨架已建立，指定依赖已锁定并完成本地基础验证。
+待办：见 IMPLEMENTATION_PLAN.md 步骤 2。

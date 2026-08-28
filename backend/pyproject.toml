@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xinyu-v2-backend"
+version = "0.1.0"
+description = "心语 V2 Python 业务后端"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fastapi==0.128.8",
+  "pydantic==2.13.4",
+  "httpx==0.28.1",
+  "uvicorn==0.39.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["app", "tests"]

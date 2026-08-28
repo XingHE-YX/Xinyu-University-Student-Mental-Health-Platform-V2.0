@@ -1,0 +1,4 @@
+<view class="page-shell">
+  <view class="page-shell__title">{{title}}</view>
+  <view class="page-shell__description">{{description}}</view>
+</view>
