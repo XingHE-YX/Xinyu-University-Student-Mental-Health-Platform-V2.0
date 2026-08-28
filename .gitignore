@@ -1,0 +1,31 @@
+# Operating system files
+.DS_Store
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+
+# Node.js dependencies and build output
+node_modules/
+admin/dist/
+admin/.vite/
+miniprogram/miniprogram_npm/
+
+# Python caches, virtual environments, and build output
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/build/
+backend/dist/
+
+# Local editor and tooling state
+.idea/
+.vscode/
+*.swp
+*.swo
