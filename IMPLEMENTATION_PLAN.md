@@ -97,6 +97,8 @@
 
 ### 0.2 创建环境配置登记表
 
+登记表文件：[CONFIGURATION_REGISTRY.md](CONFIGURATION_REGISTRY.md)。
+
 新增或维护的配置记录：
 
 - 微信小程序 AppID；

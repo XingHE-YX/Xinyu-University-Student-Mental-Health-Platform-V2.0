@@ -1,3 +1,5 @@
 项目开始。已完成：规范文档（PRD.md, APP_FLOW.md, TECH_STACK.md, FRONTEND_GUIDELINES.md, BACKEND_STRUCTURE.md, IMPLEMENTATION_PLAN.md）和 AGENT.md。
 已完成：项目初始化与依赖安装。学生端、独立桌面 Web 后台和 Python 3.11.11 后端骨架已建立，指定依赖已锁定并完成本地基础验证。
-待办：见 IMPLEMENTATION_PLAN.md 步骤 2。
+已完成：IMPLEMENTATION_PLAN.md 第 2 节“依赖图和里程碑”审查。当前工作对应 M0“文档、配置位和目录边界确认”，后续里程碑保持 M1 至 M6 的依赖关系。
+已完成：IMPLEMENTATION_PLAN.md 第 3 节阶段 0（0.1 规范入口、0.2 环境配置登记表、0.3 三端目录边界）。新增 CONFIGURATION_REGISTRY.md，登记演示、真实授权和未配置三种状态，并确认秘密不进入前端包、构建产物、日志或 Git 跟踪文件。
+待办：见 IMPLEMENTATION_PLAN.md 第 5 节“阶段 2：后端基础能力”。

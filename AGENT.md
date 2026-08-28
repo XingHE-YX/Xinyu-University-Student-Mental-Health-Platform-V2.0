@@ -118,6 +118,7 @@ AI 只允许用于 `assessment_explanation` 和 `treehole_review_assist`。AI �
   FRONTEND_GUIDELINES.md
   BACKEND_STRUCTURE.md
   IMPLEMENTATION_PLAN.md
+  CONFIGURATION_REGISTRY.md
 
   miniprogram/
     app.json
@@ -312,6 +313,7 @@ AI 只允许用于 `assessment_explanation` 和 `treehole_review_assist`。AI �
 - [FRONTEND_GUIDELINES.md](FRONTEND_GUIDELINES.md)：视觉令牌、组件、排版、响应式和可访问性规则。
 - [BACKEND_STRUCTURE.md](BACKEND_STRUCTURE.md)：数据库集合、字段、关系、API 合约、认证、权限、状态和 Python 分层。
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md)：从工程初始化到部署和验收的实现步骤；不替代用户的协作流程。
+- [CONFIGURATION_REGISTRY.md](CONFIGURATION_REGISTRY.md)：演示、真实授权和未配置状态的配置位、秘密存放边界和阶段 0 登记结论。
 
 ### 8.2 `docs/v2/` 领域规范
 

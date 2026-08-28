@@ -172,6 +172,8 @@ Python HTTP 函数发布包必须有平台启动文件 scf_bootstrap，启动命
 
 ## 4. 环境变量与配置
 
+配置位、演示/真实授权/未配置三种状态、存放边界和填写审查规则统一登记在 [CONFIGURATION_REGISTRY.md](CONFIGURATION_REGISTRY.md)。本节保留技术栈层面的变量名称；任何真实值都不得写入版本管理文件。
+
 ### 4.1 小程序构建配置
 
 | 变量 | 演示 | 真实 | 是否提交代码 |
