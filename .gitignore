@@ -27,6 +27,7 @@ backend/dist/
 # Local editor and tooling state
 .idea/
 .vscode/
+.worktrees/
 miniprogram/project.private.config.json
 *.swp
 *.swo
