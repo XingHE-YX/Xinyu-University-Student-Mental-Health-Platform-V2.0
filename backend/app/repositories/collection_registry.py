@@ -91,7 +91,7 @@ REGISTRY: dict[str, CollectionSpec] = {
         indexes=(
             IndexSpec(("access_token_hash",), unique=True),
             IndexSpec(("subject_id", "status")),
-            IndexSpec(("expires_at",)),
+            IndexSpec(("access_expires_at",)),
         ),
     ),
     "identity_records": CollectionSpec(

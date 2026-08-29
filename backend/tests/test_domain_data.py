@@ -56,6 +56,7 @@ def sample_metadata() -> dict[str, object]:
 
 def test_collection_registry_covers_all_fixed_collections_and_serializes_indexes() -> None:
     registry = load_module("app.repositories.collection_registry")
+    models = load_module("app.domain.models")
 
     collection_names = set(registry.COLLECTIONS)
     assert collection_names == EXPECTED_COLLECTIONS
@@ -81,6 +82,96 @@ def test_collection_registry_covers_all_fixed_collections_and_serializes_indexes
             "unique": True,
         },
     ]
+
+    auth_session_indexes = schema_projection["auth_sessions"]["indexes"]
+    assert auth_session_indexes == [
+        {
+            "name": "auth_sessions__access_token_hash__unique",
+            "fields": ["access_token_hash"],
+            "unique": True,
+        },
+        {
+            "name": "auth_sessions__subject_id_status",
+            "fields": ["subject_id", "status"],
+            "unique": False,
+        },
+        {
+            "name": "auth_sessions__access_expires_at",
+            "fields": ["access_expires_at"],
+            "unique": False,
+        },
+    ]
+
+    for collection_name, collection_spec in registry.REGISTRY.items():
+        schema_fields = set(schema_projection[collection_name]["fields"])
+        model_fields = set(models.COLLECTION_MODELS[collection_name].model_fields)
+        model_fields.add("_id")
+
+        for index in collection_spec.indexes:
+            assert set(index.fields) <= schema_fields
+            assert set(index.fields) <= model_fields
+
+
+def test_consent_and_audit_records_require_fixed_version_one() -> None:
+    models = load_module("app.domain.models")
+
+    consent = models.ConsentEventDocument(
+        **sample_metadata(),
+        user_id="user-1",
+        consent_kind="base_service",
+        action="accepted",
+        document_version="base-v1",
+        source="admin_seed",
+        occurred_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+        request_id="req-1",
+    )
+    audit = models.AuditEventDocument(
+        **sample_metadata(),
+        request_id="req-2",
+        environment_id="demo-env",
+        actor_type="system",
+        actor_id=None,
+        actor_capability=None,
+        action="seed_reset",
+        resource_type="demo",
+        resource_id="demo-run-1",
+        data_scope=["state"],
+        outcome="success",
+        reason_code=None,
+        occurred_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+    )
+
+    assert consent.version == 1
+    assert audit.version == 1
+
+    with pytest.raises(ValidationError):
+        models.ConsentEventDocument(
+            **sample_metadata() | {"version": 2},
+            user_id="user-1",
+            consent_kind="base_service",
+            action="accepted",
+            document_version="base-v1",
+            source="admin_seed",
+            occurred_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+            request_id="req-1",
+        )
+
+    with pytest.raises(ValidationError):
+        models.AuditEventDocument(
+            **sample_metadata() | {"version": 2},
+            request_id="req-2",
+            environment_id="demo-env",
+            actor_type="system",
+            actor_id=None,
+            actor_capability=None,
+            action="seed_reset",
+            resource_type="demo",
+            resource_id="demo-run-1",
+            data_scope=["state"],
+            outcome="success",
+            reason_code=None,
+            occurred_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+        )
 
 
 def test_quote_entry_model_blocks_enabled_copyright_pending_records() -> None:
@@ -116,6 +207,138 @@ def test_daily_mood_model_requires_a_calendar_date_string() -> None:
         )
 
 
+def test_assessment_session_requires_answers_only_for_completed_state() -> None:
+    models = load_module("app.domain.models")
+
+    completed = models.AssessmentSessionDocument(
+        **sample_metadata(),
+        user_id="user-1",
+        module_code="phq9",
+        questionnaire_version="phq9-v1",
+        state="completed",
+        answers=[
+            {
+                "question_key": "q1",
+                "option_key": "o1",
+                "score_snapshot": 1,
+            }
+        ],
+        answered_count=1,
+        safety_triggered=False,
+        safety_confirmation_state=None,
+        safety_resource_version=None,
+        safety_resource_acknowledged_at=None,
+        client_idempotency_key="idem-1",
+        started_at=datetime(2026, 8, 29, 1, tzinfo=UTC),
+        completed_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+        abandoned_at=None,
+        expires_at=datetime(2026, 8, 30, tzinfo=UTC),
+    )
+    assert completed.answered_count == 1
+
+    with pytest.raises(ValidationError):
+        models.AssessmentSessionDocument(
+            **sample_metadata(),
+            user_id="user-1",
+            module_code="phq9",
+            questionnaire_version="phq9-v1",
+            state="in_progress",
+            answers=[
+                {
+                    "question_key": "q1",
+                    "option_key": "o1",
+                    "score_snapshot": 1,
+                }
+            ],
+            answered_count=1,
+            safety_triggered=False,
+            safety_confirmation_state=None,
+            safety_resource_version=None,
+            safety_resource_acknowledged_at=None,
+            client_idempotency_key="idem-1",
+            started_at=datetime(2026, 8, 29, 1, tzinfo=UTC),
+            completed_at=None,
+            abandoned_at=None,
+            expires_at=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+    with pytest.raises(ValidationError):
+        models.AssessmentSessionDocument(
+            **sample_metadata(),
+            user_id="user-1",
+            module_code="phq9",
+            questionnaire_version="phq9-v1",
+            state="completed",
+            answers=None,
+            answered_count=None,
+            safety_triggered=False,
+            safety_confirmation_state=None,
+            safety_resource_version=None,
+            safety_resource_acknowledged_at=None,
+            client_idempotency_key="idem-1",
+            started_at=datetime(2026, 8, 29, 1, tzinfo=UTC),
+            completed_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+            abandoned_at=None,
+            expires_at=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+
+def test_safety_support_result_rejects_full_answers_score_and_ai_snapshot() -> None:
+    models = load_module("app.domain.models")
+
+    with pytest.raises(ValidationError):
+        models.AssessmentResultDocument(
+            **sample_metadata(),
+            session_id="session-1",
+            user_id="user-1",
+            module_code="phq9",
+            scoring_rule_version="rule-v1",
+            answers_snapshot=[
+                {
+                    "question_key": "q1",
+                    "option_key": "o1",
+                    "score_snapshot": 1,
+                }
+            ],
+            fixed_summary="summary",
+            reference_band="10-14",
+            boundary_notice="notice",
+            ai_assist_snapshot_id="ai-1",
+            result_state="safety_support",
+            score=12,
+            dimension_summary={"support_required": True},
+            safety_state="uncertain",
+            visible_copy_version="copy-v1",
+            deleted_at=None,
+        )
+
+    ordinary = models.AssessmentResultDocument(
+        **sample_metadata(),
+        session_id="session-2",
+        user_id="user-1",
+        module_code="phq9",
+        scoring_rule_version="rule-v1",
+        answers_snapshot=[
+            {
+                "question_key": "q1",
+                "option_key": "o1",
+                "score_snapshot": 1,
+            }
+        ],
+        fixed_summary="summary",
+        reference_band="10-14",
+        boundary_notice="notice",
+        ai_assist_snapshot_id="ai-1",
+        result_state="ordinary",
+        score=12,
+        dimension_summary={"band": "10-14"},
+        safety_state="not_triggered",
+        visible_copy_version="copy-v1",
+        deleted_at=None,
+    )
+    assert ordinary.score == 12
+
+
 def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> None:
     seed_demo = load_module("scripts.seed_demo")
 
@@ -135,6 +358,32 @@ def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> Non
     assert len(enabled_quotes) == 40
     assert {entry["_id"] for entry in disabled_candidates} == {"Q-C001", "Q-C002", "Q-C003"}
     assert all(entry["source_kind"] != "copyright_pending" for entry in enabled_quotes)
+    by_id = {entry["_id"]: entry for entry in quote_entries}
+    assert by_id["Q-0001"] == {
+        "_id": "Q-0001",
+        "created_at": "2026-08-29T00:00:00+00:00",
+        "updated_at": "2026-08-29T00:00:00+00:00",
+        "version": 1,
+        "quote_text": "天行健，君子以自强不息。",
+        "author_text": "《周易·乾》",
+        "work_text": None,
+        "source_kind": "public_domain",
+        "rights_note": "公版古典文本，已核验",
+        "enabled": True,
+        "display_from": None,
+        "display_until": None,
+        "sort_order": 1,
+        "library_version": "quote-library-v1",
+    }
+    assert by_id["Q-0040"]["quote_text"] == "把很大的事情，先缩成眼前的一小步。"
+    assert by_id["Q-0040"]["author_text"] == "心语短句库"
+    assert by_id["Q-0040"]["source_kind"] == "project_original"
+    assert by_id["Q-0040"]["rights_note"] == "项目原创温和短句，已启用"
+    assert by_id["Q-C001"]["enabled"] is False
+    assert by_id["Q-C001"]["source_kind"] == "copyright_pending"
+    assert by_id["Q-C001"]["rights_note"] == "待版权与正式译文核验"
+    assert by_id["Q-C002"]["quote_text"] == "教练，我想打篮球。"
+    assert by_id["Q-C003"]["work_text"] == "小魔女学园"
 
     support_resources = first_bundle["collections"]["support_resources"]
     assert all(

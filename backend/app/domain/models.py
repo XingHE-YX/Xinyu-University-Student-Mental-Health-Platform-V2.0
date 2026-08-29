@@ -11,6 +11,7 @@ NonEmptyString = Annotated[str, Field(min_length=1)]
 VersionInt = Annotated[int, Field(ge=1)]
 NonNegativeInt = Annotated[int, Field(ge=0)]
 LocalDateString = Annotated[str, Field(pattern=r"^\d{4}-\d{2}-\d{2}$")]
+FixedVersionOne = Literal[1]
 
 
 class DocumentModel(BaseModel):
@@ -23,6 +24,7 @@ class DocumentModel(BaseModel):
 
 
 class ConsentEventDocument(DocumentModel):
+    version: FixedVersionOne = 1
     user_id: NonEmptyString
     consent_kind: Literal["base_service", "community_content"]
     action: Literal["accepted", "withdrawn"]
@@ -148,6 +150,19 @@ class AssessmentSessionDocument(DocumentModel):
     abandoned_at: datetime | None = None
     expires_at: datetime
 
+    @model_validator(mode="after")
+    def validate_state_payload(self) -> AssessmentSessionDocument:
+        if self.state == "completed":
+            if self.answers is None or self.answered_count is None:
+                raise ValueError("completed sessions must include final answers and answered_count")
+            if self.answered_count != len(self.answers):
+                raise ValueError("answered_count must match the number of final answers")
+            return self
+
+        if self.answers is not None or self.answered_count is not None:
+            raise ValueError("only completed sessions may persist answers and answered_count")
+        return self
+
 
 class AssessmentResultDocument(DocumentModel):
     session_id: NonEmptyString
@@ -165,6 +180,34 @@ class AssessmentResultDocument(DocumentModel):
     safety_state: Literal["not_triggered", "can_be_safe", "uncertain", "cannot_be_safe"]
     visible_copy_version: NonEmptyString
     deleted_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_result_projection(self) -> AssessmentResultDocument:
+        if self.result_state == "safety_support":
+            if self.answers_snapshot is not None:
+                raise ValueError("safety_support results cannot persist answers_snapshot")
+            if self.score is not None:
+                raise ValueError("safety_support results cannot persist score")
+            if self.ai_assist_snapshot_id is not None:
+                raise ValueError("safety_support results cannot reference ai_assist_snapshot_id")
+            if self.reference_band is not None:
+                raise ValueError("safety_support results cannot persist reference_band")
+            return self
+
+        if self.answers_snapshot is None:
+            raise ValueError("ordinary and higher_score results must include answers_snapshot")
+
+        if self.module_code in {"phq9", "gad7"}:
+            if self.score is None:
+                raise ValueError("phq9 and gad7 results must include score")
+            if self.reference_band is None:
+                raise ValueError("phq9 and gad7 results must include reference_band")
+        else:
+            if self.score is not None:
+                raise ValueError("sleep_observation results cannot persist score")
+            if self.reference_band is not None:
+                raise ValueError("sleep_observation results cannot persist reference_band")
+        return self
 
 
 class AIAssistSnapshotDocument(DocumentModel):
@@ -335,6 +378,7 @@ class AdminAccountDocument(DocumentModel):
 
 
 class AuditEventDocument(DocumentModel):
+    version: FixedVersionOne = 1
     request_id: NonEmptyString
     environment_id: NonEmptyString
     actor_type: Literal["student", "admin", "system"]
