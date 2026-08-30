@@ -12,7 +12,7 @@ from app.repositories.idempotency_repository import (
     IdempotencyRepository,
     InMemoryIdempotencyRepository,
 )
-from app.schemas.errors import ApiException
+from app.schemas.errors import ApiError, ApiException
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,6 +90,49 @@ class IdempotencyService:
             response_digest=response_digest,
             now=current,
         )
+
+
+def serialize_api_error(error: ApiException) -> str:
+    """Serialize only the safe API error contract for a failure replay."""
+
+    return json.dumps(
+        {
+            "status_code": error.status_code,
+            "error": error.to_error().model_dump(),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+
+
+def deserialize_api_error(response_digest: str | None) -> ApiException | None:
+    """Restore a safe API error digest, while tolerating legacy failure digests."""
+
+    if response_digest is None:
+        return None
+    try:
+        data = json.loads(response_digest)
+        if not isinstance(data, dict):
+            return None
+        if "error" in data:
+            status_code = data.get("status_code")
+            error_data = data["error"]
+            if type(status_code) is not int or not isinstance(error_data, dict):
+                return None
+            error = ApiError.model_validate(error_data)
+            return ApiException(
+                status_code,
+                error.code,
+                error.message,
+                retryable=error.retryable,
+                current_version=error.current_version,
+            )
+        if "error_code" in data:
+            return ApiException(int(data["status_code"]), str(data["error_code"]))
+    except (KeyError, TypeError, ValueError):
+        return None
+    return None
 
 
 def _hash_request(request_body: Any) -> str:
