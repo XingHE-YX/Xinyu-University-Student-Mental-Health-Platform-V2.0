@@ -6,6 +6,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -35,6 +36,8 @@ from app.services.idempotency_service import (
     deserialize_api_error,
     serialize_api_error,
 )
+
+logger = logging.getLogger(__name__)
 
 IdentityVerificationStatus = Literal["not_started", "pending", "verified", "failed", "unavailable"]
 StudentSessionIdentityStatus = Literal["unverified", "pending", "verified"]
@@ -281,6 +284,23 @@ class IdentityService:
                 separators=(",", ":"),
             )
             self.idempotency.complete(reservation, status_code=200, response_digest=response_digest)
+        except RepositoryVersionConflict as error:
+            conflict = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
+            _complete_failure(self.idempotency, reservation, conflict)
+            raise conflict from error
+        except RepositoryError as error:
+            failure = _repository_failure(error)
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except ApiException as error:
+            _complete_failure(self.idempotency, reservation, error)
+            raise
+        except Exception as error:
+            failure = ApiException(500, "INTERNAL_ERROR")
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+
+        try:
             self.audit.write(
                 request_id=request_id,
                 actor_type="student",
@@ -299,22 +319,9 @@ class IdentityService:
                     "status": saved_identity.verification_status,
                 },
             )
-            return state
-        except RepositoryVersionConflict as error:
-            conflict = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, conflict)
-            raise conflict from error
-        except RepositoryError as error:
-            failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
-            raise failure from error
-        except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
-            raise
-        except Exception as error:
-            failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
-            raise failure from error
+        except Exception:
+            logger.warning("audit_write_failed")
+        return state
 
     def get_identity_status(self, access_token: str) -> dict[str, str]:
         subject = self.tokens.authenticate_access(access_token, self.sessions)

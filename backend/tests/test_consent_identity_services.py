@@ -63,6 +63,11 @@ class FailingIdentityCipher:
         raise RuntimeError("unexpected identity cipher failure")
 
 
+class FailingAuditWriter:
+    def write(self, **_: object) -> None:
+        raise RuntimeError("unexpected audit write failure")
+
+
 class FailAfterUserSaveRepository(InMemoryDomainDataRepository):
     def __init__(self, *, users: list[UserAccountDocument]) -> None:
         super().__init__(users=users)
@@ -701,6 +706,117 @@ async def test_identity_cipher_runtime_error_rolls_back_and_replays_internal_err
     assert record.response_status == 500
     assert record.response_digest is not None
     assert "unexpected identity cipher failure" not in record.response_digest
+
+
+def test_consent_audit_failure_keeps_success_and_replay_consistent() -> None:
+    original_user = seed_user()
+    repository = InMemoryDomainDataRepository(users=[original_user])
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    service = ConsentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=cast(AuditWriter, FailingAuditWriter()),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    first = service.accept_base_consent(
+        access_token,
+        document_version="base-v1",
+        user_version=1,
+        request_id="req_consent_audit_failure",
+        idempotency_key="idem-consent-audit-failure",
+    )
+    replay = service.accept_base_consent(
+        access_token,
+        document_version="base-v1",
+        user_version=1,
+        request_id="req_consent_audit_failure_replay",
+        idempotency_key="idem-consent-audit-failure",
+    )
+
+    record = idempotency_repository.get(
+        "student",
+        "user-1",
+        "/consents/base_service",
+        "idem-consent-audit-failure",
+        now=datetime.now(UTC),
+    )
+    assert first.base_consent_status == "accepted"
+    assert replay == first
+    assert repository.get_user("user-1").base_consent_status == "accepted"
+    assert len(repository.list_consent_events("user-1")) == 1
+    assert record is not None
+    assert record.outcome == "success"
+    assert record.response_status == 200
+
+
+@pytest.mark.asyncio
+async def test_identity_audit_failure_keeps_success_and_replay_consistent() -> None:
+    original_user = build_user(
+        base_consent_status="accepted",
+        base_consent_version="base-v1",
+        base_consent_at=datetime(2026, 8, 30, 0, 1, tzinfo=UTC),
+        version=2,
+    )
+    repository = InMemoryDomainDataRepository(users=[original_user])
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    provider = FakeSchoolIdentityProvider(
+        SchoolIdentityVerificationResult(status="verified", provider_reference="school-ref-1")
+    )
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        school_identity_provider=provider,
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=cast(AuditWriter, FailingAuditWriter()),
+        identity_cipher=FakeIdentityCipher(),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    first = await service.verify_student_identity(
+        access_token,
+        student_name="王小雨",
+        student_number="20260001",
+        user_version=2,
+        request_id="req_identity_audit_failure",
+        idempotency_key="idem-identity-audit-failure",
+    )
+    replay = await service.verify_student_identity(
+        access_token,
+        student_name="王小雨",
+        student_number="20260001",
+        user_version=2,
+        request_id="req_identity_audit_failure_replay",
+        idempotency_key="idem-identity-audit-failure",
+    )
+
+    record = idempotency_repository.get(
+        "student",
+        "user-1",
+        "/identity/verify",
+        "idem-identity-audit-failure",
+        now=datetime.now(UTC),
+    )
+    user = repository.get_user("user-1")
+    assert first.verification_status == "verified"
+    assert first.identity_record_id == user.identity_record_id
+    assert first.anonymous_identity_id == user.anonymous_identity_id
+    assert replay == first
+    assert user.identity_record_id is not None
+    assert user.anonymous_identity_id is not None
+    assert repository.get_identity_record(user.identity_record_id).verification_status == "verified"
+    assert len(repository.list_anonymous_identities("user-1")) == 1
+    assert len(provider.calls) == 1
+    assert record is not None
+    assert record.outcome == "success"
+    assert record.response_status == 200
 
 
 @pytest.mark.asyncio

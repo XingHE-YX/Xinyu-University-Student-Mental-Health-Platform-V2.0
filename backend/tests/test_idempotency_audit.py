@@ -21,6 +21,25 @@ def test_same_idempotency_request_is_replayed_without_a_second_reservation() -> 
     assert replay.record.response_digest == "digest-1"
 
 
+def test_completed_idempotency_record_is_terminal() -> None:
+    repository = InMemoryIdempotencyRepository()
+    service = IdempotencyService(repository)
+
+    first = service.begin("student", "student-1", "/treehole/posts", "post-1", {"body": "x"})
+    completed = service.complete(first, status_code=201, response_digest="digest-success")
+    repeated = service.complete(
+        first,
+        status_code=500,
+        response_digest="digest-failure",
+        outcome="failure",
+    )
+
+    assert repeated == completed
+    assert repeated.outcome == "success"
+    assert repeated.response_status == 201
+    assert repeated.response_digest == "digest-success"
+
+
 def test_same_idempotency_key_with_a_different_body_is_a_conflict() -> None:
     repository = InMemoryIdempotencyRepository()
     service = IdempotencyService(repository)

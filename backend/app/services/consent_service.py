@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Literal
@@ -25,6 +26,8 @@ from app.services.idempotency_service import (
     deserialize_api_error,
     serialize_api_error,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,6 +208,23 @@ class ConsentService:
                 status_code=200,
                 response_digest=response_digest,
             )
+        except RepositoryVersionConflict as error:
+            conflict = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
+            _complete_failure(self.idempotency, reservation, conflict)
+            raise conflict from error
+        except RepositoryError as error:
+            failure = _repository_failure(error)
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except ApiException as error:
+            _complete_failure(self.idempotency, reservation, error)
+            raise
+        except Exception as error:
+            failure = ApiException(500, "INTERNAL_ERROR")
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+
+        try:
             self.audit.write(
                 request_id=request_id,
                 actor_type="student",
@@ -226,22 +246,9 @@ class ConsentService:
                     else state.base_consent_status,
                 },
             )
-            return state
-        except RepositoryVersionConflict as error:
-            conflict = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, conflict)
-            raise conflict from error
-        except RepositoryError as error:
-            failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
-            raise failure from error
-        except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
-            raise
-        except Exception as error:
-            failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
-            raise failure from error
+        except Exception:
+            logger.warning("audit_write_failed")
+        return state
 
 
 def _updated_consent_user(

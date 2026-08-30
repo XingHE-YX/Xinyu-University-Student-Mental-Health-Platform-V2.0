@@ -95,6 +95,8 @@ class InMemoryIdempotencyRepository:
         with self._lock:
             for key, record in self._records.items():
                 if record.record_id == record_id:
+                    if record.outcome != "processing":
+                        return record
                     completed = replace(
                         record,
                         outcome=outcome,
