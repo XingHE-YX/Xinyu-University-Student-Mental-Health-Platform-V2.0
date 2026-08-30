@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import itertools
+import hmac
 import json
+import secrets
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-from typing import Protocol
+from typing import Literal, Protocol
 
 from app.audit.writer import AuditWriter
 from app.config.settings import Settings
@@ -20,10 +21,14 @@ from app.integrations.school_identity import (
     UnavailableSchoolIdentityProvider,
 )
 from app.repositories.domain_data_repository import InMemoryDomainDataRepository
+from app.repositories.protocols import RepositoryVersionConflict
 from app.repositories.session_repository import InMemorySessionRepository
 from app.schemas.errors import ApiException
 from app.security.tokens import TokenManager
-from app.services.idempotency_service import IdempotencyService
+from app.services.idempotency_service import IdempotencyReservation, IdempotencyService
+
+IdentityVerificationStatus = Literal["not_started", "pending", "verified", "failed", "unavailable"]
+StudentSessionIdentityStatus = Literal["unverified", "pending", "verified"]
 
 
 class IdentityCipher(Protocol):
@@ -32,22 +37,50 @@ class IdentityCipher(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class IdentityVerificationState:
-    verification_status: str
+    verification_status: IdentityVerificationStatus
     identity_record_id: str
     anonymous_identity_id: str | None
 
 
-class XorIdentityCipher:
+class HmacIdentityCipher:
+    """Small local authenticated-encryption boundary for identity fields.
+
+    The application keeps the key outside the document store. A random nonce,
+    HMAC-derived keystream, and authentication tag keep plaintext out of the
+    stored value while avoiding a dependency on a crypto package in this phase.
+    Production deployments should replace this boundary with managed AEAD.
+    """
+
+    NONCE_SIZE = 16
+    TAG_SIZE = hashlib.sha256().digest_size
+
     def __init__(self, secret: str) -> None:
+        if not secret:
+            raise ValueError("identity cipher secret cannot be empty")
         secret_bytes = secret.encode("utf-8")
-        self._key = secret_bytes or b"xinyu-default"
+        self._encryption_key = hmac.new(
+            secret_bytes,
+            b"xinyu/identity/encryption/v1",
+            hashlib.sha256,
+        ).digest()
+        self._authentication_key = hmac.new(
+            secret_bytes,
+            b"xinyu/identity/authentication/v1",
+            hashlib.sha256,
+        ).digest()
 
     def encrypt(self, value: str) -> str:
-        encoded = value.encode("utf-8")
-        xored = bytes(
-            byte ^ key_byte for byte, key_byte in zip(encoded, itertools.cycle(self._key))
-        )
-        return "enc::" + base64.urlsafe_b64encode(xored).decode("ascii")
+        nonce = secrets.token_bytes(self.NONCE_SIZE)
+        plaintext = value.encode("utf-8")
+        keystream = _hmac_keystream(self._encryption_key, nonce, len(plaintext))
+        ciphertext = bytes(left ^ right for left, right in zip(plaintext, keystream))
+        tag = hmac.new(
+            self._authentication_key,
+            nonce + ciphertext,
+            hashlib.sha256,
+        ).digest()
+        encoded = _urlsafe_encode(nonce + ciphertext + tag)
+        return f"enc:v1:{encoded}"
 
 
 class IdentityService:
@@ -72,9 +105,8 @@ class IdentityService:
         self.school = school_identity_provider or self._default_school_provider()
         self.idempotency = idempotency_service
         self.audit = audit_writer
-        self.identity_cipher = identity_cipher or XorIdentityCipher(
-            settings.session_secret or "identity-secret"
-        )
+        self._identity_secret = settings.session_secret or secrets.token_urlsafe(32)
+        self.identity_cipher = identity_cipher or HmacIdentityCipher(self._identity_secret)
 
     async def verify_student_identity(
         self,
@@ -92,102 +124,128 @@ class IdentityService:
             subject.subject_id,
             "/identity/verify",
             idempotency_key,
-            {
-                "student_name": "***",
-                "student_number": "***",
-                "user_version": user_version,
-            },
+            _identity_request_fingerprint(
+                self._identity_secret,
+                student_name=student_name,
+                student_number=student_number,
+                user_version=user_version,
+            ),
         )
         if reservation.replayed:
             return _verification_state_from_digest(reservation.record.response_digest)
 
-        user = self.repository.get_user(subject.subject_id)
-        if user.version != user_version:
-            raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
-        result = await self.school.verify_student(
-            student_name=student_name,
-            student_number=student_number,
-        )
-        current = datetime.now(UTC)
-        existing_record = self.repository.get_identity_record_by_user(user.document_id)
-        identity_record = _build_identity_record(
-            repository=self.repository,
-            user_id=user.document_id,
-            verification=result,
-            occurred_at=current,
-            cipher=self.identity_cipher,
-            student_name=student_name,
-            student_number=student_number,
-            existing_record=existing_record,
-        )
-        if existing_record is None:
-            saved_identity = self.repository.create_identity_record(identity_record)
-        else:
-            saved_identity = self.repository.save_identity_record(
-                identity_record,
-                expected_version=existing_record.version,
-            )
+        try:
+            user = self.repository.get_user(subject.subject_id)
+            if user.status != "active":
+                raise ApiException(403, "FORBIDDEN")
+            if user.base_consent_status != "accepted":
+                raise ApiException(403, "CONSENT_REQUIRED")
+            if user.version != user_version:
+                raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
 
-        anonymous_id = user.anonymous_identity_id
-        if result.status == "verified" and user.anonymous_identity_id is None:
-            anonymous = AnonymousIdentityDocument(
-                _id=self.repository.next_anonymous_identity_id(),
-                user_id=user.document_id,
-                display_name=_generate_display_name(user.document_id),
-                generation_version=self.ANONYMOUS_GENERATION_VERSION,
-                status="active",
-                created_at=current,
-                updated_at=current,
-                version=1,
+            existing_record = self.repository.get_identity_record_by_user(user.document_id)
+            if existing_record is not None and existing_record.verification_status in {
+                "pending",
+                "verified",
+            }:
+                raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
+
+            result = await self.school.verify_student(
+                student_name=student_name,
+                student_number=student_number,
             )
-            self.repository.create_anonymous_identity(anonymous)
-            anonymous_id = anonymous.document_id
-        saved_user = self.repository.save_user(
-            user.model_copy(
-                update={
-                    "identity_record_id": saved_identity.document_id,
-                    "anonymous_identity_id": anonymous_id,
-                }
-            ),
-            expected_version=user_version,
-        )
-        state = IdentityVerificationState(
-            verification_status=saved_identity.verification_status,
-            identity_record_id=saved_identity.document_id,
-            anonymous_identity_id=saved_user.anonymous_identity_id,
-        )
-        response_digest = json.dumps(
-            asdict(state),
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        self.idempotency.complete(reservation, status_code=200, response_digest=response_digest)
-        self.audit.write(
-            request_id=request_id,
-            actor_type="student",
-            actor_id=user.document_id,
-            capability=None,
-            action="identity_verification",
-            resource_type="identity",
-            resource_id=saved_identity.document_id,
-            data_scope="necessary_facts",
-            outcome="success",
-            reason_code=result.status,
-            occurred_at=current,
-            facts={
-                "action_code": "verify",
-                "object_version": saved_identity.version,
-                "status": saved_identity.verification_status,
-            },
-        )
-        return state
+            current = datetime.now(UTC)
+            identity_record = _build_identity_record(
+                repository=self.repository,
+                user_id=user.document_id,
+                verification=result,
+                occurred_at=current,
+                cipher=self.identity_cipher,
+                student_name=student_name,
+                student_number=student_number,
+                existing_record=existing_record,
+            )
+            if existing_record is None:
+                saved_identity = self.repository.create_identity_record(identity_record)
+            else:
+                saved_identity = self.repository.save_identity_record(
+                    identity_record,
+                    expected_version=existing_record.version,
+                )
+
+            anonymous_id = user.anonymous_identity_id
+            if result.status == "verified" and user.anonymous_identity_id is None:
+                anonymous = AnonymousIdentityDocument(
+                    _id=self.repository.next_anonymous_identity_id(),
+                    user_id=user.document_id,
+                    display_name=_generate_display_name(user.document_id),
+                    generation_version=self.ANONYMOUS_GENERATION_VERSION,
+                    status="active",
+                    created_at=current,
+                    updated_at=current,
+                    version=1,
+                )
+                self.repository.create_anonymous_identity(anonymous)
+                anonymous_id = anonymous.document_id
+            saved_user = self.repository.save_user(
+                user.model_copy(
+                    update={
+                        "identity_record_id": saved_identity.document_id,
+                        "anonymous_identity_id": anonymous_id,
+                    }
+                ),
+                expected_version=user_version,
+            )
+            state = IdentityVerificationState(
+                verification_status=saved_identity.verification_status,
+                identity_record_id=saved_identity.document_id,
+                anonymous_identity_id=saved_user.anonymous_identity_id,
+            )
+            response_digest = json.dumps(
+                asdict(state),
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+            self.idempotency.complete(reservation, status_code=200, response_digest=response_digest)
+            self.audit.write(
+                request_id=request_id,
+                actor_type="student",
+                actor_id=user.document_id,
+                capability=None,
+                action="identity_verification",
+                resource_type="identity",
+                resource_id=saved_identity.document_id,
+                data_scope="necessary_facts",
+                outcome="success",
+                reason_code=result.status,
+                occurred_at=current,
+                facts={
+                    "action_code": "verify",
+                    "object_version": saved_identity.version,
+                    "status": saved_identity.verification_status,
+                },
+            )
+            return state
+        except RepositoryVersionConflict as error:
+            conflict = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
+            _complete_failure(self.idempotency, reservation, conflict)
+            raise conflict from error
+        except ApiException as error:
+            _complete_failure(self.idempotency, reservation, error)
+            raise
 
     def get_identity_status(self, access_token: str) -> dict[str, str]:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         user = self.repository.get_user(subject.subject_id)
-        record = self._require_identity_record(user.identity_record_id)
-        return {"verification_status": record.verification_status}
+        record = self.repository.get_identity_record_by_user(user.document_id)
+        verification_status: IdentityVerificationStatus = (
+            record.verification_status if record is not None else "not_started"
+        )
+        return {
+            "verification_status": verification_status,
+            "identity_status": to_student_session_identity_status(verification_status),
+        }
 
     def get_anonymous_identity(self, access_token: str) -> dict[str, str]:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
@@ -198,12 +256,10 @@ class IdentityService:
         return {
             "anonymous_identity_id": anonymous.document_id,
             "display_name": anonymous.display_name,
+            "display_scope": "treehole_only",
+            "generation_version": anonymous.generation_version,
+            "status": anonymous.status,
         }
-
-    def _require_identity_record(self, identity_record_id: str | None) -> IdentityRecordDocument:
-        if not identity_record_id:
-            raise ApiException(404, "NOT_FOUND")
-        return self.repository.get_identity_record(identity_record_id)
 
     def _default_school_provider(self) -> SchoolIdentityProvider:
         if not self.settings.school_identity_provider_url:
@@ -224,6 +280,7 @@ def _build_identity_record(
     student_number: str,
     existing_record: IdentityRecordDocument | None,
 ) -> IdentityRecordDocument:
+    failed_reason_code = _safe_failed_reason_code(verification)
     if existing_record is None:
         return IdentityRecordDocument(
             _id=repository.next_identity_record_id(),
@@ -237,7 +294,7 @@ def _build_identity_record(
             ),
             provider_reference_hash=_hash_reference(verification.provider_reference),
             verified_at=occurred_at if verification.status == "verified" else None,
-            failed_reason_code=verification.failed_reason_code,
+            failed_reason_code=failed_reason_code,
             access_version=1,
             created_at=occurred_at,
             updated_at=occurred_at,
@@ -254,7 +311,7 @@ def _build_identity_record(
             ),
             "provider_reference_hash": _hash_reference(verification.provider_reference),
             "verified_at": occurred_at if verification.status == "verified" else None,
-            "failed_reason_code": verification.failed_reason_code,
+            "failed_reason_code": failed_reason_code,
         }
     )
 
@@ -265,6 +322,75 @@ def _hash_reference(value: str | None) -> str | None:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def to_student_session_identity_status(
+    verification_status: IdentityVerificationStatus,
+) -> StudentSessionIdentityStatus:
+    if verification_status == "pending":
+        return "pending"
+    if verification_status == "verified":
+        return "verified"
+    return "unverified"
+
+
+SAFE_FAILED_REASON_CODES = frozenset({"mismatch", "invalid_request", "provider_rejected"})
+
+
+def _safe_failed_reason_code(verification: SchoolIdentityVerificationResult) -> str | None:
+    if verification.status != "failed" or not verification.failed_reason_code:
+        return None
+    if verification.failed_reason_code in SAFE_FAILED_REASON_CODES:
+        return verification.failed_reason_code
+    return "provider_rejected"
+
+
+def _identity_request_fingerprint(
+    secret: str,
+    *,
+    student_name: str,
+    student_number: str,
+    user_version: int,
+) -> dict[str, object]:
+    return {
+        "student_name_digest": _keyed_digest(secret, "student_name", student_name),
+        "student_number_digest": _keyed_digest(secret, "student_number", student_number),
+        "user_version": user_version,
+    }
+
+
+def _keyed_digest(secret: str, field_name: str, value: str) -> str:
+    message = f"{field_name}\x00{value}".encode()
+    return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+
+
+def _complete_failure(
+    idempotency: IdempotencyService,
+    reservation: IdempotencyReservation,
+    error: ApiException,
+) -> None:
+    idempotency.complete(
+        reservation,
+        status_code=error.status_code,
+        response_digest=json.dumps(
+            {"error_code": error.code, "status_code": error.status_code},
+            sort_keys=True,
+            separators=(",", ":"),
+        ),
+        outcome="failure",
+    )
+
+
+def _hmac_keystream(key: bytes, nonce: bytes, length: int) -> bytes:
+    blocks = [
+        hmac.new(key, nonce + counter.to_bytes(4, "big"), hashlib.sha256).digest()
+        for counter in range((length + 31) // 32)
+    ]
+    return b"".join(blocks)[:length]
+
+
+def _urlsafe_encode(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).decode("ascii")
+
+
 def _generate_display_name(user_id: str) -> str:
     digest = hashlib.sha256(f"anonymous:{user_id}".encode()).hexdigest()[:6].upper()
     return f"树洞同学{digest}"
@@ -273,5 +399,12 @@ def _generate_display_name(user_id: str) -> str:
 def _verification_state_from_digest(response_digest: str | None) -> IdentityVerificationState:
     if response_digest is None:
         raise ApiException(500, "INTERNAL_ERROR")
-    data = json.loads(response_digest)
-    return IdentityVerificationState(**data)
+    try:
+        data = json.loads(response_digest)
+        if isinstance(data, dict) and "error_code" in data:
+            raise ApiException(int(data["status_code"]), str(data["error_code"]))
+        return IdentityVerificationState(**data)
+    except ApiException:
+        raise
+    except (TypeError, ValueError, KeyError) as error:
+        raise ApiException(500, "INTERNAL_ERROR") from error

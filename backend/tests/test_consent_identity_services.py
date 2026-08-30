@@ -1,13 +1,22 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal, cast
 
+import httpx
 import pytest
 
 from app.audit.writer import AuditWriter
 from app.config.settings import Settings
-from app.domain.models import UserAccountDocument
-from app.integrations.school_identity import SchoolIdentityVerificationResult
+from app.domain.models import (
+    AnonymousIdentityDocument,
+    IdentityRecordDocument,
+    UserAccountDocument,
+)
+from app.integrations.school_identity import (
+    HttpSchoolIdentityProvider,
+    SchoolIdentityVerificationResult,
+)
 from app.repositories.audit_repository import InMemoryAuditRepository
 from app.repositories.domain_data_repository import InMemoryDomainDataRepository
 from app.repositories.idempotency_repository import InMemoryIdempotencyRepository
@@ -16,7 +25,7 @@ from app.schemas.errors import ApiException
 from app.security.tokens import TokenManager
 from app.services.consent_service import ConsentService
 from app.services.idempotency_service import IdempotencyService
-from app.services.identity_service import IdentityService
+from app.services.identity_service import HmacIdentityCipher, IdentityService
 
 
 class FakeSchoolIdentityProvider:
@@ -41,6 +50,18 @@ class FakeIdentityCipher:
     def encrypt(self, value: str) -> str:
         self.values.append(value)
         return f"cipher::{value[::-1]}"
+
+
+class FixedResponseTransport(httpx.AsyncBaseTransport):
+    def __init__(self, *, body: bytes | None = None, error: Exception | None = None) -> None:
+        self.body = body
+        self.error = error
+
+    async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+        if self.error is not None:
+            raise self.error
+        assert self.body is not None
+        return httpx.Response(200, content=self.body, request=request)
 
 
 def configured_settings() -> Settings:
@@ -78,6 +99,49 @@ def build_user(**overrides: object) -> UserAccountDocument:
     data = seed_user().model_dump()
     data.update(overrides)
     return UserAccountDocument(**data)
+
+
+def build_identity_record(
+    *,
+    status: str = "verified",
+    user_id: str = "user-1",
+    record_id: str = "identity-1",
+) -> IdentityRecordDocument:
+    occurred_at = datetime(2026, 8, 30, 0, 3, tzinfo=UTC)
+    return IdentityRecordDocument(
+        _id=record_id,
+        user_id=user_id,
+        verification_status=cast(
+            Literal["not_started", "pending", "verified", "failed", "unavailable"], status
+        ),
+        student_name_ciphertext="old-name-ciphertext" if status == "verified" else None,
+        student_number_ciphertext="old-number-ciphertext" if status == "verified" else None,
+        provider_reference_hash="old-provider-reference-hash" if status == "verified" else None,
+        verified_at=occurred_at if status == "verified" else None,
+        failed_reason_code="mismatch" if status == "failed" else None,
+        access_version=1,
+        created_at=occurred_at,
+        updated_at=occurred_at,
+        version=1,
+    )
+
+
+def build_anonymous_identity(
+    *,
+    user_id: str = "user-1",
+    identity_id: str = "anonymous-1",
+) -> AnonymousIdentityDocument:
+    occurred_at = datetime(2026, 8, 30, 0, 4, tzinfo=UTC)
+    return AnonymousIdentityDocument(
+        _id=identity_id,
+        user_id=user_id,
+        display_name="树洞同学ABC123",
+        generation_version="anon-v1",
+        status="active",
+        created_at=occurred_at,
+        updated_at=occurred_at,
+        version=1,
+    )
 
 
 def issue_student_access_token(
@@ -290,6 +354,51 @@ async def test_identity_verification_failed_records_failed_status_without_storin
 
 
 @pytest.mark.asyncio
+async def test_failed_identity_reason_is_safe_when_provider_returns_identity_input() -> None:
+    repository = InMemoryDomainDataRepository(
+        users=[
+            build_user(
+                base_consent_status="accepted",
+                base_consent_version="base-v1",
+                base_consent_at=datetime(2026, 8, 30, 0, 1, tzinfo=UTC),
+                version=2,
+            )
+        ]
+    )
+    sessions = InMemorySessionRepository()
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        school_identity_provider=FakeSchoolIdentityProvider(
+            SchoolIdentityVerificationResult(
+                status="failed",
+                failed_reason_code="name=王小雨;student_number=20260001",
+            )
+        ),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+        identity_cipher=FakeIdentityCipher(),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    result = await service.verify_student_identity(
+        access_token,
+        student_name="王小雨",
+        student_number="20260001",
+        user_version=2,
+        request_id="req_identity_failed_reason",
+        idempotency_key="idem-identity-failed-reason",
+    )
+    identity_record = repository.get_identity_record(result.identity_record_id)
+
+    assert identity_record.failed_reason_code == "provider_rejected"
+    assert "王小雨" not in str(identity_record)
+    assert "20260001" not in str(identity_record)
+
+
+@pytest.mark.asyncio
 async def test_identity_verification_unavailable_never_falls_back_to_verified() -> None:
     repository = InMemoryDomainDataRepository(
         users=[
@@ -367,13 +476,501 @@ async def test_identity_status_projection_is_separate_from_anonymous_identity_pr
     identity_status = service.get_identity_status(access_token)
     anonymous_identity = service.get_anonymous_identity(access_token)
 
-    assert identity_status == {"verification_status": "verified"}
-    assert set(anonymous_identity) == {"anonymous_identity_id", "display_name"}
+    assert identity_status == {
+        "verification_status": "verified",
+        "identity_status": "verified",
+    }
+    assert set(anonymous_identity) == {
+        "anonymous_identity_id",
+        "display_name",
+        "display_scope",
+        "generation_version",
+        "status",
+    }
+    assert (
+        anonymous_identity["anonymous_identity_id"]
+        == repository.get_user("user-1").anonymous_identity_id
+    )
+    assert anonymous_identity["display_scope"] == "treehole_only"
+    assert anonymous_identity["generation_version"] == "anon-v1"
+    assert anonymous_identity["status"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_identity_idempotency_digest_is_stable_private_and_distinguishes_inputs() -> None:
+    repository = InMemoryDomainDataRepository(
+        users=[
+            build_user(
+                base_consent_status="accepted",
+                base_consent_version="base-v1",
+                base_consent_at=datetime(2026, 8, 30, 0, 1, tzinfo=UTC),
+                version=2,
+            )
+        ]
+    )
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    provider = FakeSchoolIdentityProvider(
+        SchoolIdentityVerificationResult(status="verified", provider_reference="school-ref-1")
+    )
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        school_identity_provider=provider,
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+        identity_cipher=FakeIdentityCipher(),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    first = await service.verify_student_identity(
+        access_token,
+        student_name="王小雨",
+        student_number="20260001",
+        user_version=2,
+        request_id="req_identity_idem_1",
+        idempotency_key="idem-identity-stable",
+    )
+    replay = await service.verify_student_identity(
+        access_token,
+        student_name="王小雨",
+        student_number="20260001",
+        user_version=2,
+        request_id="req_identity_idem_2",
+        idempotency_key="idem-identity-stable",
+    )
+
+    with pytest.raises(ApiException) as error:
+        await service.verify_student_identity(
+            access_token,
+            student_name="李小雨",
+            student_number="20260001",
+            user_version=2,
+            request_id="req_identity_idem_3",
+            idempotency_key="idem-identity-stable",
+        )
+
+    record = idempotency_repository.get(
+        "student",
+        "user-1",
+        "/identity/verify",
+        "idem-identity-stable",
+        now=datetime.now(UTC),
+    )
+    assert first == replay
+    assert error.value.code == "IDEMPOTENCY_CONFLICT"
+    assert provider.calls == [("王小雨", "20260001")]
+    assert record is not None
+    assert record.outcome == "success"
+    assert "王小雨" not in str(record)
+    assert "20260001" not in str(record)
+    assert record.request_hash
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("user_overrides", "expected_code"),
+    [
+        ({"status": "stopped", "base_consent_status": "accepted"}, "FORBIDDEN"),
+        ({"status": "active", "base_consent_status": "not_accepted"}, "CONSENT_REQUIRED"),
+    ],
+)
+async def test_identity_verification_checks_account_and_base_consent_before_provider(
+    user_overrides: dict[str, str],
+    expected_code: str,
+) -> None:
+    repository = InMemoryDomainDataRepository(users=[build_user(**user_overrides)])
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    provider = FakeSchoolIdentityProvider(
+        SchoolIdentityVerificationResult(status="verified", provider_reference="school-ref-1")
+    )
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        school_identity_provider=provider,
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+        identity_cipher=FakeIdentityCipher(),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    with pytest.raises(ApiException) as error:
+        await service.verify_student_identity(
+            access_token,
+            student_name="王小雨",
+            student_number="20260001",
+            user_version=1,
+            request_id="req_identity_precondition",
+            idempotency_key="idem-identity-precondition",
+        )
+
+    record = idempotency_repository.get(
+        "student",
+        "user-1",
+        "/identity/verify",
+        "idem-identity-precondition",
+        now=datetime.now(UTC),
+    )
+    assert error.value.status_code == 403
+    assert error.value.code == expected_code
+    assert provider.calls == []
+    assert repository.get_user("user-1").version == 1
+    assert record is None or record.outcome != "processing"
+
+
+@pytest.mark.parametrize(
+    ("status", "base_status", "community_status", "expected_code"),
+    [
+        ("verified", "accepted", "accepted", "FORBIDDEN"),
+        ("verified", "not_accepted", "accepted", "CONSENT_REQUIRED"),
+        ("verified", "accepted", "withdrawn", "CONSENT_REQUIRED"),
+        ("failed", "accepted", "accepted", "IDENTITY_REQUIRED"),
+        (None, "accepted", "accepted", "IDENTITY_REQUIRED"),
+    ],
+)
+def test_community_write_guard_requires_active_consented_verified_account(
+    status: str | None,
+    base_status: str,
+    community_status: str,
+    expected_code: str,
+) -> None:
+    identity = build_identity_record(status=status) if status is not None else None
+    repository = InMemoryDomainDataRepository(
+        users=[
+            build_user(
+                status="stopped" if expected_code == "FORBIDDEN" else "active",
+                base_consent_status=base_status,
+                base_consent_version="base-v1" if base_status == "accepted" else None,
+                community_consent_status=community_status,
+                community_consent_version=(
+                    "community-v1" if community_status != "not_accepted" else None
+                ),
+                identity_record_id=identity.document_id if identity is not None else None,
+            )
+        ],
+        identities=[identity] if identity is not None else [],
+    )
+    sessions = InMemorySessionRepository()
+    service = ConsentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    with pytest.raises(ApiException) as error:
+        service.ensure_community_write_allowed(access_token)
+
+    assert error.value.status_code == 403
+    assert error.value.code == expected_code
+
+
+@pytest.mark.asyncio
+async def test_verified_identity_reverification_preserves_state_without_provider_call() -> None:
+    identity = build_identity_record()
+    anonymous = build_anonymous_identity()
+    user = build_user(
+        base_consent_status="accepted",
+        base_consent_version="base-v1",
+        base_consent_at=datetime(2026, 8, 30, 0, 1, tzinfo=UTC),
+        identity_record_id=identity.document_id,
+        anonymous_identity_id=anonymous.document_id,
+        version=3,
+    )
+    repository = InMemoryDomainDataRepository(
+        users=[user], identities=[identity], anonymous_identities=[anonymous]
+    )
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    provider = FakeSchoolIdentityProvider(
+        SchoolIdentityVerificationResult(status="failed", failed_reason_code="mismatch")
+    )
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        school_identity_provider=provider,
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+        identity_cipher=FakeIdentityCipher(),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    with pytest.raises(ApiException) as error:
+        await service.verify_student_identity(
+            access_token,
+            student_name="李小雨",
+            student_number="20260002",
+            user_version=3,
+            request_id="req_identity_reverify",
+            idempotency_key="idem-identity-reverify",
+        )
+
+    record = idempotency_repository.get(
+        "student",
+        "user-1",
+        "/identity/verify",
+        "idem-identity-reverify",
+        now=datetime.now(UTC),
+    )
+    assert error.value.status_code == 409
+    assert error.value.code == "VERSION_CONFLICT"
+    assert provider.calls == []
+    assert repository.get_user("user-1") == user
+    assert repository.get_identity_record(identity.document_id) == identity
+    assert repository.get_anonymous_identity(anonymous.document_id) == anonymous
+    assert record is None or record.outcome != "processing"
+
+
+@pytest.mark.asyncio
+async def test_pending_identity_cannot_be_submitted_again_before_provider_call() -> None:
+    identity = build_identity_record(status="pending")
+    user = build_user(
+        base_consent_status="accepted",
+        base_consent_version="base-v1",
+        base_consent_at=datetime(2026, 8, 30, 0, 1, tzinfo=UTC),
+        identity_record_id=identity.document_id,
+        version=3,
+    )
+    repository = InMemoryDomainDataRepository(users=[user], identities=[identity])
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    provider = FakeSchoolIdentityProvider(
+        SchoolIdentityVerificationResult(status="verified", provider_reference="school-ref-2")
+    )
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        school_identity_provider=provider,
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+        identity_cipher=FakeIdentityCipher(),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    with pytest.raises(ApiException) as error:
+        await service.verify_student_identity(
+            access_token,
+            student_name="李小雨",
+            student_number="20260002",
+            user_version=3,
+            request_id="req_identity_pending",
+            idempotency_key="idem-identity-pending",
+        )
+
+    record = idempotency_repository.get(
+        "student",
+        "user-1",
+        "/identity/verify",
+        "idem-identity-pending",
+        now=datetime.now(UTC),
+    )
+    assert error.value.code == "VERSION_CONFLICT"
+    assert provider.calls == []
+    assert repository.get_user("user-1") == user
+    assert repository.get_identity_record(identity.document_id) == identity
+    assert record is None or record.outcome != "processing"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "first_result",
+    [
+        SchoolIdentityVerificationResult(status="failed", failed_reason_code="mismatch"),
+        SchoolIdentityVerificationResult(status="unavailable"),
+    ],
+)
+async def test_failed_or_unavailable_identity_can_be_retried(
+    first_result: SchoolIdentityVerificationResult,
+) -> None:
+    repository = InMemoryDomainDataRepository(
+        users=[
+            build_user(
+                base_consent_status="accepted",
+                base_consent_version="base-v1",
+                base_consent_at=datetime(2026, 8, 30, 0, 1, tzinfo=UTC),
+                version=2,
+            )
+        ]
+    )
+    sessions = InMemorySessionRepository()
+    provider = FakeSchoolIdentityProvider(first_result)
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        school_identity_provider=provider,
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+        identity_cipher=FakeIdentityCipher(),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    first = await service.verify_student_identity(
+        access_token,
+        student_name="王小雨",
+        student_number="20260001",
+        user_version=2,
+        request_id="req_identity_retry_1",
+        idempotency_key="idem-identity-retry-1",
+    )
+    provider.result = SchoolIdentityVerificationResult(
+        status="verified", provider_reference="school-ref-2"
+    )
+    second = await service.verify_student_identity(
+        access_token,
+        student_name="王小雨",
+        student_number="20260001",
+        user_version=3,
+        request_id="req_identity_retry_2",
+        idempotency_key="idem-identity-retry-2",
+    )
+
+    assert first.verification_status == first_result.status
+    assert second.verification_status == "verified"
+    assert len(provider.calls) == 2
+
+
+@pytest.mark.parametrize(
+    ("record_status", "session_status"),
+    [
+        ("not_started", "unverified"),
+        ("pending", "pending"),
+        ("verified", "verified"),
+        ("failed", "unverified"),
+        ("unavailable", "unverified"),
+    ],
+)
+def test_identity_status_projection_has_domain_status_and_student_session_mapping(
+    record_status: str,
+    session_status: str,
+) -> None:
+    identity = (
+        None if record_status == "not_started" else build_identity_record(status=record_status)
+    )
+    repository = InMemoryDomainDataRepository(
+        users=[
+            build_user(identity_record_id=identity.document_id if identity is not None else None)
+        ],
+        identities=[identity] if identity is not None else [],
+    )
+    sessions = InMemorySessionRepository()
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    assert service.get_identity_status(access_token) == {
+        "verification_status": record_status,
+        "identity_status": session_status,
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("body", [b"not-json", b"null", b'["verified"]'])
+async def test_school_identity_adapter_normalizes_malformed_json_to_unavailable(
+    body: bytes,
+) -> None:
+    provider = HttpSchoolIdentityProvider(
+        provider_url="https://identity.example.test",
+        transport=FixedResponseTransport(body=body),
+    )
+
+    result = await provider.verify_student(student_name="王小雨", student_number="20260001")
+
+    assert result == SchoolIdentityVerificationResult(status="unavailable")
+
+
+@pytest.mark.asyncio
+async def test_school_identity_adapter_normalizes_response_exception_to_unavailable() -> None:
+    provider = HttpSchoolIdentityProvider(
+        provider_url="https://identity.example.test",
+        transport=FixedResponseTransport(error=RuntimeError("provider response failed")),
+    )
+
+    result = await provider.verify_student(student_name="王小雨", student_number="20260001")
+
+    assert result == SchoolIdentityVerificationResult(status="unavailable")
+
+
+@pytest.mark.asyncio
+async def test_default_identity_cipher_does_not_store_plaintext() -> None:
+    repository = InMemoryDomainDataRepository(
+        users=[
+            build_user(
+                base_consent_status="accepted",
+                base_consent_version="base-v1",
+                base_consent_at=datetime(2026, 8, 30, 0, 1, tzinfo=UTC),
+                version=2,
+            )
+        ]
+    )
+    sessions = InMemorySessionRepository()
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        school_identity_provider=FakeSchoolIdentityProvider(
+            SchoolIdentityVerificationResult(status="verified", provider_reference="school-ref-1")
+        ),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    result = await service.verify_student_identity(
+        access_token,
+        student_name="王小雨",
+        student_number="20260001",
+        user_version=2,
+        request_id="req_identity_default_cipher",
+        idempotency_key="idem-identity-default-cipher",
+    )
+    identity_record = repository.get_identity_record(result.identity_record_id)
+
+    assert identity_record.student_name_ciphertext is not None
+    assert identity_record.student_number_ciphertext is not None
+    assert identity_record.student_name_ciphertext.startswith("enc:v1:")
+    assert identity_record.student_number_ciphertext.startswith("enc:v1:")
+    assert "王小雨" not in identity_record.student_name_ciphertext
+    assert "20260001" not in identity_record.student_number_ciphertext
+
+
+def test_identity_cipher_uses_a_fresh_nonce_for_repeated_plaintext() -> None:
+    cipher = HmacIdentityCipher("identity-secret")
+
+    first = cipher.encrypt("王小雨")
+    second = cipher.encrypt("王小雨")
+
+    assert first.startswith("enc:v1:")
+    assert second.startswith("enc:v1:")
+    assert first != second
+    assert "王小雨" not in first
+    assert "王小雨" not in second
 
 
 def test_session_expiration_and_version_conflict_block_private_mutations() -> None:
     repository = InMemoryDomainDataRepository(users=[seed_user()])
     sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
     access_token = issue_student_access_token(sessions)
     token_manager = TokenManager("student-session-secret")
     token_manager.logout(access_token, sessions)
@@ -382,7 +979,7 @@ def test_session_expiration_and_version_conflict_block_private_mutations() -> No
         repository=repository,
         session_repository=sessions,
         token_manager=token_manager,
-        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        idempotency_service=IdempotencyService(idempotency_repository),
         audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
     )
 
@@ -406,6 +1003,23 @@ def test_session_expiration_and_version_conflict_block_private_mutations() -> No
 
     assert session_error.value.code == "SESSION_EXPIRED"
     assert version_error.value.code == "VERSION_CONFLICT"
+    with pytest.raises(ApiException) as failed_replay_error:
+        service.accept_base_consent(
+            fresh_token,
+            document_version="base-v1",
+            user_version=9,
+            request_id="req_version_conflict_replay",
+            idempotency_key="idem-version-conflict",
+        )
+    version_record = idempotency_repository.get(
+        "student",
+        "user-1",
+        "/consents/base_service",
+        "idem-version-conflict",
+        now=datetime.now(UTC),
+    )
+    assert failed_replay_error.value.code == "VERSION_CONFLICT"
+    assert version_record is None or version_record.outcome != "processing"
 
 
 def test_idempotent_replay_does_not_duplicate_consent_events_or_audit_entries() -> None:

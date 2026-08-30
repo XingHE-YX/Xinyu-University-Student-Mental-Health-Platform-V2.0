@@ -8,8 +8,6 @@ from typing import Literal, Protocol
 import httpx
 from httpx import AsyncBaseTransport
 
-from app.repositories.protocols import RepositoryUnavailable
-
 
 @dataclass(frozen=True, slots=True)
 class SchoolIdentityVerificationResult:
@@ -71,27 +69,29 @@ class HttpSchoolIdentityProvider:
                     },
                 )
                 response.raise_for_status()
-        except (httpx.HTTPError, RepositoryUnavailable):
-            return SchoolIdentityVerificationResult(status="unavailable")
-        body = response.json()
-        status = body.get("status")
-        if status == "verified":
-            provider_reference = body.get("provider_reference")
-            if not isinstance(provider_reference, str) or not provider_reference:
+            body = response.json()
+            if not isinstance(body, dict):
                 return SchoolIdentityVerificationResult(status="unavailable")
-            return SchoolIdentityVerificationResult(
-                status="verified",
-                provider_reference=provider_reference,
-            )
-        if status == "failed":
-            failed_reason_code = body.get("failed_reason_code")
-            normalized_reason = (
-                failed_reason_code
-                if isinstance(failed_reason_code, str) and failed_reason_code
-                else None
-            )
-            return SchoolIdentityVerificationResult(
-                status="failed",
-                failed_reason_code=normalized_reason,
-            )
-        return SchoolIdentityVerificationResult(status="unavailable")
+            status = body.get("status")
+            if status == "verified":
+                provider_reference = body.get("provider_reference")
+                if not isinstance(provider_reference, str) or not provider_reference:
+                    return SchoolIdentityVerificationResult(status="unavailable")
+                return SchoolIdentityVerificationResult(
+                    status="verified",
+                    provider_reference=provider_reference,
+                )
+            if status == "failed":
+                failed_reason_code = body.get("failed_reason_code")
+                normalized_reason = (
+                    failed_reason_code
+                    if isinstance(failed_reason_code, str) and failed_reason_code
+                    else None
+                )
+                return SchoolIdentityVerificationResult(
+                    status="failed",
+                    failed_reason_code=normalized_reason,
+                )
+            return SchoolIdentityVerificationResult(status="unavailable")
+        except Exception:
+            return SchoolIdentityVerificationResult(status="unavailable")
