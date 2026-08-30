@@ -58,6 +58,11 @@ class FakeIdentityCipher:
         return f"cipher::{value[::-1]}"
 
 
+class FailingIdentityCipher:
+    def encrypt(self, value: str) -> str:
+        raise RuntimeError("unexpected identity cipher failure")
+
+
 class FailAfterUserSaveRepository(InMemoryDomainDataRepository):
     def __init__(self, *, users: list[UserAccountDocument]) -> None:
         super().__init__(users=users)
@@ -86,6 +91,19 @@ class FailAfterConsentAppendRepository(InMemoryDomainDataRepository):
         if self.fail_after_append:
             self.fail_after_append = False
             raise RepositoryUnavailable("consent event append failed")
+        return saved
+
+
+class FailAfterConsentAppendRuntimeErrorRepository(InMemoryDomainDataRepository):
+    def __init__(self, *, users: list[UserAccountDocument]) -> None:
+        super().__init__(users=users)
+        self.fail_after_append = True
+
+    def append_consent_event(self, consent: ConsentEventDocument) -> ConsentEventDocument:
+        saved = super().append_consent_event(consent)
+        if self.fail_after_append:
+            self.fail_after_append = False
+            raise RuntimeError("unexpected consent event append failure")
         return saved
 
 
@@ -554,6 +572,135 @@ def test_community_consent_append_failure_rolls_back_user_and_event() -> None:
     assert repository.list_consent_events("user-1") == ()
     assert record is not None
     assert record.outcome == "failure"
+
+
+def test_consent_runtime_error_rolls_back_and_replays_internal_error() -> None:
+    original_user = seed_user()
+    repository = FailAfterConsentAppendRuntimeErrorRepository(users=[original_user])
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    service = ConsentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    with pytest.raises(ApiException) as first_error:
+        service.accept_base_consent(
+            access_token,
+            document_version="base-v1",
+            user_version=1,
+            request_id="req_consent_runtime_error",
+            idempotency_key="idem-consent-runtime-error",
+        )
+
+    with pytest.raises(ApiException) as replay_error:
+        service.accept_base_consent(
+            access_token,
+            document_version="base-v1",
+            user_version=1,
+            request_id="req_consent_runtime_error_replay",
+            idempotency_key="idem-consent-runtime-error",
+        )
+
+    record = idempotency_repository.get(
+        "student",
+        "user-1",
+        "/consents/base_service",
+        "idem-consent-runtime-error",
+        now=datetime.now(UTC),
+    )
+    assert first_error.value.code == "INTERNAL_ERROR"
+    assert first_error.value.status_code == 500
+    assert replay_error.value.code == first_error.value.code
+    assert replay_error.value.status_code == first_error.value.status_code
+    assert replay_error.value.retryable == first_error.value.retryable
+    assert replay_error.value.current_version == first_error.value.current_version
+    assert replay_error.value.message == first_error.value.message
+    assert repository.get_user("user-1") == original_user
+    assert repository.list_consent_events("user-1") == ()
+    assert record is not None
+    assert record.outcome == "failure"
+    assert record.response_status == 500
+    assert record.response_digest is not None
+    assert "unexpected consent event append failure" not in record.response_digest
+
+
+@pytest.mark.asyncio
+async def test_identity_cipher_runtime_error_rolls_back_and_replays_internal_error() -> None:
+    original_user = build_user(
+        base_consent_status="accepted",
+        base_consent_version="base-v1",
+        base_consent_at=datetime(2026, 8, 30, 0, 1, tzinfo=UTC),
+        version=2,
+    )
+    repository = InMemoryDomainDataRepository(users=[original_user])
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    provider = FakeSchoolIdentityProvider(
+        SchoolIdentityVerificationResult(status="verified", provider_reference="school-ref-1")
+    )
+    service = IdentityService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        school_identity_provider=provider,
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+        identity_cipher=FailingIdentityCipher(),
+    )
+    access_token = issue_student_access_token(sessions)
+
+    with pytest.raises(ApiException) as first_error:
+        await service.verify_student_identity(
+            access_token,
+            student_name="王小雨",
+            student_number="20260001",
+            user_version=2,
+            request_id="req_identity_runtime_error",
+            idempotency_key="idem-identity-runtime-error",
+        )
+
+    with pytest.raises(ApiException) as replay_error:
+        await service.verify_student_identity(
+            access_token,
+            student_name="王小雨",
+            student_number="20260001",
+            user_version=2,
+            request_id="req_identity_runtime_error_replay",
+            idempotency_key="idem-identity-runtime-error",
+        )
+
+    record = idempotency_repository.get(
+        "student",
+        "user-1",
+        "/identity/verify",
+        "idem-identity-runtime-error",
+        now=datetime.now(UTC),
+    )
+    assert first_error.value.code == "INTERNAL_ERROR"
+    assert first_error.value.status_code == 500
+    assert replay_error.value.code == first_error.value.code
+    assert replay_error.value.status_code == first_error.value.status_code
+    assert replay_error.value.retryable == first_error.value.retryable
+    assert replay_error.value.current_version == first_error.value.current_version
+    assert replay_error.value.message == first_error.value.message
+    assert repository.get_user("user-1") == original_user
+    with pytest.raises(RepositoryNotFound):
+        repository.get_identity_record("identity_0001")
+    assert repository.list_anonymous_identities("user-1") == ()
+    assert repository.next_identity_record_id() == "identity_0001"
+    assert repository.next_anonymous_identity_id() == "anonymous_0001"
+    assert record is not None
+    assert record.outcome == "failure"
+    assert record.response_status == 500
+    assert record.response_digest is not None
+    assert "unexpected identity cipher failure" not in record.response_digest
 
 
 @pytest.mark.asyncio

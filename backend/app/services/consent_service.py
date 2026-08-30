@@ -238,6 +238,10 @@ class ConsentService:
         except ApiException as error:
             _complete_failure(self.idempotency, reservation, error)
             raise
+        except Exception as error:
+            failure = ApiException(500, "INTERNAL_ERROR")
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
 
 
 def _updated_consent_user(
