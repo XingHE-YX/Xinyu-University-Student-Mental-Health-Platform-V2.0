@@ -262,6 +262,130 @@ def test_assessment_session_requires_answers_only_for_completed_state() -> None:
             expires_at=datetime(2026, 8, 30, tzinfo=UTC),
         )
 
+
+def test_assessment_session_enforces_state_timestamp_combinations() -> None:
+    models = load_module("app.domain.models")
+
+    with pytest.raises(ValidationError):
+        models.AssessmentSessionDocument(
+            **sample_metadata(),
+            user_id="user-1",
+            module_code="phq9",
+            questionnaire_version="phq9-v1",
+            state="completed",
+            answers=[{"question_key": "q1", "option_key": "o1", "score_snapshot": 1}],
+            answered_count=1,
+            safety_triggered=False,
+            safety_confirmation_state=None,
+            safety_resource_version=None,
+            safety_resource_acknowledged_at=None,
+            client_idempotency_key="idem-1",
+            started_at=datetime(2026, 8, 29, 1, tzinfo=UTC),
+            completed_at=None,
+            abandoned_at=None,
+            expires_at=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+    with pytest.raises(ValidationError):
+        models.AssessmentSessionDocument(
+            **sample_metadata(),
+            user_id="user-1",
+            module_code="phq9",
+            questionnaire_version="phq9-v1",
+            state="completed",
+            answers=[{"question_key": "q1", "option_key": "o1", "score_snapshot": 1}],
+            answered_count=1,
+            safety_triggered=False,
+            safety_confirmation_state=None,
+            safety_resource_version=None,
+            safety_resource_acknowledged_at=None,
+            client_idempotency_key="idem-1",
+            started_at=datetime(2026, 8, 29, 1, tzinfo=UTC),
+            completed_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+            abandoned_at=datetime(2026, 8, 29, 3, tzinfo=UTC),
+            expires_at=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+    with pytest.raises(ValidationError):
+        models.AssessmentSessionDocument(
+            **sample_metadata(),
+            user_id="user-1",
+            module_code="phq9",
+            questionnaire_version="phq9-v1",
+            state="in_progress",
+            answers=None,
+            answered_count=None,
+            safety_triggered=False,
+            safety_confirmation_state=None,
+            safety_resource_version=None,
+            safety_resource_acknowledged_at=None,
+            client_idempotency_key="idem-1",
+            started_at=datetime(2026, 8, 29, 1, tzinfo=UTC),
+            completed_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+            abandoned_at=None,
+            expires_at=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+    with pytest.raises(ValidationError):
+        models.AssessmentSessionDocument(
+            **sample_metadata(),
+            user_id="user-1",
+            module_code="phq9",
+            questionnaire_version="phq9-v1",
+            state="abandoned",
+            answers=None,
+            answered_count=None,
+            safety_triggered=True,
+            safety_confirmation_state="cannot_be_safe",
+            safety_resource_version=None,
+            safety_resource_acknowledged_at=None,
+            client_idempotency_key="idem-1",
+            started_at=datetime(2026, 8, 29, 1, tzinfo=UTC),
+            completed_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+            abandoned_at=datetime(2026, 8, 29, 2, tzinfo=UTC),
+            expires_at=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+    with pytest.raises(ValidationError):
+        models.AssessmentSessionDocument(
+            **sample_metadata(),
+            user_id="user-1",
+            module_code="phq9",
+            questionnaire_version="phq9-v1",
+            state="abandoned",
+            answers=None,
+            answered_count=None,
+            safety_triggered=True,
+            safety_confirmation_state="cannot_be_safe",
+            safety_resource_version=None,
+            safety_resource_acknowledged_at=None,
+            client_idempotency_key="idem-1",
+            started_at=datetime(2026, 8, 29, 1, tzinfo=UTC),
+            completed_at=None,
+            abandoned_at=None,
+            expires_at=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
+    with pytest.raises(ValidationError):
+        models.AssessmentSessionDocument(
+            **sample_metadata(),
+            user_id="user-1",
+            module_code="phq9",
+            questionnaire_version="phq9-v1",
+            state="expired",
+            answers=None,
+            answered_count=None,
+            safety_triggered=False,
+            safety_confirmation_state=None,
+            safety_resource_version=None,
+            safety_resource_acknowledged_at=None,
+            client_idempotency_key="idem-1",
+            started_at=datetime(2026, 8, 29, 1, tzinfo=UTC),
+            completed_at=None,
+            abandoned_at=datetime(2026, 8, 29, 3, tzinfo=UTC),
+            expires_at=datetime(2026, 8, 30, tzinfo=UTC),
+        )
+
     with pytest.raises(ValidationError):
         models.AssessmentSessionDocument(
             **sample_metadata(),
@@ -339,8 +463,93 @@ def test_safety_support_result_rejects_full_answers_score_and_ai_snapshot() -> N
     assert ordinary.score == 12
 
 
+def test_assessment_result_rejects_cannot_be_safe_and_invalid_state_combinations() -> None:
+    models = load_module("app.domain.models")
+
+    with pytest.raises(ValidationError):
+        models.AssessmentResultDocument(
+            **sample_metadata(),
+            session_id="session-3",
+            user_id="user-1",
+            module_code="phq9",
+            scoring_rule_version="rule-v1",
+            answers_snapshot=[{"question_key": "q1", "option_key": "o1", "score_snapshot": 1}],
+            fixed_summary="summary",
+            reference_band="10-14",
+            boundary_notice="notice",
+            ai_assist_snapshot_id="ai-1",
+            result_state="ordinary",
+            score=12,
+            dimension_summary={"band": "10-14"},
+            safety_state="cannot_be_safe",
+            visible_copy_version="copy-v1",
+            deleted_at=None,
+        )
+
+    with pytest.raises(ValidationError):
+        models.AssessmentResultDocument(
+            **sample_metadata(),
+            session_id="session-4",
+            user_id="user-1",
+            module_code="phq9",
+            scoring_rule_version="rule-v1",
+            answers_snapshot=[{"question_key": "q1", "option_key": "o1", "score_snapshot": 1}],
+            fixed_summary="summary",
+            reference_band="10-14",
+            boundary_notice="notice",
+            ai_assist_snapshot_id="ai-1",
+            result_state="ordinary",
+            score=12,
+            dimension_summary={"band": "10-14"},
+            safety_state="uncertain",
+            visible_copy_version="copy-v1",
+            deleted_at=None,
+        )
+
+    with pytest.raises(ValidationError):
+        models.AssessmentResultDocument(
+            **sample_metadata(),
+            session_id="session-5",
+            user_id="user-1",
+            module_code="phq9",
+            scoring_rule_version="rule-v1",
+            answers_snapshot=None,
+            fixed_summary="summary",
+            reference_band=None,
+            boundary_notice="notice",
+            ai_assist_snapshot_id=None,
+            result_state="safety_support",
+            score=None,
+            dimension_summary={"support_required": True},
+            safety_state="can_be_safe",
+            visible_copy_version="copy-v1",
+            deleted_at=None,
+        )
+
+    safety_support = models.AssessmentResultDocument(
+        **sample_metadata(),
+        session_id="session-6",
+        user_id="user-1",
+        module_code="phq9",
+        scoring_rule_version="rule-v1",
+        answers_snapshot=None,
+        fixed_summary="summary",
+        reference_band=None,
+        boundary_notice="notice",
+        ai_assist_snapshot_id=None,
+        result_state="safety_support",
+        score=None,
+        dimension_summary={"support_required": True},
+        safety_state="uncertain",
+        visible_copy_version="copy-v1",
+        deleted_at=None,
+    )
+    assert safety_support.safety_state == "uncertain"
+
+
 def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> None:
     seed_demo = load_module("scripts.seed_demo")
+    models = load_module("app.domain.models")
 
     with pytest.raises(ValueError):
         seed_demo.build_demo_seed_bundle(EnvironmentKind.AUTHORIZED)
@@ -355,9 +564,16 @@ def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> Non
     enabled_quotes = [entry for entry in quote_entries if entry["enabled"]]
     disabled_candidates = [entry for entry in quote_entries if not entry["enabled"]]
 
+    assert len(quote_entries) == 43
     assert len(enabled_quotes) == 40
     assert {entry["_id"] for entry in disabled_candidates} == {"Q-C001", "Q-C002", "Q-C003"}
     assert all(entry["source_kind"] != "copyright_pending" for entry in enabled_quotes)
+
+    validated_quotes = [models.QuoteEntryDocument(**entry) for entry in quote_entries]
+    assert len(validated_quotes) == 43
+    assert all(item.version == 1 for item in validated_quotes)
+    assert sum(1 for item in validated_quotes if item.enabled) == 40
+    assert sum(1 for item in validated_quotes if not item.enabled) == 3
     by_id = {entry["_id"]: entry for entry in quote_entries}
     assert by_id["Q-0001"] == {
         "_id": "Q-0001",

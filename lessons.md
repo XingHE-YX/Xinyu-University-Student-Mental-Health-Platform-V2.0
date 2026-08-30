@@ -31,3 +31,13 @@
 - 微信适配器最初把原始 `unionid` 放入返回对象。即使不写入数据库，这仍然越过了适配器隐私边界；适配器现在只返回不可逆主体摘要，不能向后续服务传递原始 openid、unionid 或 session_key。
 - CloudBase 适配器不能只用 mock 响应验证。官方文档核对后，查询使用 `documents:find`、更新使用 `documents:updateOne`、请求体使用 EJSON 字符串、认证头使用 CloudBase Open API 约定；这些路径和响应形状已写入适配器测试。条件更新无匹配时必须异步回查当前文档版本，再返回版本冲突。
 - Ruff 和 mypy 的报错必须在阶段交付前清零；本阶段曾出现导入排序、行宽、SecretStr 类型、`app.state` 的 Any 类型和错误异常捕获等问题，均已修复并重新验证。
+
+## 2026-08-30：阶段 3.1 集合、索引和种子数据记录
+
+- 当前终端没有 `python` 命令，直接执行阶段脚本曾出现 `zsh: command not found: python`；随后直接把 shell 脚本交给 Python 又出现 `SyntaxError: invalid syntax`（脚本首行是 `set -euo pipefail`）。Python 校验必须使用项目 Python 3.11 解释器，Shell 工具必须使用 `bash` 调用。
+- 阶段审查工具脚本缺少可执行权限，直接运行曾出现 `Permission denied`；已改用 `bash` 和明确的计划文件、输出文件路径执行，避免把工具权限问题误判为代码失败。
+- 规范的 `auth_sessions` 字段表使用 `access_expires_at`，索引表最初误写成 `expires_at`。若把冲突原样写入部署索引会生成不可执行索引；本阶段统一为 `access_expires_at`，并在注册表测试中验证每个索引字段都存在于集合字段中，同时修正文档索引表。
+- IMPLEMENTATION_PLAN.md 的阶段 3.1 文字称 23 个集合，但权威集合清单包含 `ai_assist_snapshots`，实际为 24 个。本阶段以 BACKEND_STRUCTURE.md 和后续结果边界为准，保留 24 个集合并在 progress.txt 记录。
+- 领域模型不能只声明枚举：同意/审计记录的 `version` 固定为 1，未完成自测会话不能保存答案，安全支持结果不能保存完整答案、分数或 AI 快照，`cannot_be_safe` 不生成结果；这些状态/隐私边界已通过 Pydantic 校验和行为测试锁定。
+- 短句种子不能只校验“40+3”的数量；本阶段增加了 Q-0001、Q-0040、Q-C001..Q-C003 内容级断言，并让全部 43 条种子逐条通过 `QuoteEntryDocument` 校验。现代作品候选继续保持 `copyright_pending` 且禁用。
+- 本地静态检查使用的 `backend/.packages/` 是未跟踪的依赖缓存，不能提交到仓库；首次审查环境缺少已编译的 `pydantic_core`，第二轮代理又因工作区额度耗尽中止，均属于验证环境问题，最终使用项目 Python 3.11 环境重新完成测试、Ruff、mypy 和编译检查。

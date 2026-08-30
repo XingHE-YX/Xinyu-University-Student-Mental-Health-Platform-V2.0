@@ -570,7 +570,7 @@ W-02 只查询本集合。content_review_tasks、safety_support_tasks 和 identi
 | 集合 | 索引 |
 | --- | --- |
 | user_accounts | auth_subject_hash 唯一；status、updated_at |
-| auth_sessions | access_token_hash 唯一；subject_id、status；expires_at |
+| auth_sessions | access_token_hash 唯一；subject_id、status；access_expires_at |
 | consent_records | user_id、consent_kind、occurred_at |
 | daily_mood_records | user_id、record_date 唯一；user_id、record_date、deleted_at |
 | assessment_sessions | user_id、created_at；user_id、state |
