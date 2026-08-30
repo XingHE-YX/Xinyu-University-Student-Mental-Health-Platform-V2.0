@@ -41,3 +41,4 @@
 - 领域模型不能只声明枚举：同意/审计记录的 `version` 固定为 1，未完成自测会话不能保存答案，安全支持结果不能保存完整答案、分数或 AI 快照，`cannot_be_safe` 不生成结果；这些状态/隐私边界已通过 Pydantic 校验和行为测试锁定。
 - 短句种子不能只校验“40+3”的数量；本阶段增加了 Q-0001、Q-0040、Q-C001..Q-C003 内容级断言，并让全部 43 条种子逐条通过 `QuoteEntryDocument` 校验。现代作品候选继续保持 `copyright_pending` 且禁用。
 - 本地静态检查使用的 `backend/.packages/` 是未跟踪的依赖缓存，不能提交到仓库；首次审查环境缺少已编译的 `pydantic_core`，第二轮代理又因工作区额度耗尽中止，均属于验证环境问题，最终使用项目 Python 3.11 环境重新完成测试、Ruff、mypy 和编译检查。
+- 提交后的 Markdown 检查若把 `progress.txt` 一并交给 Prettier，会报 `No parser could be inferred for file .../progress.txt`；单独检查 `lessons.md` 通过。`BACKEND_STRUCTURE.md` 和既有的 `AGENT.md` 本身存在历史格式差异，未对整份规范文档做无关的全量重排，本阶段只校验了实际变更并修正索引字段。
