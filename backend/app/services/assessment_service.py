@@ -259,6 +259,25 @@ class AssessmentService:
                         result_id=None,
                         safety_triggered=True,
                     )
+                    self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response.model_dump_json(),
+                    )
+                    self._audit(
+                        request_id=request_id,
+                        actor_id=subject.subject_id,
+                        action="assessment_complete",
+                        resource_id=session.document_id,
+                        reason_code="safety_support_blocked",
+                        facts={
+                            "action_code": "complete",
+                            "object_version": session.version,
+                            "resource_version": session.questionnaire_version,
+                            "status": "in_progress",
+                        },
+                    )
+                    return response
                 elif session.safety_confirmation_state != "can_be_safe":
                     updated_session = session.model_copy(update={"safety_triggered": True})
                     self.repository.save_assessment_session(

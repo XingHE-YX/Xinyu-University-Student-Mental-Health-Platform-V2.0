@@ -523,6 +523,94 @@ def test_phq9_question_9_non_zero_requires_safety_confirmation_and_does_not_pers
     assert "option_key" not in str(first_event)
 
 
+def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result() -> None:
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    audit_repository = InMemoryAuditRepository()
+    service_module = pytest.importorskip("app.services.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
+    )
+    access_token = issue_student_access_token(sessions)
+    started = service.start_session(
+        access_token,
+        module_code="phq9",
+        request_id="req-start-cannot-be-safe",
+        idempotency_key="start-cannot-be-safe",
+    )
+    blocked_session = repository.get_assessment_session(started.session_id).model_copy(
+        update={
+            "safety_triggered": True,
+            "safety_confirmation_state": "cannot_be_safe",
+        }
+    )
+    repository.save_assessment_session(blocked_session, expected_version=started.object_version)
+    answers = [
+        {"question_key": "q1", "option_key": "0"},
+        {"question_key": "q2", "option_key": "0"},
+        {"question_key": "q3", "option_key": "0"},
+        {"question_key": "q4", "option_key": "0"},
+        {"question_key": "q5", "option_key": "0"},
+        {"question_key": "q6", "option_key": "0"},
+        {"question_key": "q7", "option_key": "0"},
+        {"question_key": "q8", "option_key": "0"},
+        {"question_key": "q9", "option_key": "1"},
+        {"question_key": "impact", "option_key": "some"},
+    ]
+
+    result = service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=blocked_session.version + 1,
+        answers=answers,
+        request_id="req-complete-cannot-be-safe",
+        idempotency_key="complete-cannot-be-safe",
+    )
+    replay = service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=blocked_session.version + 1,
+        answers=answers,
+        request_id="req-complete-cannot-be-safe-replay",
+        idempotency_key="complete-cannot-be-safe",
+    )
+
+    assert result.completion_state == "safety_support_blocked"
+    assert result.result_id is None
+    assert result.score is None
+    assert result.result_state is None
+    assert replay == result
+    session = repository.get_assessment_session(started.session_id)
+    assert session.state == "in_progress"
+    assert session.answers is None
+    assert session.answered_count is None
+    assert repository.list_assessment_results_by_session(started.session_id) == ()
+    idempotency_record = idempotency_repository.get(
+        "student",
+        "user-1",
+        f"/assessment-sessions/{started.session_id}/complete",
+        "complete-cannot-be-safe",
+        now=datetime.now(UTC),
+    )
+    assert idempotency_record is not None
+    assert idempotency_record.outcome == "success"
+    assert idempotency_record.response_status == 200
+    blocked_events = [
+        event
+        for event in audit_repository.list()
+        if event.action == "assessment_complete" and event.reason_code == "safety_support_blocked"
+    ]
+    assert len(blocked_events) == 1
+    assert "question_key" not in str(blocked_events[0])
+    assert "option_key" not in str(blocked_events[0])
+
+
 def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
