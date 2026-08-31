@@ -12,6 +12,10 @@ from typing import Any
 
 from app.domain.models import (
     AnonymousIdentityDocument,
+    AssessmentModuleDocument,
+    AssessmentQuestionnaireDocument,
+    AssessmentResultDocument,
+    AssessmentSessionDocument,
     ConsentEventDocument,
     IdentityRecordDocument,
     UserAccountDocument,
@@ -25,10 +29,16 @@ class _DomainDataSnapshot:
     consents: dict[str, ConsentEventDocument]
     identities: dict[str, IdentityRecordDocument]
     anonymous: dict[str, AnonymousIdentityDocument]
+    assessment_modules: dict[str, AssessmentModuleDocument]
+    assessment_questionnaires: dict[tuple[str, str], AssessmentQuestionnaireDocument]
+    assessment_sessions: dict[str, AssessmentSessionDocument]
+    assessment_results: dict[str, AssessmentResultDocument]
     extra_collections: dict[str, list[dict[str, Any]]]
     identity_counter: int
     consent_counter: int
     anonymous_counter: int
+    assessment_session_counter: int
+    assessment_result_counter: int
 
 
 class InMemoryDomainDataRepository:
@@ -39,6 +49,10 @@ class InMemoryDomainDataRepository:
         consents: list[ConsentEventDocument] | None = None,
         identities: list[IdentityRecordDocument] | None = None,
         anonymous_identities: list[AnonymousIdentityDocument] | None = None,
+        assessment_modules: list[AssessmentModuleDocument] | None = None,
+        assessment_questionnaires: list[AssessmentQuestionnaireDocument] | None = None,
+        assessment_sessions: list[AssessmentSessionDocument] | None = None,
+        assessment_results: list[AssessmentResultDocument] | None = None,
         extra_collections: Mapping[str, list[Mapping[str, Any]]] | None = None,
     ) -> None:
         self._lock = RLock()
@@ -49,6 +63,19 @@ class InMemoryDomainDataRepository:
             anonymous_identity.document_id: anonymous_identity
             for anonymous_identity in anonymous_identities or []
         }
+        self._assessment_modules: dict[str, AssessmentModuleDocument] = {
+            module.module_code: module for module in assessment_modules or []
+        }
+        self._assessment_questionnaires: dict[tuple[str, str], AssessmentQuestionnaireDocument] = {
+            (questionnaire.module_code, questionnaire.questionnaire_version): questionnaire
+            for questionnaire in assessment_questionnaires or []
+        }
+        self._assessment_sessions = {
+            session.document_id: session for session in assessment_sessions or []
+        }
+        self._assessment_results = {
+            result.document_id: result for result in assessment_results or []
+        }
         self._extra_collections = {
             name: [deepcopy(dict(item)) for item in items]
             for name, items in (extra_collections or {}).items()
@@ -56,6 +83,8 @@ class InMemoryDomainDataRepository:
         self._identity_counter = len(self._identities)
         self._consent_counter = len(self._consents)
         self._anonymous_counter = len(self._anonymous)
+        self._assessment_session_counter = len(self._assessment_sessions)
+        self._assessment_result_counter = len(self._assessment_results)
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
@@ -75,10 +104,16 @@ class InMemoryDomainDataRepository:
             consents=deepcopy(self._consents),
             identities=deepcopy(self._identities),
             anonymous=deepcopy(self._anonymous),
+            assessment_modules=deepcopy(self._assessment_modules),
+            assessment_questionnaires=deepcopy(self._assessment_questionnaires),
+            assessment_sessions=deepcopy(self._assessment_sessions),
+            assessment_results=deepcopy(self._assessment_results),
             extra_collections=deepcopy(self._extra_collections),
             identity_counter=self._identity_counter,
             consent_counter=self._consent_counter,
             anonymous_counter=self._anonymous_counter,
+            assessment_session_counter=self._assessment_session_counter,
+            assessment_result_counter=self._assessment_result_counter,
         )
 
     def _restore(self, snapshot: _DomainDataSnapshot) -> None:
@@ -86,10 +121,16 @@ class InMemoryDomainDataRepository:
         self._consents = snapshot.consents
         self._identities = snapshot.identities
         self._anonymous = snapshot.anonymous
+        self._assessment_modules = snapshot.assessment_modules
+        self._assessment_questionnaires = snapshot.assessment_questionnaires
+        self._assessment_sessions = snapshot.assessment_sessions
+        self._assessment_results = snapshot.assessment_results
         self._extra_collections = snapshot.extra_collections
         self._identity_counter = snapshot.identity_counter
         self._consent_counter = snapshot.consent_counter
         self._anonymous_counter = snapshot.anonymous_counter
+        self._assessment_session_counter = snapshot.assessment_session_counter
+        self._assessment_result_counter = snapshot.assessment_result_counter
 
     def get_user(self, user_id: str) -> UserAccountDocument:
         with self._lock:
@@ -208,6 +249,121 @@ class InMemoryDomainDataRepository:
         with self._lock:
             self._anonymous_counter += 1
             return f"anonymous_{self._anonymous_counter:04d}"
+
+    def get_assessment_module(self, module_code: str) -> AssessmentModuleDocument:
+        with self._lock:
+            try:
+                return self._assessment_modules[module_code]
+            except KeyError as error:
+                raise RepositoryNotFound("assessment module not found") from error
+
+    def replace_assessment_module(
+        self,
+        module: AssessmentModuleDocument,
+        *,
+        expected_version: int,
+    ) -> AssessmentModuleDocument:
+        with self._lock:
+            current = self.get_assessment_module(module.module_code)
+            if current.version != expected_version:
+                raise RepositoryVersionConflict(current.version)
+            updated = module.model_copy(
+                update={"updated_at": datetime.now(UTC), "version": current.version + 1}
+            )
+            self._assessment_modules[module.module_code] = updated
+            return updated
+
+    def get_assessment_questionnaire(
+        self,
+        module_code: str,
+        questionnaire_version: str,
+    ) -> AssessmentQuestionnaireDocument:
+        with self._lock:
+            key = (module_code, questionnaire_version)
+            try:
+                return self._assessment_questionnaires[key]
+            except KeyError as error:
+                raise RepositoryNotFound("assessment questionnaire not found") from error
+
+    def create_assessment_session(
+        self, session: AssessmentSessionDocument
+    ) -> AssessmentSessionDocument:
+        with self._lock:
+            self._assessment_sessions[session.document_id] = session
+            return session
+
+    def get_assessment_session(self, session_id: str) -> AssessmentSessionDocument:
+        with self._lock:
+            try:
+                return self._assessment_sessions[session_id]
+            except KeyError as error:
+                raise RepositoryNotFound("assessment session not found") from error
+
+    def save_assessment_session(
+        self,
+        session: AssessmentSessionDocument,
+        *,
+        expected_version: int,
+    ) -> AssessmentSessionDocument:
+        with self._lock:
+            current = self.get_assessment_session(session.document_id)
+            if current.version != expected_version:
+                raise RepositoryVersionConflict(current.version)
+            updated = session.model_copy(
+                update={"updated_at": datetime.now(UTC), "version": current.version + 1}
+            )
+            self._assessment_sessions[session.document_id] = updated
+            return updated
+
+    def create_assessment_result(
+        self,
+        result: AssessmentResultDocument,
+    ) -> AssessmentResultDocument:
+        with self._lock:
+            if self.get_assessment_result_by_session(result.session_id) is not None:
+                raise RepositoryVersionConflict(1)
+            self._assessment_results[result.document_id] = result
+            return result
+
+    def get_assessment_result(self, result_id: str) -> AssessmentResultDocument:
+        with self._lock:
+            try:
+                return self._assessment_results[result_id]
+            except KeyError as error:
+                raise RepositoryNotFound("assessment result not found") from error
+
+    def get_assessment_result_by_session(
+        self,
+        session_id: str,
+    ) -> AssessmentResultDocument | None:
+        with self._lock:
+            for result in self._assessment_results.values():
+                if result.session_id == session_id:
+                    return result
+            return None
+
+    def list_assessment_results_by_session(
+        self,
+        session_id: str,
+    ) -> tuple[AssessmentResultDocument, ...]:
+        with self._lock:
+            results = [
+                result
+                for result in self._assessment_results.values()
+                if result.session_id == session_id
+            ]
+            results.sort(key=lambda result: (result.created_at, result.document_id))
+            return tuple(results)
+
+    def next_assessment_session_id(self) -> str:
+        with self._lock:
+            self._assessment_session_counter += 1
+            return f"assessment_session_{self._assessment_session_counter:04d}"
+
+    def next_assessment_result_id(self) -> str:
+        with self._lock:
+            self._assessment_result_counter += 1
+            return f"assessment_result_{self._assessment_result_counter:04d}"
 
     def extra_collection(self, name: str) -> list[dict[str, Any]]:
         with self._lock:
