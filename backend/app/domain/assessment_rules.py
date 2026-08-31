@@ -25,7 +25,7 @@ SLEEP_VERSION = "sleep-observation-v1"
 SLEEP_Q8_REFUSAL_OPTION_KEY = "prefer_not_to_answer"
 PHQ9_Q9_KEY = "q9"
 
-PHQ_GAD_BOUNDARY_NOTICE = "这是一项筛查结果，不是诊断。"
+PHQ_GAD_BOUNDARY_NOTICE = "这是一项筛查结果，用于自我观察，不构成诊断。"
 SLEEP_BOUNDARY_NOTICE = "这次结果用于睡眠与作息的自我观察，不作为诊断依据。"
 
 
@@ -92,14 +92,88 @@ def questionnaire_catalog(module_code: ModuleCode) -> CatalogQuestionnaire:
     raise AssessmentValidationError()
 
 
-def score_questionnaire(module_code: ModuleCode, answers: list[tuple[str, str]]) -> ScoreOutcome:
-    catalog = questionnaire_catalog(module_code)
-    validated = _validate_answers(catalog, answers)
+def score_questionnaire(
+    questionnaire_or_module_code: ModuleCode | AssessmentQuestionnaireDocument,
+    answers: list[tuple[str, str]],
+) -> ScoreOutcome:
+    if isinstance(questionnaire_or_module_code, AssessmentQuestionnaireDocument):
+        module_code = questionnaire_or_module_code.module_code
+        questions = questionnaire_questions(questionnaire_or_module_code)
+    else:
+        module_code = questionnaire_or_module_code
+        questions = questionnaire_catalog(module_code).questions
+    validated = _validate_answers(questions, answers)
     if module_code == "phq9":
         return _score_phq9(validated)
     if module_code == "gad7":
         return _score_gad7(validated)
     return _score_sleep(validated)
+
+
+def questionnaire_questions(
+    questionnaire: AssessmentQuestionnaireDocument,
+) -> tuple[CatalogQuestion, ...]:
+    """Validate a published questionnaire and expose its private scoring view."""
+
+    if questionnaire.non_diagnostic_copy_version != NON_DIAGNOSTIC_COPY_VERSION:
+        raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+    if questionnaire.score_rule.get("scoring_rule_version") != SCORING_RULE_VERSION:
+        raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+
+    expected_keys: tuple[str, ...]
+    if questionnaire.module_code == "phq9":
+        expected_keys = (*tuple(f"q{number}" for number in range(1, 10)), "impact")
+        if questionnaire.score_rule.get("impact_question_key") != "impact":
+            raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+        if questionnaire.score_rule.get("safety_question_key") != PHQ9_Q9_KEY:
+            raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+    elif questionnaire.module_code == "gad7":
+        expected_keys = tuple(f"q{number}" for number in range(1, 8))
+    else:
+        expected_keys = tuple(f"q{number}" for number in range(1, 9))
+        if questionnaire.score_rule.get("dimensions") != [
+            "rhythm",
+            "duration_fact",
+            "bedtime_resistance",
+            "bedtime_reasons",
+            "recovery_daytime_impact",
+        ]:
+            raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+
+    if len(questionnaire.questions) != len(expected_keys):
+        raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+    if tuple(question.question_key for question in questionnaire.questions) != expected_keys:
+        raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+    if tuple(question.order for question in questionnaire.questions) != tuple(
+        range(1, len(expected_keys) + 1)
+    ):
+        raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+
+    questions: list[CatalogQuestion] = []
+    for question in questionnaire.questions:
+        if not question.options:
+            raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+        if len({option.option_key for option in question.options}) != len(question.options):
+            raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+        if any(option.score < 0 for option in question.options):
+            raise AssessmentValidationError("UNSUPPORTED_QUESTIONNAIRE")
+        questions.append(
+            CatalogQuestion(
+                question_key=question.question_key,
+                order=question.order,
+                text=question.text,
+                options=tuple(question.options),
+                required=not (
+                    questionnaire.module_code == "sleep_observation"
+                    and question.question_key == "q8"
+                ),
+                multiple=(
+                    questionnaire.module_code == "sleep_observation"
+                    and question.question_key == "q8"
+                ),
+            )
+        )
+    return tuple(questions)
 
 
 def _phq9_catalog() -> CatalogQuestionnaire:
@@ -388,25 +462,24 @@ def _build_questionnaire_document(
 
 
 def _validate_answers(
-    catalog: CatalogQuestionnaire,
+    questions: tuple[CatalogQuestion, ...],
     answers: list[tuple[str, str]],
 ) -> list[tuple[CatalogQuestion, list[QuestionOptionModel]]]:
     grouped: dict[str, list[QuestionOptionModel]] = {}
     order_seen: list[str] = []
     current_index = 0
     for question_key, option_key in answers:
-        if current_index >= len(catalog.questions):
+        if current_index >= len(questions):
             raise AssessmentValidationError()
         while (
-            current_index < len(catalog.questions)
-            and catalog.questions[current_index].question_key != question_key
+            current_index < len(questions) and questions[current_index].question_key != question_key
         ):
-            if catalog.questions[current_index].required:
+            if questions[current_index].required:
                 raise AssessmentValidationError()
             current_index += 1
-        if current_index >= len(catalog.questions):
+        if current_index >= len(questions):
             raise AssessmentValidationError()
-        question = catalog.questions[current_index]
+        question = questions[current_index]
         if not question.multiple and question_key in grouped:
             raise AssessmentValidationError()
         option = next((item for item in question.options if item.option_key == option_key), None)
@@ -421,13 +494,11 @@ def _validate_answers(
         if not question.multiple:
             current_index += 1
 
-    for question in catalog.questions:
+    for question in questions:
         if question.required and question.question_key not in grouped:
             raise AssessmentValidationError()
     extra_keys = {
-        key
-        for key in grouped
-        if key not in {question.question_key for question in catalog.questions}
+        key for key in grouped if key not in {question.question_key for question in questions}
     }
     if extra_keys:
         raise AssessmentValidationError()
@@ -437,7 +508,7 @@ def _validate_answers(
         if len(q8_answers) != 1:
             raise AssessmentValidationError()
 
-    return [(question, grouped.get(question.question_key, [])) for question in catalog.questions]
+    return [(question, grouped.get(question.question_key, [])) for question in questions]
 
 
 def _score_phq9(
@@ -557,7 +628,7 @@ def _score_sleep(
         module_code="sleep_observation",
         scoring_rule_version=SCORING_RULE_VERSION,
         visible_copy_version=NON_DIAGNOSTIC_COPY_VERSION,
-        fixed_summary="这次记录整理了你的作息节律、睡前阻力和恢复感受，供你自我观察。",
+        fixed_summary="这次记录帮助你看见最近 7 天的睡眠、作息和白天恢复状态。",
         boundary_notice=SLEEP_BOUNDARY_NOTICE,
         result_state="ordinary",
         score=None,
@@ -570,24 +641,24 @@ def _score_sleep(
 
 def _phq9_band(score: int) -> tuple[str, str]:
     if score <= 4:
-        return "0-4", "近期情绪相关信号较少"
+        return "0-4", "这次记录里，近期情绪相关信号较少。"
     if score <= 9:
-        return "5-9", "近期有一些情绪困扰"
+        return "5-9", "这次记录显示，你近期有一些情绪困扰。"
     if score <= 14:
-        return "10-14", "近期困扰较明显，建议优先查看支持资源"
+        return "10-14", "这次记录显示，你近期的情绪困扰比较明显。"
     if score <= 19:
-        return "15-19", "近期困扰较重，建议尽快寻求专业支持"
-    return "20-27", "近期困扰很重，建议尽快获得专业支持"
+        return "15-19", "这次记录显示，你近期的情绪困扰较重。"
+    return "20-27", "这次记录显示，你近期的情绪困扰较多，值得尽快获得支持。"
 
 
 def _gad7_band(score: int) -> tuple[str, str]:
     if score <= 4:
-        return "0-4", "近期紧绷和担心的信号较少"
+        return "0-4", "这次记录里，近期紧绷和担心的信号较少。"
     if score <= 9:
-        return "5-9", "近期有一些紧绷或担心"
+        return "5-9", "这次记录显示，你近期有一些紧绷或担心。"
     if score <= 14:
-        return "10-14", "近期焦虑相关困扰较明显，建议查看支持资源"
-    return "15-21", "近期困扰较重，建议尽快与专业人员交流"
+        return "10-14", "这次记录显示，你近期焦虑相关的困扰比较明显。"
+    return "15-21", "这次记录显示，你近期的焦虑相关困扰较重，值得尽快与专业人员交流。"
 
 
 def _option(option_key: str, label: str, score: int) -> QuestionOptionModel:

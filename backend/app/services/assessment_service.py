@@ -5,11 +5,20 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
+from pydantic import ValidationError
+
 from app.audit.writer import AuditWriter
 from app.config.settings import Settings
-from app.domain.assessment_rules import questionnaire_catalog, score_questionnaire
+from app.domain.assessment_rules import (
+    AssessmentValidationError,
+    CatalogQuestion,
+    questionnaire_questions,
+    score_questionnaire,
+)
 from app.domain.models import (
     AssessmentAnswerModel,
+    AssessmentModuleDocument,
+    AssessmentQuestionnaireDocument,
     AssessmentResultDocument,
     AssessmentSessionDocument,
 )
@@ -81,74 +90,85 @@ class AssessmentService:
         if reservation.replayed:
             return self._decode_start_response(reservation.record.response_digest)
 
-        catalog = questionnaire_catalog(module_code)  # type: ignore[arg-type]
-        if not catalog.module.enabled or not catalog.questionnaire.enabled:
-            error = ApiException(404, "NOT_FOUND")
+        try:
+            module, questionnaire, questions = self._load_published_questionnaire(module_code)
+            current = datetime.now(UTC)
+            session = AssessmentSessionDocument(
+                _id=self.repository.next_assessment_session_id(),
+                user_id=subject.subject_id,
+                module_code=module.module_code,
+                questionnaire_version=questionnaire.questionnaire_version,
+                state="in_progress",
+                answers=None,
+                answered_count=None,
+                safety_triggered=False,
+                safety_confirmation_state=None,
+                safety_resource_version=None,
+                safety_resource_acknowledged_at=None,
+                client_idempotency_key=idempotency_key,
+                started_at=current,
+                completed_at=None,
+                abandoned_at=None,
+                expires_at=current + self.SESSION_TTL,
+                created_at=current,
+                updated_at=current,
+                version=1,
+            )
+            self.repository.create_assessment_session(session)
+            response = StartAssessmentSessionResponse(
+                session_id=session.document_id,
+                module_code=session.module_code,
+                questionnaire_version=session.questionnaire_version,
+                questions=[
+                    PublicQuestion(
+                        question_key=question.question_key,
+                        order=question.order,
+                        text=question.text,
+                        options=[
+                            PublicQuestionOption(option_key=option.option_key, label=option.label)
+                            for option in question.options
+                        ],
+                    )
+                    for question in questions
+                ],
+                state="in_progress",
+                expires_at=session.expires_at,
+                object_version=session.version,
+            )
+            self.idempotency.complete(
+                reservation,
+                status_code=200,
+                response_digest=response.model_dump_json(),
+            )
+            self._audit(
+                request_id=request_id,
+                actor_id=subject.subject_id,
+                action="assessment_session",
+                resource_id=session.document_id,
+                reason_code="started",
+                facts={
+                    "action_code": "start",
+                    "object_version": session.version,
+                    "resource_version": session.questionnaire_version,
+                    "status": session.state,
+                },
+            )
+            return response
+        except RepositoryVersionConflict as error:
+            failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except RepositoryError as error:
+            failure = _repository_failure(error)
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except ApiException as error:
             _complete_failure(self.idempotency, reservation, error)
-            raise error
-
-        current = datetime.now(UTC)
-        session = AssessmentSessionDocument(
-            _id=self.repository.next_assessment_session_id(),
-            user_id=subject.subject_id,
-            module_code=catalog.module.module_code,
-            questionnaire_version=catalog.questionnaire.questionnaire_version,
-            state="in_progress",
-            answers=None,
-            answered_count=None,
-            safety_triggered=False,
-            safety_confirmation_state=None,
-            safety_resource_version=None,
-            safety_resource_acknowledged_at=None,
-            client_idempotency_key=idempotency_key,
-            started_at=current,
-            completed_at=None,
-            abandoned_at=None,
-            expires_at=current + self.SESSION_TTL,
-            created_at=current,
-            updated_at=current,
-            version=1,
-        )
-        self.repository.create_assessment_session(session)
-        response = StartAssessmentSessionResponse(
-            session_id=session.document_id,
-            module_code=session.module_code,
-            questionnaire_version=session.questionnaire_version,
-            questions=[
-                PublicQuestion(
-                    question_key=question.question_key,
-                    order=question.order,
-                    text=question.text,
-                    options=[
-                        PublicQuestionOption(option_key=option.option_key, label=option.label)
-                        for option in question.options
-                    ],
-                )
-                for question in catalog.questions
-            ],
-            state="in_progress",
-            expires_at=session.expires_at,
-            object_version=session.version,
-        )
-        self.idempotency.complete(
-            reservation,
-            status_code=200,
-            response_digest=response.model_dump_json(),
-        )
-        self._audit(
-            request_id=request_id,
-            actor_id=subject.subject_id,
-            action="assessment_session",
-            resource_id=session.document_id,
-            reason_code="started",
-            facts={
-                "action_code": "start",
-                "object_version": session.version,
-                "resource_version": session.questionnaire_version,
-                "status": session.state,
-            },
-        )
-        return response
+            raise
+        except Exception as error:
+            failure = ApiException(500, "INTERNAL_ERROR")
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
 
     def complete_session(
         self,
@@ -160,9 +180,12 @@ class AssessmentService:
         request_id: str,
         idempotency_key: str,
     ) -> CompleteAssessmentSessionResponse:
-        request = CompleteAssessmentSessionRequest.model_validate(
-            {"answers": answers, "object_version": object_version}
-        )
+        try:
+            request = CompleteAssessmentSessionRequest.model_validate(
+                {"answers": answers, "object_version": object_version}
+            )
+        except ValidationError as error:
+            raise ApiException(422, "VALIDATION_FAILED") from error
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
@@ -216,14 +239,16 @@ class AssessmentService:
             module = self.repository.get_assessment_module(session.module_code)
             if module.current_questionnaire_version != session.questionnaire_version:
                 raise ApiException(409, "VERSION_CONFLICT", current_version=module.version)
+            if not module.enabled:
+                raise ApiException(404, "NOT_FOUND")
 
             questionnaire = self.repository.get_assessment_questionnaire(
                 session.module_code,
                 session.questionnaire_version,
             )
-            _ = questionnaire
+            self._validate_questionnaire(module, questionnaire)
             scored = score_questionnaire(
-                session.module_code,
+                questionnaire,
                 [(answer.question_key, answer.option_key) for answer in request.answers],
             )
             if session.module_code == "phq9" and scored.safety_triggered:
@@ -364,6 +389,40 @@ class AssessmentService:
             failure = ApiException(500, "INTERNAL_ERROR")
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
+
+    def _load_published_questionnaire(
+        self,
+        module_code: str,
+    ) -> tuple[
+        AssessmentModuleDocument,
+        AssessmentQuestionnaireDocument,
+        tuple[CatalogQuestion, ...],
+    ]:
+        module = self.repository.get_assessment_module(module_code)
+        if module.module_code != module_code or not module.enabled:
+            raise ApiException(404, "NOT_FOUND")
+        questionnaire = self.repository.get_assessment_questionnaire(
+            module.module_code,
+            module.current_questionnaire_version,
+        )
+        questions = self._validate_questionnaire(module, questionnaire)
+        return module, questionnaire, questions
+
+    @staticmethod
+    def _validate_questionnaire(
+        module: AssessmentModuleDocument,
+        questionnaire: AssessmentQuestionnaireDocument,
+    ) -> tuple[CatalogQuestion, ...]:
+        if (
+            not questionnaire.enabled
+            or questionnaire.module_code != module.module_code
+            or questionnaire.questionnaire_version != module.current_questionnaire_version
+        ):
+            raise ApiException(404, "NOT_FOUND")
+        try:
+            return questionnaire_questions(questionnaire)
+        except AssessmentValidationError as error:
+            raise ApiException(404, "NOT_FOUND") from error
 
     def _ensure_assessment_access(self, user_id: str) -> None:
         user = self.repository.get_user(user_id)

@@ -7,10 +7,15 @@ import pytest
 
 from app.audit.writer import AuditWriter
 from app.config.settings import Settings
-from app.domain.models import IdentityRecordDocument, UserAccountDocument
+from app.domain.models import (
+    AssessmentQuestionnaireDocument,
+    IdentityRecordDocument,
+    UserAccountDocument,
+)
 from app.repositories.audit_repository import InMemoryAuditRepository
 from app.repositories.domain_data_repository import InMemoryDomainDataRepository
 from app.repositories.idempotency_repository import InMemoryIdempotencyRepository
+from app.repositories.protocols import RepositoryNotFound
 from app.repositories.session_repository import InMemorySessionRepository
 from app.schemas.errors import ApiException
 from app.security.tokens import TokenManager
@@ -65,9 +70,27 @@ def issue_student_access_token(
     return pair.access_token
 
 
-def seed_rules_repository() -> InMemoryDomainDataRepository:
+def seed_rules_repository(
+    *,
+    module_updates: dict[str, dict[str, Any]] | None = None,
+    questionnaire_updates: dict[tuple[str, str], dict[str, Any]] | None = None,
+    extra_questionnaires: list[AssessmentQuestionnaireDocument] | None = None,
+) -> InMemoryDomainDataRepository:
     rules = pytest.importorskip("app.domain.assessment_rules")
     seed_documents = rules.build_seed_documents()
+    modules = [
+        module.model_copy(update=(module_updates or {}).get(module.module_code, {}))
+        for module in seed_documents["assessment_modules"]
+    ]
+    questionnaires = [
+        questionnaire.model_copy(
+            update=(questionnaire_updates or {}).get(
+                (questionnaire.module_code, questionnaire.questionnaire_version), {}
+            )
+        )
+        for questionnaire in seed_documents["assessment_questionnaires"]
+    ]
+    questionnaires.extend(extra_questionnaires or [])
     return InMemoryDomainDataRepository(
         users=[build_user()],
         identities=[
@@ -86,8 +109,8 @@ def seed_rules_repository() -> InMemoryDomainDataRepository:
                 version=1,
             )
         ],
-        assessment_modules=seed_documents["assessment_modules"],
-        assessment_questionnaires=seed_documents["assessment_questionnaires"],
+        assessment_modules=modules,
+        assessment_questionnaires=questionnaires,
     )
 
 
@@ -133,6 +156,244 @@ def test_start_session_freezes_enabled_questionnaire_version_without_score_rules
     assert session.questionnaire_version == "phq9-cn-v1"
     assert session.answers is None
     assert session.answered_count is None
+
+
+def test_start_session_rejects_disabled_module_from_repository() -> None:
+    repository = seed_rules_repository(module_updates={"phq9": {"enabled": False}})
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    with pytest.raises(ApiException) as error:
+        service.start_session(
+            issue_student_access_token(sessions),
+            module_code="phq9",
+            request_id="req-start-disabled-module",
+            idempotency_key="start-disabled-module",
+        )
+
+    assert error.value.code == "NOT_FOUND"
+    with pytest.raises(RepositoryNotFound):
+        repository.get_assessment_session("assessment_session_0001")
+
+
+def test_start_session_rejects_disabled_questionnaire_from_repository() -> None:
+    repository = seed_rules_repository(
+        questionnaire_updates={("phq9", "phq9-cn-v1"): {"enabled": False}}
+    )
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    with pytest.raises(ApiException) as error:
+        service.start_session(
+            issue_student_access_token(sessions),
+            module_code="phq9",
+            request_id="req-start-disabled-questionnaire",
+            idempotency_key="start-disabled-questionnaire",
+        )
+
+    assert error.value.code == "NOT_FOUND"
+
+
+def test_start_session_uses_repository_current_version_and_question_projection() -> None:
+    rules = pytest.importorskip("app.domain.assessment_rules")
+    seed_documents = rules.build_seed_documents()
+    phq9_v1 = next(
+        questionnaire
+        for questionnaire in seed_documents["assessment_questionnaires"]
+        if questionnaire.module_code == "phq9"
+    )
+    phq9_v2 = phq9_v1.model_copy(
+        update={
+            "_id": "assessment-questionnaire-phq9-v2",
+            "questionnaire_version": "phq9-cn-v2",
+            "questions": [
+                question.model_copy(update={"text": "仓储发布的 v2 题干。"})
+                if question.question_key == "q1"
+                else question
+                for question in phq9_v1.questions
+            ],
+        }
+    )
+    repository = seed_rules_repository(
+        module_updates={"phq9": {"current_questionnaire_version": "phq9-cn-v2"}},
+        extra_questionnaires=[phq9_v2],
+    )
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    started = service.start_session(
+        issue_student_access_token(sessions),
+        module_code="phq9",
+        request_id="req-start-v2",
+        idempotency_key="start-v2",
+    )
+
+    assert started.questionnaire_version == "phq9-cn-v2"
+    assert started.questions[0].text == "仓储发布的 v2 题干。"
+    assert all(not hasattr(question, "score_rule") for question in started.questions)
+
+
+def test_start_session_rejects_missing_current_questionnaire() -> None:
+    repository = seed_rules_repository(
+        module_updates={"phq9": {"current_questionnaire_version": "phq9-cn-v2"}}
+    )
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    with pytest.raises(ApiException) as error:
+        service.start_session(
+            issue_student_access_token(sessions),
+            module_code="phq9",
+            request_id="req-start-missing-questionnaire",
+            idempotency_key="start-missing-questionnaire",
+        )
+
+    assert error.value.code == "NOT_FOUND"
+
+
+def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
+    rules = pytest.importorskip("app.domain.assessment_rules")
+    repository = seed_rules_repository()
+    gad7 = next(
+        questionnaire
+        for questionnaire in rules.build_seed_documents()["assessment_questionnaires"]
+        if questionnaire.module_code == "gad7"
+    )
+    mismatch: AssessmentQuestionnaireDocument = gad7.model_copy(
+        update={"questionnaire_version": "phq9-cn-v1", "_id": "mismatched-questionnaire"}
+    )
+    original_get = repository.get_assessment_questionnaire
+
+    def get_mismatched_questionnaire(
+        module_code: str, questionnaire_version: str
+    ) -> AssessmentQuestionnaireDocument:
+        assert module_code == "phq9"
+        assert questionnaire_version == "phq9-cn-v1"
+        return mismatch
+
+    repository.get_assessment_questionnaire = get_mismatched_questionnaire  # type: ignore[method-assign]
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    with pytest.raises(ApiException) as error:
+        service.start_session(
+            issue_student_access_token(sessions),
+            module_code="phq9",
+            request_id="req-start-mismatched-questionnaire",
+            idempotency_key="start-mismatched-questionnaire",
+        )
+
+    assert error.value.code == "NOT_FOUND"
+    repository.get_assessment_questionnaire = original_get  # type: ignore[method-assign]
+
+
+def test_completion_scores_from_the_session_questionnaire_document() -> None:
+    rules = pytest.importorskip("app.domain.assessment_rules")
+    seed_documents = rules.build_seed_documents()
+    gad7_v1 = next(
+        questionnaire
+        for questionnaire in seed_documents["assessment_questionnaires"]
+        if questionnaire.module_code == "gad7"
+    )
+    gad7_v2 = gad7_v1.model_copy(
+        update={
+            "_id": "assessment-questionnaire-gad7-v2",
+            "questionnaire_version": "gad7-cn-v2",
+            "questions": [
+                question.model_copy(
+                    update={
+                        "options": [
+                            option.model_copy(update={"score": 1})
+                            if option.option_key == "0"
+                            else option
+                            for option in question.options
+                        ]
+                    }
+                )
+                if question.question_key == "q1"
+                else question
+                for question in gad7_v1.questions
+            ],
+        }
+    )
+    repository = seed_rules_repository(
+        module_updates={"gad7": {"current_questionnaire_version": "gad7-cn-v2"}},
+        extra_questionnaires=[gad7_v2],
+    )
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = issue_student_access_token(sessions)
+    started = service.start_session(
+        access_token,
+        module_code="gad7",
+        request_id="req-start-gad-v2",
+        idempotency_key="start-gad-v2",
+    )
+
+    result = service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=started.object_version,
+        answers=[
+            {"question_key": f"q{question_number}", "option_key": "0"}
+            for question_number in range(1, 8)
+        ],
+        request_id="req-complete-gad-v2",
+        idempotency_key="complete-gad-v2",
+    )
+
+    assert result.score == 1
+    stored_result = repository.get_assessment_result(result.result_id or "")
+    assert stored_result.answers_snapshot is not None
+    assert stored_result.answers_snapshot[0].score_snapshot == 1
 
 
 def test_completion_persists_result_atomically_and_replays_duplicate_submit() -> None:

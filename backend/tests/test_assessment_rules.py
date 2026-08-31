@@ -265,6 +265,156 @@ def test_gad7_scoring_boundaries(
     assert outcome.safety_triggered is False
 
 
+@pytest.mark.parametrize(
+    ("module_code", "answers", "expected_summary"),
+    [
+        (
+            "phq9",
+            [
+                ("q1", "0"),
+                ("q2", "0"),
+                ("q3", "0"),
+                ("q4", "0"),
+                ("q5", "0"),
+                ("q6", "0"),
+                ("q7", "0"),
+                ("q8", "0"),
+                ("q9", "0"),
+                ("impact", "none"),
+            ],
+            "这次记录里，近期情绪相关信号较少。",
+        ),
+        (
+            "phq9",
+            [
+                ("q1", "1"),
+                ("q2", "1"),
+                ("q3", "1"),
+                ("q4", "1"),
+                ("q5", "1"),
+                ("q6", "0"),
+                ("q7", "0"),
+                ("q8", "0"),
+                ("q9", "0"),
+                ("impact", "some"),
+            ],
+            "这次记录显示，你近期有一些情绪困扰。",
+        ),
+        (
+            "phq9",
+            [
+                ("q1", "2"),
+                ("q2", "2"),
+                ("q3", "2"),
+                ("q4", "2"),
+                ("q5", "2"),
+                ("q6", "0"),
+                ("q7", "0"),
+                ("q8", "0"),
+                ("q9", "0"),
+                ("impact", "very"),
+            ],
+            "这次记录显示，你近期的情绪困扰比较明显。",
+        ),
+        (
+            "phq9",
+            [
+                ("q1", "3"),
+                ("q2", "3"),
+                ("q3", "3"),
+                ("q4", "3"),
+                ("q5", "3"),
+                ("q6", "0"),
+                ("q7", "0"),
+                ("q8", "0"),
+                ("q9", "0"),
+                ("impact", "extreme"),
+            ],
+            "这次记录显示，你近期的情绪困扰较重。",
+        ),
+        (
+            "phq9",
+            [
+                ("q1", "3"),
+                ("q2", "3"),
+                ("q3", "3"),
+                ("q4", "3"),
+                ("q5", "3"),
+                ("q6", "3"),
+                ("q7", "2"),
+                ("q8", "0"),
+                ("q9", "0"),
+                ("impact", "extreme"),
+            ],
+            "这次记录显示，你近期的情绪困扰较多，值得尽快获得支持。",
+        ),
+        (
+            "gad7",
+            [
+                ("q1", "0"),
+                ("q2", "0"),
+                ("q3", "0"),
+                ("q4", "0"),
+                ("q5", "0"),
+                ("q6", "0"),
+                ("q7", "0"),
+            ],
+            "这次记录里，近期紧绷和担心的信号较少。",
+        ),
+        (
+            "gad7",
+            [
+                ("q1", "1"),
+                ("q2", "1"),
+                ("q3", "1"),
+                ("q4", "1"),
+                ("q5", "1"),
+                ("q6", "0"),
+                ("q7", "0"),
+            ],
+            "这次记录显示，你近期有一些紧绷或担心。",
+        ),
+        (
+            "gad7",
+            [
+                ("q1", "2"),
+                ("q2", "2"),
+                ("q3", "2"),
+                ("q4", "2"),
+                ("q5", "2"),
+                ("q6", "0"),
+                ("q7", "0"),
+            ],
+            "这次记录显示，你近期焦虑相关的困扰比较明显。",
+        ),
+        (
+            "gad7",
+            [
+                ("q1", "3"),
+                ("q2", "3"),
+                ("q3", "3"),
+                ("q4", "3"),
+                ("q5", "3"),
+                ("q6", "0"),
+                ("q7", "0"),
+            ],
+            "这次记录显示，你近期的焦虑相关困扰较重，值得尽快与专业人员交流。",
+        ),
+    ],
+)
+def test_fixed_standard_result_copy_matches_the_frozen_design(
+    module_code: str,
+    answers: list[tuple[str, str]],
+    expected_summary: str,
+) -> None:
+    rules = load_module("app.domain.assessment_rules")
+
+    outcome = rules.score_questionnaire(module_code, answers)
+
+    assert outcome.fixed_summary == expected_summary
+    assert outcome.boundary_notice == "这是一项筛查结果，用于自我观察，不构成诊断。"
+
+
 def test_sleep_observation_returns_three_dimensions_without_total_score() -> None:
     rules = load_module("app.domain.assessment_rules")
 
@@ -293,6 +443,7 @@ def test_sleep_observation_returns_three_dimensions_without_total_score() -> Non
         "bedtime_reasons": ["想把属于自己的时间再延长一点", "脑子停不下来，反复想事情"],
         "recovery_daytime_impact": "影响较明显",
     }
+    assert outcome.fixed_summary == "这次记录帮助你看见最近 7 天的睡眠、作息和白天恢复状态。"
 
 
 def test_sleep_question_8_refusal_is_mutually_exclusive() -> None:
