@@ -18,7 +18,10 @@ from app.domain.models import (
     AssessmentSessionDocument,
     ConsentEventDocument,
     IdentityRecordDocument,
+    SafetySupportTaskDocument,
+    SupportResourceDocument,
     UserAccountDocument,
+    WorkTaskDocument,
 )
 from app.repositories.protocols import RepositoryNotFound, RepositoryVersionConflict
 
@@ -33,12 +36,17 @@ class _DomainDataSnapshot:
     assessment_questionnaires: dict[tuple[str, str], AssessmentQuestionnaireDocument]
     assessment_sessions: dict[str, AssessmentSessionDocument]
     assessment_results: dict[str, AssessmentResultDocument]
+    support_resources: dict[str, SupportResourceDocument]
+    safety_support_tasks: dict[str, SafetySupportTaskDocument]
+    work_tasks: dict[str, WorkTaskDocument]
     extra_collections: dict[str, list[dict[str, Any]]]
     identity_counter: int
     consent_counter: int
     anonymous_counter: int
     assessment_session_counter: int
     assessment_result_counter: int
+    safety_support_task_counter: int
+    work_task_counter: int
 
 
 class InMemoryDomainDataRepository:
@@ -53,6 +61,9 @@ class InMemoryDomainDataRepository:
         assessment_questionnaires: list[AssessmentQuestionnaireDocument] | None = None,
         assessment_sessions: list[AssessmentSessionDocument] | None = None,
         assessment_results: list[AssessmentResultDocument] | None = None,
+        support_resources: list[SupportResourceDocument] | None = None,
+        safety_support_tasks: list[SafetySupportTaskDocument] | None = None,
+        work_tasks: list[WorkTaskDocument] | None = None,
         extra_collections: Mapping[str, list[Mapping[str, Any]]] | None = None,
     ) -> None:
         self._lock = RLock()
@@ -76,6 +87,11 @@ class InMemoryDomainDataRepository:
         self._assessment_results = {
             result.document_id: result for result in assessment_results or []
         }
+        self._support_resources = {
+            resource.document_id: resource for resource in support_resources or []
+        }
+        self._safety_support_tasks = {task.document_id: task for task in safety_support_tasks or []}
+        self._work_tasks = {task.document_id: task for task in work_tasks or []}
         self._extra_collections = {
             name: [deepcopy(dict(item)) for item in items]
             for name, items in (extra_collections or {}).items()
@@ -85,6 +101,8 @@ class InMemoryDomainDataRepository:
         self._anonymous_counter = len(self._anonymous)
         self._assessment_session_counter = len(self._assessment_sessions)
         self._assessment_result_counter = len(self._assessment_results)
+        self._safety_support_task_counter = len(self._safety_support_tasks)
+        self._work_task_counter = len(self._work_tasks)
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
@@ -108,12 +126,17 @@ class InMemoryDomainDataRepository:
             assessment_questionnaires=deepcopy(self._assessment_questionnaires),
             assessment_sessions=deepcopy(self._assessment_sessions),
             assessment_results=deepcopy(self._assessment_results),
+            support_resources=deepcopy(self._support_resources),
+            safety_support_tasks=deepcopy(self._safety_support_tasks),
+            work_tasks=deepcopy(self._work_tasks),
             extra_collections=deepcopy(self._extra_collections),
             identity_counter=self._identity_counter,
             consent_counter=self._consent_counter,
             anonymous_counter=self._anonymous_counter,
             assessment_session_counter=self._assessment_session_counter,
             assessment_result_counter=self._assessment_result_counter,
+            safety_support_task_counter=self._safety_support_task_counter,
+            work_task_counter=self._work_task_counter,
         )
 
     def _restore(self, snapshot: _DomainDataSnapshot) -> None:
@@ -125,12 +148,17 @@ class InMemoryDomainDataRepository:
         self._assessment_questionnaires = snapshot.assessment_questionnaires
         self._assessment_sessions = snapshot.assessment_sessions
         self._assessment_results = snapshot.assessment_results
+        self._support_resources = snapshot.support_resources
+        self._safety_support_tasks = snapshot.safety_support_tasks
+        self._work_tasks = snapshot.work_tasks
         self._extra_collections = snapshot.extra_collections
         self._identity_counter = snapshot.identity_counter
         self._consent_counter = snapshot.consent_counter
         self._anonymous_counter = snapshot.anonymous_counter
         self._assessment_session_counter = snapshot.assessment_session_counter
         self._assessment_result_counter = snapshot.assessment_result_counter
+        self._safety_support_task_counter = snapshot.safety_support_task_counter
+        self._work_task_counter = snapshot.work_task_counter
 
     def get_user(self, user_id: str) -> UserAccountDocument:
         with self._lock:
@@ -355,6 +383,35 @@ class InMemoryDomainDataRepository:
             results.sort(key=lambda result: (result.created_at, result.document_id))
             return tuple(results)
 
+    def list_support_resources(self, environment_scope: str) -> tuple[SupportResourceDocument, ...]:
+        with self._lock:
+            resources = [
+                resource
+                for resource in self._support_resources.values()
+                if resource.environment_scope == environment_scope and resource.enabled
+            ]
+            resources.sort(key=lambda resource: (resource.sort_order, resource.document_id))
+            return tuple(resources)
+
+    def create_safety_support_task(
+        self,
+        task: SafetySupportTaskDocument,
+    ) -> SafetySupportTaskDocument:
+        with self._lock:
+            self._safety_support_tasks[task.document_id] = task
+            return task
+
+    def list_safety_support_tasks(self) -> tuple[SafetySupportTaskDocument, ...]:
+        with self._lock:
+            tasks = list(self._safety_support_tasks.values())
+            tasks.sort(key=lambda task: (task.created_at, task.document_id))
+            return tuple(tasks)
+
+    def create_work_task(self, task: WorkTaskDocument) -> WorkTaskDocument:
+        with self._lock:
+            self._work_tasks[task.document_id] = task
+            return task
+
     def next_assessment_session_id(self) -> str:
         with self._lock:
             self._assessment_session_counter += 1
@@ -365,6 +422,40 @@ class InMemoryDomainDataRepository:
             self._assessment_result_counter += 1
             return f"assessment_result_{self._assessment_result_counter:04d}"
 
+    def next_safety_support_task_id(self) -> str:
+        with self._lock:
+            self._safety_support_task_counter += 1
+            return f"safety_support_task_{self._safety_support_task_counter:04d}"
+
+    def next_work_task_id(self) -> str:
+        with self._lock:
+            self._work_task_counter += 1
+            return f"work_task_{self._work_task_counter:04d}"
+
     def extra_collection(self, name: str) -> list[dict[str, Any]]:
         with self._lock:
+            if name == "work_tasks":
+                return [
+                    task.model_dump(by_alias=True, mode="json")
+                    for task in sorted(
+                        self._work_tasks.values(),
+                        key=lambda task: (task.created_at, task.document_id),
+                    )
+                ]
+            if name == "safety_support_tasks":
+                return [
+                    task.model_dump(by_alias=True, mode="json")
+                    for task in sorted(
+                        self._safety_support_tasks.values(),
+                        key=lambda task: (task.created_at, task.document_id),
+                    )
+                ]
+            if name == "support_resources":
+                return [
+                    resource.model_dump(by_alias=True, mode="json")
+                    for resource in sorted(
+                        self._support_resources.values(),
+                        key=lambda resource: (resource.sort_order, resource.document_id),
+                    )
+                ]
             return deepcopy(self._extra_collections.get(name, []))

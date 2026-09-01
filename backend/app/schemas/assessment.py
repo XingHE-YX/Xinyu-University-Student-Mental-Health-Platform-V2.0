@@ -67,3 +67,38 @@ class CompleteAssessmentSessionResponse(BaseModel):
     safety_triggered: bool
     score: int | None = None
     result_state: Literal["ordinary", "higher_score", "safety_support"] | None = None
+
+
+class SafetyConfirmationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["can_be_safe", "uncertain", "cannot_be_safe"]
+    answers: list[AssessmentAnswerSubmission]
+    object_version: int
+
+
+class SafetyConfirmationResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    next_step: Literal["continue_assessment", "show_support_resources", "support_only"]
+    result_id: None = None
+    support_required: bool
+    task_created: bool
+    visible_projection: dict[str, object]
+    version: int
+
+
+class SupportResourceAckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resource_context: Literal["safety"]
+    resource_version: str
+    object_version: int
+
+
+class SupportResourceAckResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    resource_version: str
+    acknowledged_at: datetime
+    version: int

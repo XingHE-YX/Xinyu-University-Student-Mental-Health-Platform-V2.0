@@ -153,10 +153,18 @@ class AssessmentSessionDocument(DocumentModel):
     @model_validator(mode="after")
     def validate_state_payload(self) -> AssessmentSessionDocument:
         if self.state == "completed":
-            if self.answers is None or self.answered_count is None:
-                raise ValueError("completed sessions must include final answers and answered_count")
-            if self.answered_count != len(self.answers):
-                raise ValueError("answered_count must match the number of final answers")
+            if self.safety_triggered and self.safety_confirmation_state == "uncertain":
+                if self.answers is not None or self.answered_count is None:
+                    raise ValueError(
+                        "uncertain safety support sessions persist answered_count but not answers"
+                    )
+            else:
+                if self.answers is None or self.answered_count is None:
+                    raise ValueError(
+                        "completed sessions must include final answers and answered_count"
+                    )
+                if self.answered_count != len(self.answers):
+                    raise ValueError("answered_count must match the number of final answers")
             if self.completed_at is None:
                 raise ValueError("completed sessions must include completed_at")
             if self.abandoned_at is not None:

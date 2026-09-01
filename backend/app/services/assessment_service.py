@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from pydantic import ValidationError
 
 from app.audit.writer import AuditWriter
+from app.config.environments import EnvironmentKind
 from app.config.settings import Settings
 from app.domain.assessment_rules import (
     AssessmentValidationError,
@@ -21,6 +22,9 @@ from app.domain.models import (
     AssessmentQuestionnaireDocument,
     AssessmentResultDocument,
     AssessmentSessionDocument,
+    SafetySupportTaskDocument,
+    SupportResourceSnapshotModel,
+    WorkTaskDocument,
 )
 from app.repositories.domain_data_repository import InMemoryDomainDataRepository
 from app.repositories.protocols import (
@@ -278,6 +282,12 @@ class AssessmentService:
                         },
                     )
                     return response
+                elif session.safety_confirmation_state == "uncertain":
+                    if (
+                        session.safety_resource_version != self.settings.support_resource_version
+                        or session.safety_resource_acknowledged_at is None
+                    ):
+                        raise ApiException(422, "SAFETY_CONFIRMATION_REQUIRED")
                 elif session.safety_confirmation_state != "can_be_safe":
                     updated_session = session.model_copy(update={"safety_triggered": True})
                     self.repository.save_assessment_session(
@@ -326,10 +336,14 @@ class AssessmentService:
                     raise ApiException(
                         409, "VERSION_CONFLICT", current_version=latest_session.version
                     )
+                is_uncertain_safety_support = (
+                    scored.safety_triggered
+                    and latest_session.safety_confirmation_state == "uncertain"
+                )
                 completed_session = latest_session.model_copy(
                     update={
                         "state": "completed",
-                        "answers": answer_snapshot,
+                        "answers": None if is_uncertain_safety_support else answer_snapshot,
                         "answered_count": len(answer_snapshot),
                         "safety_triggered": scored.safety_triggered,
                         "completed_at": current,
@@ -346,17 +360,25 @@ class AssessmentService:
                     user_id=saved_session.user_id,
                     module_code=saved_session.module_code,
                     scoring_rule_version=scored.scoring_rule_version,
-                    answers_snapshot=answer_snapshot,
-                    fixed_summary=scored.fixed_summary,
-                    reference_band=scored.reference_band,
+                    answers_snapshot=None if is_uncertain_safety_support else answer_snapshot,
+                    fixed_summary="已优先进入安全支持流程，本次仅保存必要的支持事实。"
+                    if is_uncertain_safety_support
+                    else scored.fixed_summary,
+                    reference_band=None if is_uncertain_safety_support else scored.reference_band,
                     boundary_notice=scored.boundary_notice,
                     ai_assist_snapshot_id=None,
-                    result_state=scored.result_state,
-                    score=scored.score,
-                    dimension_summary=scored.dimension_summary,
+                    result_state="safety_support"
+                    if is_uncertain_safety_support
+                    else scored.result_state,
+                    score=None if is_uncertain_safety_support else scored.score,
+                    dimension_summary=_safety_support_dimension_summary(saved_session)
+                    if is_uncertain_safety_support
+                    else scored.dimension_summary,
                     safety_state="can_be_safe"
                     if scored.safety_triggered
                     and saved_session.safety_confirmation_state == "can_be_safe"
+                    else "uncertain"
+                    if is_uncertain_safety_support
                     else "not_triggered",
                     visible_copy_version=scored.visible_copy_version,
                     deleted_at=None,
@@ -365,6 +387,13 @@ class AssessmentService:
                     version=1,
                 )
                 saved_result = self.repository.create_assessment_result(result)
+                if is_uncertain_safety_support:
+                    self._create_safety_tasks(
+                        user_id=subject.subject_id,
+                        source_result_id=saved_result.document_id,
+                        safety_fact="uncertain",
+                        now=current,
+                    )
 
             response = CompleteAssessmentSessionResponse(
                 completion_state="result_ready",
@@ -397,6 +426,7 @@ class AssessmentService:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
+
         except RepositoryError as error:
             failure = _repository_failure(error)
             _complete_failure(self.idempotency, reservation, failure)
@@ -408,6 +438,62 @@ class AssessmentService:
             failure = ApiException(500, "INTERNAL_ERROR")
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
+
+    def _create_safety_tasks(
+        self,
+        *,
+        user_id: str,
+        source_result_id: str,
+        safety_fact: str,
+        now: datetime,
+    ) -> None:
+        if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
+            return
+        resources = self.repository.list_support_resources(self.settings.environment_kind.value)
+        snapshot = [
+            SupportResourceSnapshotModel(
+                resource_id=resource.document_id,
+                title=resource.title,
+                category=resource.category,
+                action_type=resource.action_type,
+                action_target=resource.action_target,
+            )
+            for resource in resources
+        ]
+        safety_task = SafetySupportTaskDocument(
+            _id=self.repository.next_safety_support_task_id(),
+            task_kind="safety_support",
+            user_reference_id=user_id,
+            source_result_id=source_result_id,
+            safety_fact=safety_fact,  # type: ignore[arg-type]
+            support_resource_snapshot=snapshot,
+            state="needs_action",
+            assigned_admin_id=None,
+            followup_due_at=None,
+            fact_note=None,
+            completed_at=None,
+            created_at=now,
+            updated_at=now,
+            version=1,
+        )
+        self.repository.create_safety_support_task(safety_task)
+        self.repository.create_work_task(
+            WorkTaskDocument(
+                _id=self.repository.next_work_task_id(),
+                task_kind="safety_support",
+                source_type="assessment_result",
+                source_id=safety_task.document_id,
+                available_capability="safety_support",
+                state="needs_action",
+                assigned_admin_id=None,
+                safe_summary="安全支持任务待处理",
+                object_version=safety_task.version,
+                last_action=None,
+                created_at=now,
+                updated_at=now,
+                version=1,
+            )
+        )
 
     def _load_published_questionnaire(
         self,
@@ -522,3 +608,14 @@ def _repository_failure(error: RepositoryError) -> ApiException:
     if isinstance(error, RepositoryNotFound):
         return ApiException(404, "NOT_FOUND")
     return ApiException(503, "DEPENDENCY_UNAVAILABLE")
+
+
+def _safety_support_dimension_summary(session: AssessmentSessionDocument) -> dict[str, object]:
+    return {
+        "confirmation_source": "phq9_current_safety_confirmation",
+        "current_selection": "uncertain",
+        "resource_categories_shown": ["safety"],
+        "resource_version": session.safety_resource_version,
+        "questionnaire_completed": True,
+        "task_state": "needs_action",
+    }
