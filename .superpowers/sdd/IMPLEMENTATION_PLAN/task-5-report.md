@@ -112,3 +112,83 @@ Output: no whitespace errors.
 
 - No student HTTP routes were added by design; stage 4 must wire these service projections into API/front-end surfaces.
 - Authorized-environment production resources still depend on real configuration documents being loaded; the service returns `empty` or `unconfigured` rather than fallback placeholders when absent.
+
+## Fix Round 1/5
+
+### Review finding
+
+`MoodService.delete_mood()` did not treat an already logically deleted mood record as terminal. A second request using the first delete's returned version reached `save_daily_mood_record()`, rewrote `deleted_at`, incremented the version, and emitted another success audit event.
+
+### TDD RED
+
+Added `test_mood_delete_rejects_already_deleted_record_without_mutation_or_second_audit` to `backend/tests/test_today_domain_services.py`. The test uses the real in-memory repository, mood service, token/session path, and audit repository. It deletes once, retries with the returned version, and checks `NOT_FOUND`/404, unchanged version and deletion timestamp, and an unchanged single delete audit.
+
+Command:
+
+```bash
+backend/.venv/bin/python -m pytest backend/tests/test_today_domain_services.py -q
+```
+
+Output:
+
+```text
+...F...                                                                  [100%]
+1 failed, 6 passed in 0.07s
+Failed: DID NOT RAISE <class 'app.schemas.errors.ApiException'>
+```
+
+### Minimal fix and GREEN
+
+Added a post-version-check `deleted_at` guard in `MoodService.delete_mood()`. It returns the existing stable hidden-resource error (`NOT_FOUND`, HTTP 404) before calling the repository save or success audit path. Stale versions continue to return `VERSION_CONFLICT` first.
+
+Command:
+
+```bash
+backend/.venv/bin/python -m pytest backend/tests/test_today_domain_services.py -q
+```
+
+Output:
+
+```text
+.......                                                                  [100%]
+7 passed in 0.09s
+```
+
+### Verification
+
+```bash
+backend/.venv/bin/python -m pytest backend/tests -q
+```
+
+```text
+141 passed in 0.54s
+```
+
+```bash
+backend/.venv/bin/python -m ruff check backend/app backend/tests
+```
+
+```text
+All checks passed!
+```
+
+```bash
+backend/.venv/bin/python -m mypy backend/app backend/tests
+```
+
+```text
+Success: no issues found in 63 source files
+```
+
+```bash
+git diff --check
+```
+
+Output: no whitespace errors.
+
+### Self-review
+
+- The new behavior is tested through the public service operation with real persistence and audit side effects; no mocks were introduced.
+- The version comparison remains before the tombstone check, preserving the existing stale-version contract.
+- The terminal check runs inside the repository transaction and before `save_daily_mood_record()`, so the second request cannot mutate version/timestamps or create a second success audit.
+- The deferred date-format minor was not changed.

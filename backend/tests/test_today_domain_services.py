@@ -520,6 +520,37 @@ def test_mood_history_filters_owner_dates_cursor_limit_and_delete_keeps_same_day
     assert other_owner.value.code == "NOT_FOUND"
 
 
+def test_mood_delete_rejects_already_deleted_record_without_mutation_or_second_audit() -> None:
+    repository = build_repository(daily_mood_records=[mood_record("mood-terminal")])
+    mood, _, _, _, sessions, audit_repository = build_services(repository)
+    access_token = issue_student_token(sessions)
+
+    deleted = mood.delete_mood(
+        access_token,
+        record_id="mood-terminal",
+        object_version=1,
+        request_id="req-delete-first",
+    )
+    persisted_after_first_delete = repository.get_daily_mood("mood-terminal")
+    audits_after_first_delete = audit_repository.list()
+
+    with pytest.raises(ApiException) as second_delete:
+        mood.delete_mood(
+            access_token,
+            record_id="mood-terminal",
+            object_version=deleted.version,
+            request_id="req-delete-second",
+        )
+
+    persisted_after_second_delete = repository.get_daily_mood("mood-terminal")
+    assert second_delete.value.code == "NOT_FOUND"
+    assert second_delete.value.status_code == 404
+    assert persisted_after_second_delete.version == persisted_after_first_delete.version == 2
+    assert persisted_after_second_delete.deleted_at == persisted_after_first_delete.deleted_at
+    assert audit_repository.list() == audits_after_first_delete
+    assert len([event for event in audits_after_first_delete if event.action == "mood_delete"]) == 1
+
+
 def test_mood_account_gate_failures_do_not_write_success_facts() -> None:
     repository = build_repository(
         users=[build_user(base_consent_status="not_accepted", base_consent_version=None)]

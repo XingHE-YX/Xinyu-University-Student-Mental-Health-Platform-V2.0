@@ -229,6 +229,8 @@ class MoodService:
                         "VERSION_CONFLICT",
                         current_version=record.version,
                     )
+                if record.deleted_at is not None:
+                    raise ApiException(404, "NOT_FOUND")
                 current = self._now()
                 saved = self.repository.save_daily_mood_record(
                     record.model_copy(update={"deleted_at": current, "updated_at": current}),
