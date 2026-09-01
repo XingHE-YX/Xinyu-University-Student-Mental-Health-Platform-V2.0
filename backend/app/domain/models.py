@@ -83,7 +83,7 @@ class AnonymousIdentityDocument(DocumentModel):
 class DailyMoodRecordDocument(DocumentModel):
     user_id: NonEmptyString
     record_date: LocalDateString
-    mood_code: NonEmptyString
+    mood_code: Literal["pleasant", "calm", "tired", "anxious", "low", "irritable"]
     source: Literal["mini_program"]
     deleted_at: datetime | None = None
 

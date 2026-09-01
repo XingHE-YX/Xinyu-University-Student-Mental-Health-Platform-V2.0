@@ -17,7 +17,9 @@ from app.domain.models import (
     AssessmentResultDocument,
     AssessmentSessionDocument,
     ConsentEventDocument,
+    DailyMoodRecordDocument,
     IdentityRecordDocument,
+    QuoteEntryDocument,
     SafetySupportTaskDocument,
     SupportResourceDocument,
     UserAccountDocument,
@@ -36,6 +38,8 @@ class _DomainDataSnapshot:
     assessment_questionnaires: dict[tuple[str, str], AssessmentQuestionnaireDocument]
     assessment_sessions: dict[str, AssessmentSessionDocument]
     assessment_results: dict[str, AssessmentResultDocument]
+    daily_moods: dict[str, DailyMoodRecordDocument]
+    quote_entries: dict[str, QuoteEntryDocument]
     support_resources: dict[str, SupportResourceDocument]
     safety_support_tasks: dict[str, SafetySupportTaskDocument]
     work_tasks: dict[str, WorkTaskDocument]
@@ -45,6 +49,7 @@ class _DomainDataSnapshot:
     anonymous_counter: int
     assessment_session_counter: int
     assessment_result_counter: int
+    daily_mood_counter: int
     safety_support_task_counter: int
     work_task_counter: int
 
@@ -61,6 +66,8 @@ class InMemoryDomainDataRepository:
         assessment_questionnaires: list[AssessmentQuestionnaireDocument] | None = None,
         assessment_sessions: list[AssessmentSessionDocument] | None = None,
         assessment_results: list[AssessmentResultDocument] | None = None,
+        daily_mood_records: list[DailyMoodRecordDocument] | None = None,
+        quote_entries: list[QuoteEntryDocument] | None = None,
         support_resources: list[SupportResourceDocument] | None = None,
         safety_support_tasks: list[SafetySupportTaskDocument] | None = None,
         work_tasks: list[WorkTaskDocument] | None = None,
@@ -87,6 +94,8 @@ class InMemoryDomainDataRepository:
         self._assessment_results = {
             result.document_id: result for result in assessment_results or []
         }
+        self._daily_moods = {record.document_id: record for record in daily_mood_records or []}
+        self._quote_entries = {quote.document_id: quote for quote in quote_entries or []}
         self._support_resources = {
             resource.document_id: resource for resource in support_resources or []
         }
@@ -101,6 +110,7 @@ class InMemoryDomainDataRepository:
         self._anonymous_counter = len(self._anonymous)
         self._assessment_session_counter = len(self._assessment_sessions)
         self._assessment_result_counter = len(self._assessment_results)
+        self._daily_mood_counter = len(self._daily_moods)
         self._safety_support_task_counter = len(self._safety_support_tasks)
         self._work_task_counter = len(self._work_tasks)
 
@@ -126,6 +136,8 @@ class InMemoryDomainDataRepository:
             assessment_questionnaires=deepcopy(self._assessment_questionnaires),
             assessment_sessions=deepcopy(self._assessment_sessions),
             assessment_results=deepcopy(self._assessment_results),
+            daily_moods=deepcopy(self._daily_moods),
+            quote_entries=deepcopy(self._quote_entries),
             support_resources=deepcopy(self._support_resources),
             safety_support_tasks=deepcopy(self._safety_support_tasks),
             work_tasks=deepcopy(self._work_tasks),
@@ -135,6 +147,7 @@ class InMemoryDomainDataRepository:
             anonymous_counter=self._anonymous_counter,
             assessment_session_counter=self._assessment_session_counter,
             assessment_result_counter=self._assessment_result_counter,
+            daily_mood_counter=self._daily_mood_counter,
             safety_support_task_counter=self._safety_support_task_counter,
             work_task_counter=self._work_task_counter,
         )
@@ -148,6 +161,8 @@ class InMemoryDomainDataRepository:
         self._assessment_questionnaires = snapshot.assessment_questionnaires
         self._assessment_sessions = snapshot.assessment_sessions
         self._assessment_results = snapshot.assessment_results
+        self._daily_moods = snapshot.daily_moods
+        self._quote_entries = snapshot.quote_entries
         self._support_resources = snapshot.support_resources
         self._safety_support_tasks = snapshot.safety_support_tasks
         self._work_tasks = snapshot.work_tasks
@@ -157,6 +172,7 @@ class InMemoryDomainDataRepository:
         self._anonymous_counter = snapshot.anonymous_counter
         self._assessment_session_counter = snapshot.assessment_session_counter
         self._assessment_result_counter = snapshot.assessment_result_counter
+        self._daily_mood_counter = snapshot.daily_mood_counter
         self._safety_support_task_counter = snapshot.safety_support_task_counter
         self._work_task_counter = snapshot.work_task_counter
 
@@ -383,6 +399,87 @@ class InMemoryDomainDataRepository:
             results.sort(key=lambda result: (result.created_at, result.document_id))
             return tuple(results)
 
+    def list_assessment_results_by_user(
+        self,
+        user_id: str,
+    ) -> tuple[AssessmentResultDocument, ...]:
+        with self._lock:
+            results = [
+                result
+                for result in self._assessment_results.values()
+                if result.user_id == user_id and result.deleted_at is None
+            ]
+            results.sort(key=lambda result: (result.created_at, result.document_id), reverse=True)
+            return tuple(results)
+
+    def create_daily_mood_record(
+        self,
+        record: DailyMoodRecordDocument,
+    ) -> DailyMoodRecordDocument:
+        with self._lock:
+            existing = self.get_daily_mood_by_user_date(record.user_id, record.record_date)
+            if existing is not None:
+                raise RepositoryVersionConflict(existing.version)
+            self._daily_moods[record.document_id] = record
+            return record
+
+    def get_daily_mood(self, record_id: str) -> DailyMoodRecordDocument:
+        with self._lock:
+            try:
+                return self._daily_moods[record_id]
+            except KeyError as error:
+                raise RepositoryNotFound("daily mood record not found") from error
+
+    def get_daily_mood_by_user_date(
+        self,
+        user_id: str,
+        record_date: str,
+    ) -> DailyMoodRecordDocument | None:
+        with self._lock:
+            for record in self._daily_moods.values():
+                if record.user_id == user_id and record.record_date == record_date:
+                    return record
+            return None
+
+    def list_daily_mood_records(self, user_id: str) -> tuple[DailyMoodRecordDocument, ...]:
+        with self._lock:
+            records = [
+                record
+                for record in self._daily_moods.values()
+                if record.user_id == user_id and record.deleted_at is None
+            ]
+            records.sort(key=lambda record: (record.record_date, record.created_at), reverse=True)
+            return tuple(records)
+
+    def save_daily_mood_record(
+        self,
+        record: DailyMoodRecordDocument,
+        *,
+        expected_version: int,
+    ) -> DailyMoodRecordDocument:
+        with self._lock:
+            current = self.get_daily_mood(record.document_id)
+            if current.version != expected_version:
+                raise RepositoryVersionConflict(current.version)
+            updated = record.model_copy(
+                update={"updated_at": datetime.now(UTC), "version": current.version + 1}
+            )
+            self._daily_moods[record.document_id] = updated
+            return updated
+
+    def list_available_quote_entries(self, record_date: str) -> tuple[QuoteEntryDocument, ...]:
+        with self._lock:
+            quotes = [
+                quote
+                for quote in self._quote_entries.values()
+                if quote.enabled
+                and quote.source_kind in {"public_domain", "project_original"}
+                and (quote.display_from is None or quote.display_from <= record_date)
+                and (quote.display_until is None or quote.display_until >= record_date)
+            ]
+            quotes.sort(key=lambda quote: (quote.sort_order, quote.document_id))
+            return tuple(quotes)
+
     def list_support_resources(self, environment_scope: str) -> tuple[SupportResourceDocument, ...]:
         with self._lock:
             resources = [
@@ -422,6 +519,11 @@ class InMemoryDomainDataRepository:
             self._assessment_result_counter += 1
             return f"assessment_result_{self._assessment_result_counter:04d}"
 
+    def next_daily_mood_id(self) -> str:
+        with self._lock:
+            self._daily_mood_counter += 1
+            return f"daily_mood_{self._daily_mood_counter:04d}"
+
     def next_safety_support_task_id(self) -> str:
         with self._lock:
             self._safety_support_task_counter += 1
@@ -448,6 +550,22 @@ class InMemoryDomainDataRepository:
                     for task in sorted(
                         self._safety_support_tasks.values(),
                         key=lambda task: (task.created_at, task.document_id),
+                    )
+                ]
+            if name == "daily_mood_records":
+                return [
+                    record.model_dump(by_alias=True, mode="json")
+                    for record in sorted(
+                        self._daily_moods.values(),
+                        key=lambda record: (record.record_date, record.document_id),
+                    )
+                ]
+            if name == "quote_entries":
+                return [
+                    quote.model_dump(by_alias=True, mode="json")
+                    for quote in sorted(
+                        self._quote_entries.values(),
+                        key=lambda quote: (quote.sort_order, quote.document_id),
                     )
                 ]
             if name == "support_resources":
