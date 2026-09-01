@@ -261,6 +261,7 @@ class AIAssistSnapshotDocument(DocumentModel):
 
 class SupportResourceDocument(DocumentModel):
     environment_scope: Literal["demo", "authorized"]
+    resource_set_version: NonEmptyString
     category: Literal["trusted_person", "campus", "emergency"]
     title: NonEmptyString
     description: NonEmptyString
@@ -269,6 +270,7 @@ class SupportResourceDocument(DocumentModel):
     availability_text: str | None = None
     source_text: NonEmptyString
     verified_at: datetime
+    expires_at: datetime | None = None
     enabled: bool
     sort_order: NonNegativeInt
 
@@ -278,6 +280,9 @@ class QuoteEntryDocument(DocumentModel):
     author_text: NonEmptyString
     work_text: str | None = None
     source_kind: Literal["public_domain", "project_original", "copyright_pending"]
+    source_url: NonEmptyString
+    language_version: NonEmptyString
+    review_status: Literal["待核验", "已核验", "已启用", "已停用"]
     rights_note: NonEmptyString
     enabled: bool
     display_from: LocalDateString | None = None
@@ -367,7 +372,8 @@ class SupportResourceSnapshotModel(BaseModel):
 class SafetySupportTaskDocument(DocumentModel):
     task_kind: Literal["safety_support"]
     user_reference_id: NonEmptyString
-    source_result_id: NonEmptyString
+    source_result_id: NonEmptyString | None = None
+    source_session_id: NonEmptyString | None = None
     safety_fact: Literal["uncertain", "cannot_be_safe"]
     support_resource_snapshot: list[SupportResourceSnapshotModel]
     state: Literal["needs_action", "claimed", "waiting_other", "completed"]
@@ -375,6 +381,18 @@ class SafetySupportTaskDocument(DocumentModel):
     followup_due_at: datetime | None = None
     fact_note: str | None = None
     completed_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_source_reference(self) -> SafetySupportTaskDocument:
+        has_result = self.source_result_id is not None
+        has_session = self.source_session_id is not None
+        if has_result == has_session:
+            raise ValueError("safety support tasks must reference exactly one source")
+        if self.safety_fact == "uncertain" and not has_result:
+            raise ValueError("uncertain safety tasks must reference source_result_id")
+        if self.safety_fact == "cannot_be_safe" and not has_session:
+            raise ValueError("cannot_be_safe safety tasks must reference source_session_id")
+        return self
 
 
 class IdentityAccessRequestDocument(DocumentModel):

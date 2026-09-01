@@ -213,12 +213,23 @@ class MoodService:
         record_id: str,
         object_version: int,
         request_id: str,
+        idempotency_key: str,
     ) -> DeletedMoodFact:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_private_access(subject.subject_id)
+        reservation = self.idempotency.begin(
+            "student",
+            subject.subject_id,
+            f"/daily-moods/{record_id}",
+            idempotency_key,
+            {"record_id": record_id, "object_version": object_version},
+        )
+        if reservation.replayed:
+            return _deleted_mood_fact_from_digest(reservation.record.response_digest)
+
         try:
+            self._ensure_private_access(subject.subject_id)
             with self.repository.transaction():
                 record = self.repository.get_daily_mood(record_id)
                 if record.user_id != subject.subject_id:
@@ -236,32 +247,53 @@ class MoodService:
                     record.model_copy(update={"deleted_at": current, "updated_at": current}),
                     expected_version=record.version,
                 )
+            response = DeletedMoodFact(
+                record_id=saved.document_id,
+                deleted_at=saved.deleted_at or self._now(),
+                version=saved.version,
+            )
+            self.idempotency.complete(
+                reservation,
+                status_code=200,
+                response_digest=response.model_dump_json(),
+            )
         except RepositoryVersionConflict as error:
-            raise ApiException(
+            failure = ApiException(
                 409,
                 "VERSION_CONFLICT",
                 current_version=error.current_version,
-            ) from error
+            )
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
         except RepositoryNotFound as error:
-            raise ApiException(404, "NOT_FOUND") from error
+            failure = ApiException(404, "NOT_FOUND")
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except RepositoryError as error:
+            failure = _repository_failure(error)
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except ApiException as error:
+            _complete_failure(self.idempotency, reservation, error)
+            raise
+        except Exception as error:
+            failure = ApiException(500, "INTERNAL_ERROR")
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
 
         self._audit(
             request_id=request_id,
             actor_id=subject.subject_id,
             action="mood_delete",
-            resource_id=saved.document_id,
+            resource_id=response.record_id,
             reason_code="deleted",
             facts={
                 "action_code": "delete",
-                "object_version": saved.version,
+                "object_version": response.version,
                 "status": "deleted",
             },
         )
-        return DeletedMoodFact(
-            record_id=saved.document_id,
-            deleted_at=saved.deleted_at or self._now(),
-            version=saved.version,
-        )
+        return response
 
     def _ensure_private_access(self, user_id: str) -> None:
         user = self.repository.get_user(user_id)
@@ -337,6 +369,15 @@ def _mood_fact_from_digest(response_digest: str | None) -> MoodFact:
     if error is not None:
         raise error
     return MoodFact.model_validate_json(response_digest)
+
+
+def _deleted_mood_fact_from_digest(response_digest: str | None) -> DeletedMoodFact:
+    if response_digest is None:
+        raise ApiException(500, "INTERNAL_ERROR")
+    error = deserialize_api_error(response_digest)
+    if error is not None:
+        raise error
+    return DeletedMoodFact.model_validate_json(response_digest)
 
 
 def _complete_failure(

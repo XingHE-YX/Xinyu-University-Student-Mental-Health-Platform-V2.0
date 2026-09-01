@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -48,21 +48,30 @@ class SupportResourceService:
         *,
         settings: Settings,
         repository: InMemoryDomainDataRepository,
+        now_provider: object | None = None,
     ) -> None:
         self.settings = settings
         self.repository = repository
+        self._now_provider = now_provider
 
     def list_resources(self, *, context: str) -> SupportResourceList:
         if context not in {"normal", "safety"}:
             raise ApiException(422, "VALIDATION_FAILED")
-        if self.settings.environment_kind is EnvironmentKind.UNCONFIGURED:
+        if (
+            self.settings.environment_kind is EnvironmentKind.UNCONFIGURED
+            or self.settings.support_resource_version is None
+        ):
             return SupportResourceList(
                 status="unconfigured",
                 resource_version=self.settings.support_resource_version,
                 resources=[],
             )
         resources = list(
-            self.repository.list_support_resources(self.settings.environment_kind.value)
+            self.repository.list_support_resources(
+                self.settings.environment_kind.value,
+                resource_set_version=self.settings.support_resource_version,
+                now=self._now(),
+            )
         )
         if not resources:
             return SupportResourceList(
@@ -97,3 +106,10 @@ class SupportResourceService:
                 for resource in resources
             ],
         )
+
+    def _now(self) -> datetime:
+        if callable(self._now_provider):
+            value = self._now_provider()
+            if isinstance(value, datetime):
+                return value
+        return datetime.now(UTC)

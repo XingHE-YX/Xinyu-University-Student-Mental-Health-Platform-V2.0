@@ -249,6 +249,7 @@ REGISTRY: dict[str, CollectionSpec] = {
         fields=COMMON_FIELDS
         + (
             field("environment_scope", "string", required=True),
+            field("resource_set_version", "string", required=True),
             field("category", "string", required=True),
             field("title", "string", required=True),
             field("description", "string", required=True),
@@ -257,6 +258,7 @@ REGISTRY: dict[str, CollectionSpec] = {
             field("availability_text", "string", required=False),
             field("source_text", "string", required=True),
             field("verified_at", "datetime", required=True),
+            field("expires_at", "datetime", required=False),
             field("enabled", "boolean", required=True),
             field("sort_order", "integer", required=True),
         ),
@@ -270,6 +272,9 @@ REGISTRY: dict[str, CollectionSpec] = {
             field("author_text", "string", required=True),
             field("work_text", "string", required=False),
             field("source_kind", "string", required=True),
+            field("source_url", "string", required=True),
+            field("language_version", "string", required=True),
+            field("review_status", "string", required=True),
             field("rights_note", "string", required=True),
             field("enabled", "boolean", required=True),
             field("display_from", "string", required=False),
@@ -366,7 +371,8 @@ REGISTRY: dict[str, CollectionSpec] = {
         + (
             field("task_kind", "string", required=True),
             field("user_reference_id", "string", required=True),
-            field("source_result_id", "string", required=True),
+            field("source_result_id", "string", required=False),
+            field("source_session_id", "string", required=False),
             field("safety_fact", "string", required=True),
             field("support_resource_snapshot", "array[object]", required=True),
             field("state", "string", required=True),

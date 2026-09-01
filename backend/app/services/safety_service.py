@@ -245,7 +245,7 @@ class SafetyService:
             if decision.creates_immediate_task:
                 task_created, task_state = self._create_safety_tasks(
                     user_id=subject_id,
-                    source_result_id=f"restricted_safety_result:{saved_session.document_id}",
+                    source_session_id=saved_session.document_id,
                     safety_fact=request.state,
                     now=current,
                 )
@@ -366,20 +366,28 @@ class SafetyService:
     def _resource_categories(self) -> list[str]:
         if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
             return []
-        resources = self.repository.list_support_resources(self.settings.environment_kind.value)
+        resources = self.repository.list_support_resources(
+            self.settings.environment_kind.value,
+            resource_set_version=self.settings.support_resource_version,
+            now=datetime.now(UTC),
+        )
         return sorted({resource.category for resource in resources})
 
     def _create_safety_tasks(
         self,
         *,
         user_id: str,
-        source_result_id: str,
+        source_session_id: str,
         safety_fact: str,
         now: datetime,
     ) -> tuple[bool, str | None]:
         if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
             return False, None
-        resources = self.repository.list_support_resources(self.settings.environment_kind.value)
+        resources = self.repository.list_support_resources(
+            self.settings.environment_kind.value,
+            resource_set_version=self.settings.support_resource_version,
+            now=now,
+        )
         snapshot = [
             SupportResourceSnapshotModel(
                 resource_id=resource.document_id,
@@ -390,11 +398,13 @@ class SafetyService:
             )
             for resource in resources
         ]
+        safety_task_id = self.repository.next_safety_support_task_id()
         safety_task = SafetySupportTaskDocument(
-            _id=self.repository.next_safety_support_task_id(),
+            _id=safety_task_id,
             task_kind="safety_support",
             user_reference_id=user_id,
-            source_result_id=source_result_id,
+            source_result_id=None,
+            source_session_id=source_session_id,
             safety_fact=safety_fact,  # type: ignore[arg-type]
             support_resource_snapshot=snapshot,
             state="needs_action",
@@ -408,7 +418,7 @@ class SafetyService:
         )
         self.repository.create_safety_support_task(safety_task)
         work_task = WorkTaskDocument(
-            _id=self.repository.next_work_task_id(),
+            _id=safety_task_id,
             task_kind="safety_support",
             source_type="support_task",
             source_id=safety_task.document_id,

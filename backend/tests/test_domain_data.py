@@ -68,6 +68,13 @@ def test_collection_registry_covers_all_fixed_collections_and_serializes_indexes
     quote_fields = schema_projection["quote_entries"]["fields"]
     assert quote_fields["source_kind"]["storage_type"] == "string"
     assert quote_fields["library_version"]["required"] is True
+    assert quote_fields["source_url"]["required"] is True
+    assert quote_fields["language_version"]["required"] is True
+    assert quote_fields["review_status"]["required"] is True
+
+    support_fields = schema_projection["support_resources"]["fields"]
+    assert support_fields["resource_set_version"]["required"] is True
+    assert support_fields["expires_at"]["required"] is False
 
     indexes = schema_projection["assessment_results"]["indexes"]
     assert indexes == [
@@ -184,6 +191,9 @@ def test_quote_entry_model_blocks_enabled_copyright_pending_records() -> None:
             author_text="安西教练",
             work_text="灌篮高手",
             source_kind="copyright_pending",
+            source_url="https://example.test/candidate",
+            language_version="zh-Hans",
+            review_status="待核验",
             rights_note="待版权与正式译文核验",
             enabled=True,
             display_from=None,
@@ -547,6 +557,82 @@ def test_assessment_result_rejects_cannot_be_safe_and_invalid_state_combinations
     assert safety_support.safety_state == "uncertain"
 
 
+def test_safety_support_task_source_reference_matches_safety_fact() -> None:
+    models = load_module("app.domain.models")
+    snapshot = [
+        {
+            "resource_id": "resource-campus",
+            "title": "校内支持",
+            "category": "campus",
+            "action_type": "text_only",
+            "action_target": None,
+        }
+    ]
+
+    uncertain = models.SafetySupportTaskDocument(
+        **sample_metadata(),
+        task_kind="safety_support",
+        user_reference_id="user-1",
+        source_result_id="assessment_result_0001",
+        source_session_id=None,
+        safety_fact="uncertain",
+        support_resource_snapshot=snapshot,
+        state="needs_action",
+        assigned_admin_id=None,
+        followup_due_at=None,
+        fact_note=None,
+        completed_at=None,
+    )
+    assert uncertain.source_result_id == "assessment_result_0001"
+
+    cannot = models.SafetySupportTaskDocument(
+        **sample_metadata(),
+        task_kind="safety_support",
+        user_reference_id="user-1",
+        source_result_id=None,
+        source_session_id="assessment_session_0001",
+        safety_fact="cannot_be_safe",
+        support_resource_snapshot=snapshot,
+        state="needs_action",
+        assigned_admin_id=None,
+        followup_due_at=None,
+        fact_note=None,
+        completed_at=None,
+    )
+    assert cannot.source_session_id == "assessment_session_0001"
+
+    for invalid_payload in [
+        {
+            "source_result_id": "assessment_result_0001",
+            "source_session_id": "assessment_session_0001",
+            "safety_fact": "uncertain",
+        },
+        {
+            "source_result_id": None,
+            "source_session_id": "assessment_session_0001",
+            "safety_fact": "uncertain",
+        },
+        {
+            "source_result_id": "assessment_result_0001",
+            "source_session_id": None,
+            "safety_fact": "cannot_be_safe",
+        },
+    ]:
+        with pytest.raises(ValidationError):
+            models.SafetySupportTaskDocument(
+                **sample_metadata(),
+                task_kind="safety_support",
+                user_reference_id="user-1",
+                support_resource_snapshot=snapshot,
+                state="needs_action",
+                assigned_admin_id=None,
+                followup_due_at=None,
+                fact_note=None,
+                completed_at=None,
+                **invalid_payload,
+            )
+
+
 def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> None:
     seed_demo = load_module("scripts.seed_demo")
     models = load_module("app.domain.models")
@@ -584,6 +670,9 @@ def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> Non
         "author_text": "《周易·乾》",
         "work_text": None,
         "source_kind": "public_domain",
+        "source_url": "https://ctext.org/book-of-changes/qian/zh",
+        "language_version": "zh-Hans",
+        "review_status": "已启用",
         "rights_note": "公版古典文本，已核验",
         "enabled": True,
         "display_from": None,
@@ -597,11 +686,15 @@ def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> Non
     assert by_id["Q-0040"]["rights_note"] == "项目原创温和短句，已启用"
     assert by_id["Q-C001"]["enabled"] is False
     assert by_id["Q-C001"]["source_kind"] == "copyright_pending"
+    assert by_id["Q-C001"]["review_status"] == "已停用"
     assert by_id["Q-C001"]["rights_note"] == "待版权与正式译文核验"
     assert by_id["Q-C002"]["quote_text"] == "教练，我想打篮球。"
     assert by_id["Q-C003"]["work_text"] == "小魔女学园"
 
     support_resources = first_bundle["collections"]["support_resources"]
+    validated_resources = [models.SupportResourceDocument(**entry) for entry in support_resources]
+    assert all(resource.resource_set_version == "support-v1" for resource in validated_resources)
+    assert all(resource.expires_at is None for resource in validated_resources)
     assert all(
         target is None or ".invalid" in target or target.startswith("DEMO-")
         for target in (entry["action_target"] for entry in support_resources)

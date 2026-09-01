@@ -76,14 +76,22 @@ class TodayService:
         self.support_resources = support_resource_service
         self._now_provider = now_provider
 
-    def get_today(self, access_token: str) -> TodayProjection:
+    def get_today(
+        self,
+        access_token: str,
+        *,
+        previous_quote_id: str | None = None,
+    ) -> TodayProjection:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
         self._ensure_private_access(subject.subject_id)
         today = self._today()
         mood = self.repository.get_daily_mood_by_user_date(subject.subject_id, today)
-        quote = self.quote_service.get_daily_quote(now=self._now())
+        quote = self.quote_service.get_daily_quote(
+            now=self._now(),
+            previous_quote_id=previous_quote_id,
+        )
         resources = self.support_resources.list_resources(context="normal")
         return TodayProjection(
             quote=quote.quote,

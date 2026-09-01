@@ -113,6 +113,8 @@ def _support_resources() -> list[dict[str, Any]]:
             "availability_text": "演示数据，始终可见",
             "source_text": "心语 V2 演示环境",
             "verified_at": SEED_TIMESTAMP.isoformat(),
+            "resource_set_version": "support-v1",
+            "expires_at": None,
             "enabled": True,
             "sort_order": 1,
         },
@@ -127,6 +129,8 @@ def _support_resources() -> list[dict[str, Any]]:
             "availability_text": "演示链接",
             "source_text": "心语 V2 演示环境",
             "verified_at": SEED_TIMESTAMP.isoformat(),
+            "resource_set_version": "support-v1",
+            "expires_at": None,
             "enabled": True,
             "sort_order": 2,
         },
@@ -141,6 +145,8 @@ def _support_resources() -> list[dict[str, Any]]:
             "availability_text": "演示文案",
             "source_text": "心语 V2 演示环境",
             "verified_at": SEED_TIMESTAMP.isoformat(),
+            "resource_set_version": "support-v1",
+            "expires_at": None,
             "enabled": True,
             "sort_order": 3,
         },
@@ -596,6 +602,9 @@ def _quote_entry(
         "author_text": author_text,
         "work_text": work_text,
         "source_kind": source_kind,
+        "source_url": _quote_source_url(item_id, source_kind),
+        "language_version": "zh-Hans",
+        "review_status": "已启用" if enabled else "已停用",
         "rights_note": rights_note,
         "enabled": enabled,
         "display_from": None,
@@ -603,6 +612,16 @@ def _quote_entry(
         "sort_order": sort_order,
         "library_version": LIBRARY_VERSION,
     }
+
+
+def _quote_source_url(item_id: str, source_kind: str) -> str:
+    if item_id == "Q-0001":
+        return "https://ctext.org/book-of-changes/qian/zh"
+    if source_kind == "project_original":
+        return f"project://docs/v2/V2_DAILY_QUOTE_LIBRARY.md#{item_id}"
+    if source_kind == "copyright_pending":
+        return "https://zh.wikiquote.org/wiki/Wikiquote:%E9%A6%96%E9%A1%B5"
+    return "https://ctext.org/zh"
 
 
 if __name__ == "__main__":

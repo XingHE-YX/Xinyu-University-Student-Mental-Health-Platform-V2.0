@@ -480,12 +480,25 @@ class InMemoryDomainDataRepository:
             quotes.sort(key=lambda quote: (quote.sort_order, quote.document_id))
             return tuple(quotes)
 
-    def list_support_resources(self, environment_scope: str) -> tuple[SupportResourceDocument, ...]:
+    def list_support_resources(
+        self,
+        environment_scope: str,
+        *,
+        resource_set_version: str | None = None,
+        now: datetime | None = None,
+    ) -> tuple[SupportResourceDocument, ...]:
         with self._lock:
+            current = now or datetime.now(UTC)
             resources = [
                 resource
                 for resource in self._support_resources.values()
-                if resource.environment_scope == environment_scope and resource.enabled
+                if resource.environment_scope == environment_scope
+                and resource.enabled
+                and (
+                    resource_set_version is None
+                    or resource.resource_set_version == resource_set_version
+                )
+                and (resource.expires_at is None or resource.expires_at > current)
             ]
             resources.sort(key=lambda resource: (resource.sort_order, resource.document_id))
             return tuple(resources)

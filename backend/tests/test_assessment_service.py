@@ -158,6 +158,34 @@ def test_start_session_freezes_enabled_questionnaire_version_without_score_rules
     assert session.answered_count is None
 
 
+def test_assessment_audit_events_use_allowed_assessment_resource_type() -> None:
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    audit_repository = InMemoryAuditRepository()
+    service_module = pytest.importorskip("app.services.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
+    )
+
+    service.start_session(
+        issue_student_access_token(sessions),
+        module_code="phq9",
+        request_id="req-start-audit-resource",
+        idempotency_key="start-audit-resource",
+    )
+
+    start_events = [
+        event for event in audit_repository.list() if event.action == "assessment_session"
+    ]
+    assert len(start_events) == 1
+    assert start_events[0].resource_type == "assessment"
+
+
 def test_start_session_rejects_disabled_module_from_repository() -> None:
     repository = seed_rules_repository(module_updates={"phq9": {"enabled": False}})
     sessions = InMemorySessionRepository()
