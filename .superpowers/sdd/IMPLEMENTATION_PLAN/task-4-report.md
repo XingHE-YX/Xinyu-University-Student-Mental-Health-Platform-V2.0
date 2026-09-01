@@ -145,3 +145,108 @@ compileall exit code 0
 
 - `cannot_be_safe` 需要创建安全支持任务，但规范同时要求不创建 `assessment_results` 文档；本实现让任务的 `source_result_id` 使用内部受限引用 `restricted_safety_result:{session_id}`，不落完整结果文档。该处理保持“无完整结果”和“任务可追踪”同时成立，但未来接 CloudBase/后台详情时建议确认是否需要单独的受限安全事实集合。
 - `SafetyService` 和 `AssessmentService` 目前各自有一份创建安全任务的最小逻辑，用于避免 3.3 评分职责与 3.4 安全确认互相耦合过深。后续后台任务服务成形时，可抽出专门的任务创建用例以去重。
+
+---
+
+# 修复轮次 1/5
+
+## 复审发现处理
+
+1. 修复 `uncertain` 可被后续 `can_be_safe` 覆盖的问题：当会话已有 `safety_confirmation_state=uncertain` 时，再次确认若试图改为其他状态，返回稳定错误 `SAFETY_SUPPORT_BLOCKED`，不改写会话状态、不写资源确认、不生成普通/较高分数结果。
+2. 修复 `safety_support` 受限结果中 `resource_categories_shown=["safety"]` 的占位值：现在从当前环境实际启用的 `support_resources` 类别生成，测试覆盖确认投影、受限结果投影和任务资源快照均为 `campus`。
+3. 修复 `WorkTaskDocument` 断链：安全支持 work task 的 `source_type` 改为 `support_task`，`source_id` 指向同一条 `SafetySupportTaskDocument` ID；`source_result_id` 仍按分支分别保存受限结果 ID 或 cannot 分支的内部受限引用，保持 `cannot_be_safe` 不创建 `assessment_results`。
+4. 清理 `AssessmentService` 中 `can_be_safe` 分支未使用的局部 `response`。
+5. 未新增支持资源读取 API，保持 3.5 范围外。
+
+## 新增/修改测试
+
+- `test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe`：复现并锁住 uncertain 不能被 can_be_safe 改写，并验证状态、资源 ack、最终结果和任务四个维度。
+- 扩展 `test_uncertain_requires_matching_resource_ack_before_final_restricted_result_and_task`：验证安全确认投影、受限结果投影、任务快照的资源类别一致来自仓储实际类别。
+- 扩展 `test_cannot_be_safe_abandons_session_creates_minimal_task_but_no_result`：验证 work task 使用 `source_type=support_task` 并指向 safety support task ID。
+
+## TDD RED
+
+命令：
+
+```bash
+backend/.venv/bin/python -m pytest backend/tests/test_safety_service.py backend/tests/test_assessment_service.py backend/tests/test_assessment_api.py
+```
+
+实际输出：
+
+```text
+collected 23 items
+
+backend/tests/test_safety_service.py ..FF.F...                           [ 39%]
+backend/tests/test_assessment_service.py ............                    [ 91%]
+backend/tests/test_assessment_api.py ..                                  [100%]
+
+=================================== FAILURES ===================================
+_ test_uncertain_requires_matching_resource_ack_before_final_restricted_result_and_task _
+E       AssertionError: assert ['safety'] == ['campus']
+
+_______ test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe _______
+E       Failed: DID NOT RAISE <class 'app.schemas.errors.ApiException'>
+
+___ test_cannot_be_safe_abandons_session_creates_minimal_task_but_no_result ____
+E       AssertionError: assert 'assessment_result' == 'support_task'
+
+=========================== short test summary info ============================
+FAILED backend/tests/test_safety_service.py::test_uncertain_requires_matching_resource_ack_before_final_restricted_result_and_task
+FAILED backend/tests/test_safety_service.py::test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe
+FAILED backend/tests/test_safety_service.py::test_cannot_be_safe_abandons_session_creates_minimal_task_but_no_result
+========================= 3 failed, 20 passed in 0.22s =========================
+```
+
+## TDD GREEN 和指定覆盖
+
+命令：
+
+```bash
+backend/.venv/bin/python -m pytest backend/tests/test_safety_service.py backend/tests/test_assessment_service.py backend/tests/test_assessment_api.py
+```
+
+实际输出：
+
+```text
+collected 23 items
+
+backend/tests/test_safety_service.py .........                           [ 39%]
+backend/tests/test_assessment_service.py ............                    [ 91%]
+backend/tests/test_assessment_api.py ..                                  [100%]
+
+============================== 23 passed in 0.16s ==============================
+```
+
+## 完整验证
+
+命令：
+
+```bash
+backend/.venv/bin/python -m pytest backend/tests
+backend/.venv/bin/python -m ruff check backend/app backend/tests
+backend/.venv/bin/python -m ruff format --check backend/app backend/tests
+backend/.venv/bin/python -m mypy backend/app backend/tests
+backend/.venv/bin/python -m compileall -q backend/app backend/tests
+```
+
+实际输出摘要：
+
+```text
+134 passed in 0.48s
+All checks passed!
+58 files already formatted
+Success: no issues found in 58 source files
+compileall exit code 0
+```
+
+## 自审
+
+- 状态维度：已有 `uncertain` 的会话不能用新幂等键改写成 `can_be_safe`，仍需先完成资源确认，并最终只能走 `safety_support` 受限结果。
+- 资源维度：确认投影、结果投影、任务快照均使用仓储中实际展示的资源类别；没有再写占位类别。
+- 任务维度：`work_tasks.source_type` 与 `source_id` 指向同一个 `SafetySupportTaskDocument`，避免用 `assessment_result` 类型承载 support task ID。
+- 隐私维度：修复未新增审计字段；仍未将完整答案、身份或资源敏感目标写入审计。
+
+## 疑虑
+
+- 保留上一轮疑虑：`cannot_be_safe` 的任务仍使用内部受限引用而不是 `assessment_results` 文档 ID，以同时满足“不创建完整结果”和“任务可追踪”。后续后台详情落地时建议确认是否抽出专用受限安全事实集合。

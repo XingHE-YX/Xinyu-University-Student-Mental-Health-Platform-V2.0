@@ -319,13 +319,6 @@ class AssessmentService:
                         },
                     )
                     return response
-                else:
-                    response = CompleteAssessmentSessionResponse(
-                        completion_state="result_ready",
-                        session_id=session.document_id,
-                        result_id=None,
-                        safety_triggered=True,
-                    )
             answer_snapshot = [
                 AssessmentAnswerModel.model_validate(item) for item in scored.answers_snapshot
             ]
@@ -339,6 +332,9 @@ class AssessmentService:
                 is_uncertain_safety_support = (
                     scored.safety_triggered
                     and latest_session.safety_confirmation_state == "uncertain"
+                )
+                resource_categories = (
+                    self._resource_categories() if is_uncertain_safety_support else []
                 )
                 completed_session = latest_session.model_copy(
                     update={
@@ -371,7 +367,10 @@ class AssessmentService:
                     if is_uncertain_safety_support
                     else scored.result_state,
                     score=None if is_uncertain_safety_support else scored.score,
-                    dimension_summary=_safety_support_dimension_summary(saved_session)
+                    dimension_summary=_safety_support_dimension_summary(
+                        saved_session,
+                        resource_categories=resource_categories,
+                    )
                     if is_uncertain_safety_support
                     else scored.dimension_summary,
                     safety_state="can_be_safe"
@@ -481,7 +480,7 @@ class AssessmentService:
             WorkTaskDocument(
                 _id=self.repository.next_work_task_id(),
                 task_kind="safety_support",
-                source_type="assessment_result",
+                source_type="support_task",
                 source_id=safety_task.document_id,
                 available_capability="safety_support",
                 state="needs_action",
@@ -494,6 +493,12 @@ class AssessmentService:
                 version=1,
             )
         )
+
+    def _resource_categories(self) -> list[str]:
+        if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
+            return []
+        resources = self.repository.list_support_resources(self.settings.environment_kind.value)
+        return sorted({resource.category for resource in resources})
 
     def _load_published_questionnaire(
         self,
@@ -610,11 +615,15 @@ def _repository_failure(error: RepositoryError) -> ApiException:
     return ApiException(503, "DEPENDENCY_UNAVAILABLE")
 
 
-def _safety_support_dimension_summary(session: AssessmentSessionDocument) -> dict[str, object]:
+def _safety_support_dimension_summary(
+    session: AssessmentSessionDocument,
+    *,
+    resource_categories: list[str],
+) -> dict[str, object]:
     return {
         "confirmation_source": "phq9_current_safety_confirmation",
         "current_selection": "uncertain",
-        "resource_categories_shown": ["safety"],
+        "resource_categories_shown": resource_categories,
         "resource_version": session.safety_resource_version,
         "questionnaire_completed": True,
         "task_state": "needs_action",

@@ -214,6 +214,8 @@ class SafetyService:
                 raise ApiException(409, "VERSION_CONFLICT", current_version=session.version)
             if session.state != "in_progress":
                 raise ApiException(404, "NOT_FOUND")
+            if session.safety_confirmation_state == "uncertain" and request.state != "uncertain":
+                raise ApiException(422, "SAFETY_SUPPORT_BLOCKED")
             if current > session.expires_at:
                 expired = session.model_copy(update={"state": "expired", "updated_at": current})
                 self.repository.save_assessment_session(expired, expected_version=session.version)
@@ -408,7 +410,7 @@ class SafetyService:
         work_task = WorkTaskDocument(
             _id=self.repository.next_work_task_id(),
             task_kind="safety_support",
-            source_type="assessment_result",
+            source_type="support_task",
             source_id=safety_task.document_id,
             available_capability="safety_support",
             state="needs_action",

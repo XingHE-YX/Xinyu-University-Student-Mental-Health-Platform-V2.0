@@ -270,6 +270,7 @@ def test_uncertain_requires_matching_resource_ack_before_final_restricted_result
     assert confirmation.next_step == "show_support_resources"
     assert confirmation.support_required is True
     assert confirmation.task_created is False
+    assert confirmation.visible_projection["resource_categories_shown"] == ["campus"]
 
     with pytest.raises(ApiException) as blocked:
         assessment.complete_session(
@@ -312,6 +313,7 @@ def test_uncertain_requires_matching_resource_ack_before_final_restricted_result
     assert stored_result.reference_band is None
     assert stored_result.ai_assist_snapshot_id is None
     assert stored_result.safety_state == "uncertain"
+    assert stored_result.dimension_summary["resource_categories_shown"] == ["campus"]
     session = repository.get_assessment_session(session_id)
     assert session.state == "completed"
     assert session.answers is None
@@ -322,7 +324,71 @@ def test_uncertain_requires_matching_resource_ack_before_final_restricted_result
     assert tasks[0].safety_fact == "uncertain"
     assert tasks[0].source_result_id == stored_result.document_id
     assert tasks[0].state == "needs_action"
-    assert repository.extra_collection("work_tasks")[0]["available_capability"] == "safety_support"
+    assert [resource.category for resource in tasks[0].support_resource_snapshot] == ["campus"]
+    work_task = repository.extra_collection("work_tasks")[0]
+    assert work_task["available_capability"] == "safety_support"
+    assert work_task["source_type"] == "support_task"
+    assert work_task["source_id"] == tasks[0].document_id
+
+
+def test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe() -> None:
+    assessment, safety, repository, sessions, _, _ = build_services()
+    access_token, session_id, version = start_phq9(assessment, sessions)
+
+    first = safety.confirm_safety(
+        access_token,
+        session_id=session_id,
+        state="uncertain",
+        object_version=version,
+        answers=phq9_safety_answers("1"),
+        request_id="req-uncertain-first",
+        idempotency_key="uncertain-first",
+    )
+    assert first.next_step == "show_support_resources"
+
+    with pytest.raises(ApiException) as overwrite:
+        safety.confirm_safety(
+            access_token,
+            session_id=session_id,
+            state="can_be_safe",
+            object_version=version + 1,
+            answers=phq9_safety_answers("1"),
+            request_id="req-unsafe-overwrite",
+            idempotency_key="unsafe-overwrite",
+        )
+
+    assert overwrite.value.code == "SAFETY_SUPPORT_BLOCKED"
+    session = repository.get_assessment_session(session_id)
+    assert session.safety_confirmation_state == "uncertain"
+    assert session.safety_resource_version is None
+
+    ack = safety.acknowledge_support_resource(
+        access_token,
+        session_id=session_id,
+        resource_context="safety",
+        resource_version="support-v1",
+        object_version=version + 1,
+        request_id="req-uncertain-ack-after-block",
+        idempotency_key="uncertain-ack-after-block",
+    )
+    result = assessment.complete_session(
+        access_token,
+        session_id=session_id,
+        object_version=ack.version,
+        answers=phq9_complete_answers("1"),
+        request_id="req-uncertain-complete-after-block",
+        idempotency_key="uncertain-complete-after-block",
+    )
+
+    assert result.result_state == "safety_support"
+    stored_result = repository.get_assessment_result(result.result_id or "")
+    assert stored_result.safety_state == "uncertain"
+    assert stored_result.answers_snapshot is None
+    assert stored_result.dimension_summary["resource_categories_shown"] == ["campus"]
+    tasks = repository.list_safety_support_tasks()
+    assert len(tasks) == 1
+    assert tasks[0].safety_fact == "uncertain"
+    assert [resource.category for resource in tasks[0].support_resource_snapshot] == ["campus"]
 
 
 def test_support_resource_ack_rejects_resource_version_conflict() -> None:
@@ -391,7 +457,9 @@ def test_cannot_be_safe_abandons_session_creates_minimal_task_but_no_result() ->
     assert tasks[0].safety_fact == "cannot_be_safe"
     assert tasks[0].user_reference_id == "user-1"
     assert tasks[0].assigned_admin_id is None
-    assert repository.extra_collection("work_tasks")[0]["source_id"] == tasks[0].document_id
+    work_task = repository.extra_collection("work_tasks")[0]
+    assert work_task["source_type"] == "support_task"
+    assert work_task["source_id"] == tasks[0].document_id
 
 
 @pytest.mark.parametrize("kind", ["authorized", "unconfigured"])
