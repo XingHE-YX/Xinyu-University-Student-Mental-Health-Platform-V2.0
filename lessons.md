@@ -96,3 +96,8 @@
 - 本轮修复后验证结果为 today/domain 聚焦测试 21 项、后端全量 148 项通过；Ruff check/format、mypy、compileall 和 `git diff --check` 全部通过。两次独立复审均无未解决的 Critical/Important/Minor；历史日期筛选格式校验仍为 deferred Minor。
 - 文档检查曾直接把 `progress.txt` 交给 Prettier，报 `No parser could be inferred for file .../progress.txt`；对既有规范 Markdown 使用临时 Prettier 还提示历史排版差异。由于仓库没有 Markdown 格式配置，且整篇重排会引入无关变更，本阶段以 `git diff --check`、Ruff/mypy/测试为门禁，并保留该工具报错记录。
 - 复现复审问题时曾从仓库根目录调用后端 Python，报 `ModuleNotFoundError: No module named 'app'`，随后在后端工作目录误用了 `backend/.venv/bin/python` 报路径不存在；改用后端目录下的 `.venv/bin/python` 后完成有效复现。以后执行后端临时脚本必须同时确认工作目录和解释器相对路径。
+- 第一次提交交付记录时对已跟踪但位于被忽略目录的任务报告执行普通 `git add`，Git 提示该路径被 ignore；状态检查确认文件仍已被跟踪并已暂存，随后提交成功。以后遇到此提示先用 `git ls-files`/状态确认跟踪关系，不要使用宽泛强制添加覆盖无关忽略文件。
+
+## 2026-09-02：阶段 3.1–3.5 最终复审记录
+
+- 最终全分支只读复审从 3.1–3.5 基线到 `aada9ff` 通过，确认 117 项针对性检查、Ruff、格式、compileall、demo seed 和差异检查均无阻塞问题；没有新增 Critical、Important 或未解决 Minor。3.5 的学生 HTTP/API 与树洞行为继续留给阶段 4。

@@ -217,3 +217,7 @@ The first re-review found two Important regressions: `quote_id` had leaked into 
 Commit `cd46927d6e6f429fc5e3d54468d6c8ec331cfac4` removed `quote_id` from the student projection while retaining previous-quote exclusion as internal selection state, added the review-status filter, updated the contract wording, and added regression coverage.
 
 Post-fix verification passed 21 today/domain focused tests and 148 backend tests. The independent scoped re-review verdict was `APPROVED`; it found no new Critical, Important, or Minor regression. The history date-format validation remains a deferred Minor for a later API hardening pass.
+
+## Final whole-branch re-review
+
+The final read-only review of the complete 3.1–3.5 diff (`b64f8386c7f3110a31bbe9dad5e156077e4185c6..aada9ff`) was `APPROVED`. It found no Critical, Important, or unresolved Minor issue and confirmed the prior safety, privacy, task-reference, quote, resource, audit, and minimal-projection fixes. The reviewer also confirmed that 3.5 did not add student HTTP or treehole behavior. Targeted checks, Ruff, format, compileall, demo-seed assertions, and diff checks passed. Production CloudBase repository wiring remains a later API/deployment integration item, and history date-format validation remains the recorded deferred Minor.
