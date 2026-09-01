@@ -76,3 +76,15 @@
 - 首次调用复审脚本时误用了 `executing-plans/scripts/review-package` 路径，得到 `No such file or directory`；实际脚本位于 `subagent-driven-development/scripts/review-package`。工具路径错误只记录为流程问题，不改变产品实现判断。
 - 最终文档校验直接调用 `prettier` 时因当前工作树未安装 Node 依赖而报 `command not found: prettier`；随后使用项目锁定的 Prettier `3.9.6` 临时执行校验并通过。以后先确认工作树的依赖是否存在，再选择项目本地或锁定版本的临时执行入口。
 - 支持资源读取 API 仍属于 3.5；3.4 只保留安全确认所需的服务端资源版本/类别读取，避免提前扩展学生端 API 边界。`cannot_be_safe` 继续不生成 `assessment_results`，任务使用内部受限引用保持可追踪性，后续后台详情落地时再评估专用安全事实集合。
+
+## 2026-09-01：阶段 3.5 简报工具兼容性记录
+
+- `task-brief` 在阶段 3.5 仍因内部调用的 `sdd-workspace` 没有可执行权限而报 `Permission denied`；已按阶段计划原文手工建立唯一简报，并将 3.5 的四个服务、精确数据边界和测试要求写入其中。以后运行技能脚本时直接用 `bash` 调用底层脚本或保留手工简报，不把权限错误误判成实现失败。
+
+## 2026-09-01：阶段 3.5 今日、心情、短句和支持资源记录
+
+- TDD 红阶段按预期先因四个目标服务尚未创建出现 `ModuleNotFoundError`；实现后聚焦测试达到 6 项通过，修复回归后达到 7 项通过，不能把先行失败误判为最终回归。
+- 阶段 3.5 首次调用 `review-package` 时把计划参数写成了不存在的 `IMPLEMENTATION_PLAN`，报 `no such plan file`；实际计划文件是 `IMPLEMENTATION_PLAN.md`，修正参数后成功生成复审包。工具参数错误只记录为流程问题，不改变代码审查结论。
+- 首轮复审发现已删除心情记录仍可被重复删除并增加版本；修复时必须把墓碑状态作为事务内的终态，并用真实仓储和审计断言验证无二次写入。修复后独立 scoped re-review 已通过。
+- 历史心情筛选的 `from_date`/`to_date` 格式校验被复审列为 deferred Minor；当前阶段保留 owner-scoped、未删除过滤语义，后续 API hardening 时再补格式化错误契约，避免在本阶段扩大接口范围。
+- 最终验证首次执行 Ruff 格式检查时发现 `today_service.py` 和 3.5 聚焦测试各有一处未按当前 Ruff 版本折叠/展开的表达式；已用项目虚拟环境的 Ruff 格式化并重新验证，功能逻辑未改变。以后提交前必须同时运行 `ruff check` 与 `ruff format --check`，不能只看规则检查结果。

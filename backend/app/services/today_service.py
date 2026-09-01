@@ -122,9 +122,7 @@ class TodayService:
                 cast(Literal["phq9", "gad7", "sleep_observation"], module_code)
             )
             completed_date = (
-                _shanghai_date(selected_result.created_at)
-                if selected_result is not None
-                else None
+                _shanghai_date(selected_result.created_at) if selected_result is not None else None
             )
             shortcuts.append(
                 AssessmentShortcut(

@@ -228,11 +228,15 @@ def build_repository(**overrides: Any) -> InMemoryDomainDataRepository:
 
 
 def issue_student_token(sessions: InMemorySessionRepository, *, subject_id: str = "user-1") -> str:
-    return TokenManager("student-session-secret").issue(
-        "student",
-        subject_id,
-        sessions,
-    ).access_token
+    return (
+        TokenManager("student-session-secret")
+        .issue(
+            "student",
+            subject_id,
+            sessions,
+        )
+        .access_token
+    )
 
 
 def issue_admin_token(sessions: InMemorySessionRepository) -> str:

@@ -192,3 +192,14 @@ Output: no whitespace errors.
 - The version comparison remains before the tombstone check, preserving the existing stale-version contract.
 - The terminal check runs inside the repository transaction and before `save_daily_mood_record()`, so the second request cannot mutate version/timestamps or create a second success audit.
 - The deferred date-format minor was not changed.
+
+## Scoped Re-review
+
+- Verdict: `APPROVED`.
+- The repeated-deletion finding was `ADDRESSED`: the post-version-check tombstone guard returns `NOT_FOUND` before persistence and success-audit side effects.
+- The reviewer found no new Critical, Important, or Minor findings in the fix diff and did not request additional code changes.
+- The history `from_date`/`to_date` format-validation item remains a deferred Minor for a later hardening pass.
+
+## Completion
+
+The 3.5 backend domain/data scope is complete. The four services and their repository/model support cover the static daily quote pool, six-code daily mood fact with terminal single deletion, context-ordered support resources, and the minimal gated today projection. No student HTTP or treehole behavior was added because those integrations are outside the 3.5 file list and belong to the later application/API stage.
