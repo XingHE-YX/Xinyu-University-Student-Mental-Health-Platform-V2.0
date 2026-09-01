@@ -203,3 +203,17 @@ Output: no whitespace errors.
 ## Completion
 
 The 3.5 backend domain/data scope is complete. The four services and their repository/model support cover the static daily quote pool, six-code daily mood fact with terminal single deletion, context-ordered support resources, and the minimal gated today projection. No student HTTP or treehole behavior was added because those integrations are outside the 3.5 file list and belong to the later application/API stage.
+
+## Final-review fix wave
+
+The first whole-branch review after the initial 3.5 completion found accepted cross-stage contract issues: safety task/reference identity, stale safety-session fields, mood-delete idempotency, quote randomness, support-resource version/expiry, assessment audit resource type, and quote provenance. The controller deferred only production CloudBase repository wiring to the later API/deployment integration scope. Commit `7334bf3dbebceaa4771242a4b516bb55456cc660` applied the accepted service/data fixes without adding student HTTP or treehole behavior.
+
+Fresh verification after that wave passed 32 focused tests and 147 backend tests, plus Ruff check/format, mypy, compileall, and diff checks.
+
+## Fix-wave scoped re-review
+
+The first re-review found two Important regressions: `quote_id` had leaked into the documented four-field student quote projection, and the quote repository did not require `review_status=已启用` in addition to `enabled=true`.
+
+Commit `cd46927d6e6f429fc5e3d54468d6c8ec331cfac4` removed `quote_id` from the student projection while retaining previous-quote exclusion as internal selection state, added the review-status filter, updated the contract wording, and added regression coverage.
+
+Post-fix verification passed 21 today/domain focused tests and 148 backend tests. The independent scoped re-review verdict was `APPROVED`; it found no new Critical, Important, or Minor regression. The history date-format validation remains a deferred Minor for a later API hardening pass.

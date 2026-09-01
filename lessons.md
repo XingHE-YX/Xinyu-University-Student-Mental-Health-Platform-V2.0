@@ -88,3 +88,11 @@
 - 首轮复审发现已删除心情记录仍可被重复删除并增加版本；修复时必须把墓碑状态作为事务内的终态，并用真实仓储和审计断言验证无二次写入。修复后独立 scoped re-review 已通过。
 - 历史心情筛选的 `from_date`/`to_date` 格式校验被复审列为 deferred Minor；当前阶段保留 owner-scoped、未删除过滤语义，后续 API hardening 时再补格式化错误契约，避免在本阶段扩大接口范围。
 - 最终验证首次执行 Ruff 格式检查时发现 `today_service.py` 和 3.5 聚焦测试各有一处未按当前 Ruff 版本折叠/展开的表达式；已用项目虚拟环境的 Ruff 格式化并重新验证，功能逻辑未改变。以后提交前必须同时运行 `ruff check` 与 `ruff format --check`，不能只看规则检查结果。
+
+## 2026-09-01：阶段 3.5 修复后复审和交付记录
+
+- 第一轮全分支复审发现并修复了跨阶段契约问题：安全支持任务与 work task 的统一 ID、`cannot_be_safe` 的真实会话引用、PHQ-9 第 9 题归零时清理临时安全状态、心情删除幂等、短句随机与即时去重、支持资源版本/过期过滤、assessment 审计枚举和短句来源字段。生产 CloudBase 领域仓储接入经控制器裁定属于后续 API/部署集成范围，不能为完成 3.5 擅自扩大到生产持久化 wiring。
+- 修复后复审第一轮又发现两个 Important：学生端短句投影错误暴露 `quote_id`，以及候选池未强制 `review_status=已启用`。本地复现确认 `enabled=True` 且待核验的条目确实会泄漏到候选池；已在 `cd46927d` 中移除投影字段、保留内部上一条排除能力，并补上仓储过滤与回归测试。第二轮 scoped re-review 已批准。
+- 本轮修复后验证结果为 today/domain 聚焦测试 21 项、后端全量 148 项通过；Ruff check/format、mypy、compileall 和 `git diff --check` 全部通过。两次独立复审均无未解决的 Critical/Important/Minor；历史日期筛选格式校验仍为 deferred Minor。
+- 文档检查曾直接把 `progress.txt` 交给 Prettier，报 `No parser could be inferred for file .../progress.txt`；对既有规范 Markdown 使用临时 Prettier 还提示历史排版差异。由于仓库没有 Markdown 格式配置，且整篇重排会引入无关变更，本阶段以 `git diff --check`、Ruff/mypy/测试为门禁，并保留该工具报错记录。
+- 复现复审问题时曾从仓库根目录调用后端 Python，报 `ModuleNotFoundError: No module named 'app'`，随后在后端工作目录误用了 `backend/.venv/bin/python` 报路径不存在；改用后端目录下的 `.venv/bin/python` 后完成有效复现。以后执行后端临时脚本必须同时确认工作目录和解释器相对路径。
