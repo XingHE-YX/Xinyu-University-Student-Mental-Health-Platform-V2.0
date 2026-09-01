@@ -19,7 +19,6 @@ SHANGHAI = ZoneInfo("Asia/Shanghai")
 class QuoteProjection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    quote_id: str
     quote_text: str
     author_text: str
     work_text: str | None
@@ -59,7 +58,6 @@ class QuoteService:
         return QuoteSelection(
             status="available",
             quote=QuoteProjection(
-                quote_id=selected.document_id,
                 quote_text=selected.quote_text,
                 author_text=selected.author_text,
                 work_text=selected.work_text,

@@ -101,6 +101,7 @@ def quote_entry(
     *,
     enabled: bool = True,
     source_kind: str = "public_domain",
+    review_status: str | None = None,
     display_from: str | None = None,
     display_until: str | None = None,
     sort_order: int = 1,
@@ -115,7 +116,10 @@ def quote_entry(
         ),
         source_url="https://example.test/quote-source",
         language_version="zh-Hans",
-        review_status="已启用" if enabled else "已停用",
+        review_status=cast(
+            Literal["待核验", "已核验", "已启用", "已停用"],
+            review_status or ("已启用" if enabled else "已停用"),
+        ),
         rights_note="已核验",
         enabled=enabled,
         display_from=display_from,
@@ -338,7 +342,6 @@ def test_today_requires_active_consented_verified_student_and_returns_minimal_pr
 
     assert set(payload) == {"quote", "mood_today", "assessment_shortcuts", "support_entry"}
     assert payload["quote"] == {
-        "quote_id": "Q-0001",
         "quote_text": "短句 Q-0001",
         "author_text": "作者",
         "work_text": "作品",
@@ -688,7 +691,6 @@ def test_quote_service_uses_enabled_seed_pool_window_and_never_exposes_candidate
     assert selection.status == "available"
     assert selection.quote is not None
     assert set(selection.quote.model_dump()) == {
-        "quote_id",
         "quote_text",
         "author_text",
         "work_text",
@@ -746,9 +748,23 @@ def test_quote_service_randomly_selects_again_and_excludes_previous_quote() -> N
 
     assert first.quote is not None
     assert second.quote is not None
-    assert first.quote.quote_id == "Q-second"
-    assert second.quote.quote_id == "Q-first"
+    assert first.quote.quote_text == "短句 Q-second"
+    assert second.quote.quote_text == "短句 Q-first"
     assert choices == ["Q-first,Q-second", "Q-first"]
+
+
+def test_quote_repository_requires_enabled_review_status_for_available_pool() -> None:
+    repository = build_repository(
+        quote_entries=[
+            quote_entry("Q-approved", sort_order=1),
+            quote_entry("Q-pending", review_status="待核验", sort_order=2),
+            quote_entry("Q-stopped", review_status="已停用", sort_order=3),
+        ]
+    )
+
+    pool = repository.list_available_quote_entries(record_date="2026-09-01")
+
+    assert [entry.document_id for entry in pool] == ["Q-approved"]
 
 
 def test_support_resources_are_environment_scoped_ordered_and_explicit_when_missing() -> None:

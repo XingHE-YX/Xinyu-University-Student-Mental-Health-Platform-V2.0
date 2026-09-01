@@ -473,6 +473,7 @@ class InMemoryDomainDataRepository:
                 quote
                 for quote in self._quote_entries.values()
                 if quote.enabled
+                and quote.review_status == "已启用"
                 and quote.source_kind in {"public_domain", "project_original"}
                 and (quote.display_from is None or quote.display_from <= record_date)
                 and (quote.display_until is None or quote.display_until >= record_date)

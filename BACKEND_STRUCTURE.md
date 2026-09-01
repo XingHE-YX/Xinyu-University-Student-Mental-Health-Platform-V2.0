@@ -343,7 +343,7 @@ GET 支持资源只返回当前环境、当前 resource_set_version、enabled=tr
 | language_version | string | 是 | 展示语言/文本版本 |
 | review_status | string | 是 | 待核验、已核验、已启用、已停用 |
 | rights_note | string | 是 | 来源和使用备注 |
-| enabled | boolean | 是 | 是否可展示 |
+| enabled | boolean | 是 | 是否可展示；必须与 review_status=已启用同时成立 |
 | display_from | string | 否 | 生效日期 |
 | display_until | string | 否 | 失效日期 |
 | sort_order | integer | 是 | 后台审核和稳定输出顺序，不用于按日期固定取模 |
@@ -352,7 +352,7 @@ GET 支持资源只返回当前环境、当前 resource_set_version、enabled=tr
 | updated_at | datetime | 是 | 更新时间 |
 | version | integer | 是 | 版本 |
 
-当前启用库为 40 条：30 条公版古典名句和 10 条心语 V2 原创温和短句。每次进入今日页或点击“换一句”时，从 enabled=true、source_kind 为 public_domain/project_original、日期窗口有效的池中随机抽取；同一会话换一句会排除上一条以避免立即重复。动漫台词候选保持 copyright_pending 和 disabled，未完成授权及正式译文核对前不得展示。接口不支持运行时联网抓取或模型生成。
+当前启用库为 40 条：30 条公版古典名句和 10 条心语 V2 原创温和短句。每次进入今日页或点击“换一句”时，从 enabled=true、review_status=已启用、source_kind 为 public_domain/project_original、日期窗口有效的池中随机抽取；同一会话换一句会排除上一条以避免立即重复。动漫台词候选保持 copyright_pending 和 disabled，未完成授权及正式译文核对前不得展示。接口不支持运行时联网抓取或模型生成。
 
 ### 3.13 treehole_posts：树洞帖子
 
