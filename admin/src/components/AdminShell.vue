@@ -1,7 +1,28 @@
 <script setup lang="ts">
+import { computed } from "vue";
+import { useRouter } from "vue-router";
+import { useAdminSessionStore } from "@/stores/adminSession";
+
 defineProps<{
   title: string;
 }>();
+const session = useAdminSessionStore();
+const router = useRouter();
+const modeLabel = computed(() => {
+  if (session.environmentKind === "authorized") return "授权模式";
+  if (session.environmentKind === "unconfigured") return "未配置";
+  return "演示模式";
+});
+const expiresLabel = computed(() =>
+  session.sessionExpiresAt
+    ? `会话至 ${new Date(session.sessionExpiresAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}`
+    : "会话状态正常",
+);
+
+async function signOut(): Promise<void> {
+  await session.logout();
+  await router.push("/login");
+}
 </script>
 
 <template>
@@ -16,16 +37,27 @@ defineProps<{
         <RouterLink class="admin-shell__nav-item" to="/audit"
           >审计与演示</RouterLink
         >
+        <button
+          class="admin-shell__nav-item admin-shell__logout"
+          type="button"
+          @click="signOut"
+        >
+          退出登录
+        </button>
       </nav>
     </aside>
 
     <main class="admin-shell__main">
       <header class="admin-shell__header">
         <div>
-          <p class="admin-shell__eyebrow">心理健康中心工作人员 · 超级管理员</p>
+          <p class="admin-shell__eyebrow">
+            {{ session.displayName }} · {{ session.capabilityLabel }}
+          </p>
           <h1>{{ title }}</h1>
         </div>
-        <span class="admin-shell__session">演示会话</span>
+        <span class="admin-shell__session"
+          >{{ modeLabel }} · {{ expiresLabel }}</span
+        >
       </header>
       <slot />
     </main>
@@ -80,6 +112,14 @@ defineProps<{
   background: var(--xinyu-color-primary-soft);
   color: var(--xinyu-color-primary-pressed);
   font-weight: 600;
+}
+
+.admin-shell__logout {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
 }
 
 .admin-shell__main {
