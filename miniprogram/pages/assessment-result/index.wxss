@@ -2,3 +2,8 @@
 .result-kind { margin-top:8px; color:var(--xinyu-color-primary); font-size:18px; line-height:28px; font-weight:500; }
 .result-text { margin-top:12px; font-size:16px; line-height:26px; }
 .result-note { margin-top:16px; }
+.ai-assist { margin-top:24px; }
+.ai-list, .ai-steps { margin-top:12px; }
+.ai-steps { padding-top:12px; border-top:1px solid var(--xinyu-color-divider); }
+.ai-list__item { margin-top:8px; padding-left:16px; position:relative; line-height:26px; }
+.ai-list__item::before { content:'·'; position:absolute; left:0; color:var(--xinyu-color-primary); }

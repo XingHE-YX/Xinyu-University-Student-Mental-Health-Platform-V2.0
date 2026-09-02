@@ -27,6 +27,9 @@ SAFE_DETAIL_KEYS = frozenset(
         "resource_version",
         "status",
         "task_kind",
+        "task_type",
+        "output_status",
+        "fallback_reason",
     }
 )
 

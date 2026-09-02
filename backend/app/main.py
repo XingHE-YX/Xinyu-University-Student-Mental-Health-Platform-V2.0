@@ -20,6 +20,7 @@ from app.schemas.envelope import ApiEnvelope
 from app.schemas.errors import ApiException
 from app.security.tokens import TokenManager
 from app.services.admin_workbench_service import AdminWorkbenchService
+from app.services.ai_assist_service import AiAssistService
 from app.services.auth_service import AuthService, WechatClient
 
 
@@ -37,6 +38,7 @@ def create_app(
     session_repository: InMemorySessionRepository | None = None,
     token_manager: TokenManager | None = None,
     admin_workbench_service: AdminWorkbenchService | None = None,
+    ai_assist_service: AiAssistService | None = None,
 ) -> FastAPI:
     runtime_settings = settings or Settings.from_environment()
     app = FastAPI(title="心语 V2 API", version="0.1.0")
@@ -50,6 +52,7 @@ def create_app(
     app.state.admin_workbench_service = admin_workbench_service or AdminWorkbenchService(
         runtime_settings
     )
+    app.state.ai_assist_service = ai_assist_service or AiAssistService(runtime_settings)
 
     register_exception_handlers(app)
 

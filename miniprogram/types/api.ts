@@ -89,6 +89,16 @@ export interface AssessmentResult {
   nextStep: string
   sleepDimensions?: SleepDimension[]
   safetyState?: 'can_be_safe' | 'uncertain' | 'cannot_be_safe'
+  aiAssist?: AssessmentAiAssist
+}
+
+export interface AssessmentAiAssist {
+  status: 'adopted' | 'fallback'
+  summary?: string
+  observations?: string[]
+  practicalSteps?: string[]
+  boundaryNotice?: string
+  fallbackCopy?: string
 }
 
 export interface SupportResource {

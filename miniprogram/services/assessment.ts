@@ -1,5 +1,5 @@
 import { request } from './http'
-import type { AssessmentModule, AssessmentResult, AssessmentSession, SupportResource } from '../types/api'
+import type { AssessmentAiAssist, AssessmentModule, AssessmentResult, AssessmentSession, SupportResource } from '../types/api'
 
 export const fetchModules = async (): Promise<AssessmentModule[]> => {
   const result = await request<Array<Record<string, unknown>>>('/assessment-modules')
@@ -16,9 +16,44 @@ export const startAssessment = async (module: AssessmentModule['key']): Promise<
 }
 
 export const submitAssessment = async (sessionId: string, module: AssessmentModule['key'], answers: number[], safetyState?: string): Promise<AssessmentResult> => {
-  const result = await request<AssessmentResult>(`/assessment-sessions/${sessionId}/complete`, { method: 'POST', data: { module_code: module, answers: answers.map((option, index) => ({ question_key: `${module}-${index + 1}`, option_key: String(option) })), object_version: 0 }, idempotencyKey: `assessment-submit-${sessionId}` })
+  const result = await request<Record<string, unknown>>(`/assessment-sessions/${sessionId}/complete`, { method: 'POST', data: { module_code: module, answers: answers.map((option, index) => ({ question_key: `${module}-${index + 1}`, option_key: String(option) })), object_version: 0 }, idempotencyKey: `assessment-submit-${sessionId}` })
   if (result.error || !result.data) throw new Error(result.error?.message ?? '结果暂时没有保存成功，请稍后重试')
-  return result.data
+  return normalizeAssessmentResult(result.data, module)
+}
+
+const normalizeAssessmentResult = (data: Record<string, unknown>, fallbackModule: AssessmentModule['key']): AssessmentResult => {
+  const ai = normalizeAiAssist(data.ai_assist ?? data.aiAssist)
+  return {
+    id: String(data.result_id ?? data.id ?? ''),
+    module: String(data.module_code ?? fallbackModule) as AssessmentModule['key'],
+    title: String(data.title ?? (fallbackModule === 'phq9' ? '抑郁情绪自测' : fallbackModule === 'gad7' ? '焦虑自测' : '睡眠观察')),
+    completedAt: String(data.completed_at ?? data.completedAt ?? ''),
+    kind: String(data.result_state ?? data.kind ?? 'ordinary') as AssessmentResult['kind'],
+    score: typeof data.score === 'number' ? data.score : null,
+    interpretation: String(data.fixed_summary ?? data.interpretation ?? ''),
+    nextStep: String(data.next_step ?? data.nextStep ?? '可以按自己的节奏决定是否查看支持资源。'),
+    sleepDimensions: Array.isArray(data.dimension_summary) ? data.dimension_summary as AssessmentResult['sleepDimensions'] : undefined,
+    safetyState: typeof data.safety_state === 'string' ? data.safety_state as AssessmentResult['safetyState'] : undefined,
+    aiAssist: ai,
+  }
+}
+
+const normalizeAiAssist = (value: unknown): AssessmentAiAssist | undefined => {
+  if (!value || typeof value !== 'object') return undefined
+  const data = value as Record<string, unknown>
+  const output = data.output_projection ?? data.output ?? data
+  if (!output || typeof output !== 'object') return undefined
+  const projection = output as Record<string, unknown>
+  const status = data.output_status === 'fallback' || data.status === 'fallback' ? 'fallback' : data.output_status === 'adopted' || data.status === 'adopted' || projection.status === 'ok' ? 'adopted' : undefined
+  if (!status) return undefined
+  return {
+    status,
+    summary: typeof projection.summary === 'string' ? projection.summary : undefined,
+    observations: Array.isArray(projection.observations) ? projection.observations.filter((item): item is string => typeof item === 'string') : undefined,
+    practicalSteps: Array.isArray(projection.practical_steps) ? projection.practical_steps.filter((item): item is string => typeof item === 'string') : undefined,
+    boundaryNotice: typeof projection.boundary_notice === 'string' ? projection.boundary_notice : undefined,
+    fallbackCopy: typeof data.fallback_copy === 'string' ? data.fallback_copy : undefined,
+  }
 }
 
 export const confirmSafety = async (sessionId: string, state: 'can_be_safe' | 'uncertain' | 'cannot_be_safe', answers: number[] = []): Promise<void> => {
