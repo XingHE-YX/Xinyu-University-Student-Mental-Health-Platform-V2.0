@@ -183,6 +183,26 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("user not found") from error
 
+    def get_user_by_auth_subject_hash(self, subject_hash: str) -> UserAccountDocument | None:
+        with self._lock:
+            return next(
+                (
+                    user
+                    for user in self._users.values()
+                    if user.auth_subject_hash == subject_hash
+                ),
+                None,
+            )
+
+    def create_user(self, user: UserAccountDocument) -> UserAccountDocument:
+        with self._lock:
+            if user.document_id in self._users:
+                raise RepositoryVersionConflict(self._users[user.document_id].version)
+            if self.get_user_by_auth_subject_hash(user.auth_subject_hash) is not None:
+                raise RepositoryVersionConflict(1)
+            self._users[user.document_id] = user
+            return user
+
     def save_user(self, user: UserAccountDocument, *, expected_version: int) -> UserAccountDocument:
         with self._lock:
             current = self.get_user(user.document_id)

@@ -69,6 +69,7 @@ def create_app(
         session_repository=runtime_sessions,
         token_manager=runtime_tokens,
         wechat_client=wechat_client,
+        domain_repository=runtime_domain_repository,
     )
     app.state.admin_workbench_service = admin_workbench_service or AdminWorkbenchService(
         runtime_settings

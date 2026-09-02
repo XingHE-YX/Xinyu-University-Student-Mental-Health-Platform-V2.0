@@ -1,10 +1,13 @@
 """Authentication use cases shared by the student and admin API routes."""
 
 import secrets
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from app.config.settings import Settings
 from app.integrations.wechat_auth import WechatAuthClient, WechatIdentity
+from app.domain.models import UserAccountDocument
+from app.repositories.domain_data_repository import InMemoryDomainDataRepository
 from app.repositories.session_repository import InMemorySessionRepository
 from app.schemas.auth import AdminSessionData, StudentSessionData, TokenData
 from app.schemas.errors import ApiException
@@ -29,6 +32,7 @@ class AuthService:
         session_repository: InMemorySessionRepository | None = None,
         token_manager: TokenManager | None = None,
         wechat_client: WechatClient | None = None,
+        domain_repository: InMemoryDomainDataRepository | None = None,
     ) -> None:
         self.settings = settings
         self.sessions = session_repository or InMemorySessionRepository()
@@ -39,18 +43,24 @@ class AuthService:
             appid=settings.wechat_appid,
             appsecret=settings.wechat_secret,
         )
+        self.domain_repository = domain_repository
 
     async def login_student(self, code: str, *, client_version: str) -> StudentSessionData:
         del client_version
         self._require_ready()
         identity = await self.wechat.exchange_code(code)
+        user = self._ensure_student_user(identity.subject_id)
         pair = self.tokens.issue("student", identity.subject_id, self.sessions)
         return StudentSessionData(
             **_pair_data(pair),
-            account_status="active",
-            base_consent_status="required",
-            community_consent_status="required",
-            identity_status="unverified",
+            account_status=_session_account_status(user.status),
+            base_consent_status=(
+                "accepted" if user.base_consent_status == "accepted" else "required"
+            ),
+            community_consent_status=(
+                "accepted" if user.community_consent_status == "accepted" else "required"
+            ),
+            identity_status=("verified" if user.identity_record_id else "unverified"),
         )
 
     def login_admin(self, login_name: str, password: str) -> AdminSessionData:
@@ -118,6 +128,31 @@ class AuthService:
         if self.settings.configuration_status != "ready":
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "服务环境尚未完成配置")
 
+    def _ensure_student_user(self, subject_id: str) -> UserAccountDocument:
+        if self.domain_repository is None:
+            return _ephemeral_user(subject_id)
+        existing = self.domain_repository.get_user_by_auth_subject_hash(subject_id)
+        if existing is not None:
+            return existing
+        now = datetime.now(UTC)
+        user = UserAccountDocument(
+            _id=f"user_{subject_id[:24]}",
+            auth_subject_hash=subject_id,
+            status="active",
+            base_consent_status="not_accepted",
+            community_consent_status="not_accepted",
+            created_at=now,
+            updated_at=now,
+            version=1,
+        )
+        try:
+            return self.domain_repository.create_user(user)
+        except Exception:
+            existing = self.domain_repository.get_user_by_auth_subject_hash(subject_id)
+            if existing is not None:
+                return existing
+            raise
+
 
 def _pair_data(pair: TokenPair) -> dict[str, Any]:
     return {
@@ -126,3 +161,21 @@ def _pair_data(pair: TokenPair) -> dict[str, Any]:
         "access_expires_at": pair.access_expires_at,
         "refresh_expires_at": pair.refresh_expires_at,
     }
+
+
+def _ephemeral_user(subject_id: str) -> UserAccountDocument:
+    now = datetime.now(UTC)
+    return UserAccountDocument(
+        _id=f"user_{subject_id[:24]}",
+        auth_subject_hash=subject_id,
+        status="active",
+        base_consent_status="not_accepted",
+        community_consent_status="not_accepted",
+        created_at=now,
+        updated_at=now,
+        version=1,
+    )
+
+
+def _session_account_status(status: str) -> str:
+    return status if status in {"active", "recovery_pending", "stopped", "purged"} else "active"
