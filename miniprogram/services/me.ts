@@ -12,7 +12,7 @@ export const fetchHistory = async (category?: HistoryItem['category']): Promise<
 
 export const deleteHistoryItem = async (id: string, category: HistoryItem['category'] = 'assessment'): Promise<void> => {
   const endpoint = category === 'mood' ? `/moods/${id}` : `/assessment-results/${id}`
-  const result = await request(endpoint, { method: 'DELETE', data: { object_version: 0 }, idempotencyKey: `delete-history-${id}` })
+  const result = await request(endpoint, { method: 'DELETE', data: { object_version: 1 }, idempotencyKey: `delete-history-${id}` })
   if (result.error) throw new Error(result.error.message)
 }
 

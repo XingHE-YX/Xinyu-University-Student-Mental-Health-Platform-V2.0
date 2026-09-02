@@ -312,6 +312,7 @@ PHQ-9 影响题不计分；第 9 题同时进入总分并生成独立的 safety_
 | --- | --- | --- | --- |
 | _id | string | 是 | 资源 ID |
 | environment_scope | string | 是 | demo、authorized |
+| resource_set_version | string | 是 | 支持资源集合版本，必须与当前环境配置版本一致才可展示 |
 | category | string | 是 | trusted_person、campus、emergency |
 | title | string | 是 | 资源名称 |
 | description | string | 是 | 资源说明 |
@@ -320,13 +321,14 @@ PHQ-9 影响题不计分；第 9 题同时进入总分并生成独立的 safety_
 | availability_text | string | 否 | 服务时间 |
 | source_text | string | 是 | 来源或维护方 |
 | verified_at | datetime | 是 | 最近核验时间 |
+| expires_at | datetime | 否 | 明确过期时间；为空表示经配置确认为长期有效 |
 | enabled | boolean | 是 | 是否展示 |
 | sort_order | integer | 是 | 展示顺序 |
 | created_at | datetime | 是 | 创建时间 |
 | updated_at | datetime | 是 | 更新时间 |
 | version | integer | 是 | 资源版本 |
 
-资源为空或过期时，接口返回配置状态，不生成虚构电话、联系人或链接。
+GET 支持资源只返回当前环境、当前 resource_set_version、enabled=true 且未过期的资源。资源为空、全部过期或版本不匹配时，接口返回 empty；环境或资源版本未配置时返回 unconfigured，不生成虚构电话、联系人或链接。
 
 ### 3.12 quote_entries：每日短句库
 
@@ -337,17 +339,20 @@ PHQ-9 影响题不计分；第 9 题同时进入总分并生成独立的 safety_
 | author_text | string | 是 | 作者或来源名称 |
 | work_text | string | 否 | 作品名 |
 | source_kind | string | 是 | public_domain、project_original、copyright_pending |
+| source_url | string | 是 | 冻结来源或审核记录链接 |
+| language_version | string | 是 | 展示语言/文本版本 |
+| review_status | string | 是 | 待核验、已核验、已启用、已停用 |
 | rights_note | string | 是 | 来源和使用备注 |
-| enabled | boolean | 是 | 是否可展示 |
+| enabled | boolean | 是 | 是否可展示；必须与 review_status=已启用同时成立 |
 | display_from | string | 否 | 生效日期 |
 | display_until | string | 否 | 失效日期 |
-| sort_order | integer | 是 | 静态轮换顺序 |
+| sort_order | integer | 是 | 后台审核和稳定输出顺序，不用于按日期固定取模 |
 | library_version | string | 是 | 短句库版本 |
 | created_at | datetime | 是 | 创建时间 |
 | updated_at | datetime | 是 | 更新时间 |
 | version | integer | 是 | 版本 |
 
-当前启用库为 40 条：30 条公版古典名句和 10 条心语 V2 原创温和短句。动漫台词候选保持 copyright_pending 和 disabled，未完成授权及正式译文核对前不得展示。接口不支持运行时联网抓取或模型生成。
+当前启用库为 40 条：30 条公版古典名句和 10 条心语 V2 原创温和短句。每次进入今日页或点击“换一句”时，从 enabled=true、review_status=已启用、source_kind 为 public_domain/project_original、日期窗口有效的池中随机抽取；同一会话换一句会排除上一条以避免立即重复。动漫台词候选保持 copyright_pending 和 disabled，未完成授权及正式译文核对前不得展示。接口不支持运行时联网抓取或模型生成。
 
 ### 3.13 treehole_posts：树洞帖子
 
@@ -438,7 +443,8 @@ W-02 只查询本集合。content_review_tasks、safety_support_tasks 和 identi
 | _id | string | 是 | 任务 ID |
 | task_kind | string | 是 | safety_support |
 | user_reference_id | string | 是 | 学生内部引用，不是姓名学号 |
-| source_result_id | string | 是 | 受限结果 ID |
+| source_result_id | string | 否 | uncertain 分支生成的真实受限结果 ID |
+| source_session_id | string | 否 | cannot_be_safe 分支对应的真实自测会话 ID |
 | safety_fact | string | 是 | uncertain、cannot_be_safe |
 | support_resource_snapshot | array[object] | 是 | 已向用户展示的资源版本 |
 | state | string | 是 | needs_action、claimed、waiting_other、completed |
@@ -449,6 +455,8 @@ W-02 只查询本集合。content_review_tasks、safety_support_tasks 和 identi
 | created_at | datetime | 是 | 创建时间 |
 | updated_at | datetime | 是 | 更新时间 |
 | version | integer | 是 | 任务版本 |
+
+source_result_id 与 source_session_id 必须二选一且互斥：uncertain 必须引用真实 assessment_results._id；cannot_be_safe 不创建 assessment_results，必须引用真实 assessment_sessions._id。创建 safety_support 任务时，work_tasks._id 必须与 safety_support_tasks._id 相同。
 
 演示环境和明确授权环境才允许创建此集合的任务。默认不关联 identity_records，不显示完整答案、完整历史或安全确认原文。
 
@@ -570,7 +578,7 @@ W-02 只查询本集合。content_review_tasks、safety_support_tasks 和 identi
 | 集合 | 索引 |
 | --- | --- |
 | user_accounts | auth_subject_hash 唯一；status、updated_at |
-| auth_sessions | access_token_hash 唯一；subject_id、status；expires_at |
+| auth_sessions | access_token_hash 唯一；subject_id、status；access_expires_at |
 | consent_records | user_id、consent_kind、occurred_at |
 | daily_mood_records | user_id、record_date 唯一；user_id、record_date、deleted_at |
 | assessment_sessions | user_id、created_at；user_id、state |
@@ -729,7 +737,7 @@ accepted 恢复发布和回应能力；withdrawn 允许浏览公开树洞，但�
 
 #### DELETE /api/v1/moods/{record_id}
 
-请求：object_version。只允许本人逐条删除；返回 deleted_at 和 record_id，不支持批量或一键清空。
+请求：object_version，Idempotency-Key 在请求头。只允许本人逐条删除；同键同请求重放同一 DeletedMoodFact，不重复写入或审计；同键不同 record_id/object_version 返回 IDEMPOTENCY_CONFLICT。返回 deleted_at 和 record_id，不支持批量或一键清空。
 
 ### 6.5 自测会话和结果
 

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from app.api.admin_auth import router as admin_auth_router
 from app.api.admin_workbench import router as admin_workbench_router
+from app.api.assessment import router as assessment_router
 from app.api.auth import me_router
 from app.api.auth import router as auth_router
 from app.api.dependencies import (
@@ -14,14 +15,21 @@ from app.api.dependencies import (
     register_exception_handlers,
     resolve_request_id,
 )
+from app.audit.writer import AuditWriter
 from app.config.settings import Settings
+from app.repositories.audit_repository import InMemoryAuditRepository
+from app.repositories.domain_data_repository import InMemoryDomainDataRepository
+from app.repositories.idempotency_repository import InMemoryIdempotencyRepository
 from app.repositories.session_repository import InMemorySessionRepository
 from app.schemas.envelope import ApiEnvelope
 from app.schemas.errors import ApiException
 from app.security.tokens import TokenManager
 from app.services.admin_workbench_service import AdminWorkbenchService
 from app.services.ai_assist_service import AiAssistService
+from app.services.assessment_service import AssessmentService
 from app.services.auth_service import AuthService, WechatClient
+from app.services.idempotency_service import IdempotencyService
+from app.services.safety_service import SafetyService
 
 
 class HealthData(BaseModel):
@@ -39,20 +47,49 @@ def create_app(
     token_manager: TokenManager | None = None,
     admin_workbench_service: AdminWorkbenchService | None = None,
     ai_assist_service: AiAssistService | None = None,
+    domain_repository: InMemoryDomainDataRepository | None = None,
+    idempotency_repository: InMemoryIdempotencyRepository | None = None,
+    audit_repository: InMemoryAuditRepository | None = None,
 ) -> FastAPI:
     runtime_settings = settings or Settings.from_environment()
+    runtime_sessions = session_repository or InMemorySessionRepository()
+    runtime_tokens = token_manager or TokenManager(
+        runtime_settings.session_secret or "local-development-session-secret"
+    )
+    runtime_domain_repository = domain_repository or InMemoryDomainDataRepository()
+    runtime_idempotency = IdempotencyService(idempotency_repository)
+    runtime_audit = AuditWriter(
+        audit_repository,
+        environment_id=runtime_settings.cloudbase_env_id or "unconfigured",
+    )
     app = FastAPI(title="心语 V2 API", version="0.1.0")
     app.state.settings = runtime_settings
     app.state.auth_service = AuthService(
         runtime_settings,
-        session_repository=session_repository,
-        token_manager=token_manager,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
         wechat_client=wechat_client,
     )
     app.state.admin_workbench_service = admin_workbench_service or AdminWorkbenchService(
         runtime_settings
     )
     app.state.ai_assist_service = ai_assist_service or AiAssistService(runtime_settings)
+    app.state.assessment_service = AssessmentService(
+        settings=runtime_settings,
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        idempotency_service=runtime_idempotency,
+        audit_writer=runtime_audit,
+    )
+    app.state.safety_service = SafetyService(
+        settings=runtime_settings,
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        idempotency_service=runtime_idempotency,
+        audit_writer=runtime_audit,
+    )
 
     register_exception_handlers(app)
 
@@ -84,6 +121,7 @@ def create_app(
     app.include_router(me_router)
     app.include_router(admin_auth_router)
     app.include_router(admin_workbench_router)
+    app.include_router(assessment_router)
     return app
 
 

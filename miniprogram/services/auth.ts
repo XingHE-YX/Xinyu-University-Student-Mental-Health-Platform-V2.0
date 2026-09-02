@@ -33,7 +33,8 @@ export const recordBasicConsent = async (): Promise<void> => {
 }
 
 export const verifyIdentity = async (name: string, studentNumber: string): Promise<UserProjection> => {
-  const result = await request<Record<string, unknown>>('/identity/verifications', { method: 'POST', data: { student_name: name, student_number: studentNumber, client_request_key: `identity-${Date.now()}` }, idempotencyKey: `identity-${Date.now()}` })
+  const idempotencyKey = `identity-${Date.now()}`
+  const result = await request<Record<string, unknown>>('/identity/verifications', { method: 'POST', data: { student_name: name, student_number: studentNumber, client_request_key: idempotencyKey }, idempotencyKey })
   if (result.error || !result.data) throw new Error(result.error?.message ?? '身份核验暂时不可用')
   const resultData = result.data
   const user: UserProjection = { displayName: sessionStore.getUser().displayName ?? '一片云', accountStatus: sessionStore.getUser().accountStatus, recoveryUntil: null, basicConsent: true, communityConsent: sessionStore.getUser().communityConsent, identityVerified: resultData.status === 'verified' || resultData.identityVerified === true || resultData.verification_status === 'verified' }
@@ -56,7 +57,7 @@ export const updateCommunityConsent = async (granted: boolean): Promise<UserProj
 }
 
 export const stopAccount = async (): Promise<void> => {
-  const result = await request('/account/stop', { method: 'POST', data: { confirmation_text: '停止使用', object_version: 0 }, idempotencyKey: `stop-${Date.now()}` })
+  const result = await request('/account/stop', { method: 'POST', data: { confirmation_text: '停止使用', object_version: 1 }, idempotencyKey: `stop-${Date.now()}` })
   if (result.error) throw new Error(result.error.message)
   const current = sessionStore.get()
   if (current) sessionStore.set({ ...current, accountStatus: 'recovery' })
@@ -64,7 +65,7 @@ export const stopAccount = async (): Promise<void> => {
 }
 
 export const recoverAccount = async (): Promise<void> => {
-  const result = await request('/account/recover', { method: 'POST', data: { object_version: 0 }, idempotencyKey: `recover-${Date.now()}` })
+  const result = await request('/account/recover', { method: 'POST', data: { object_version: 1 }, idempotencyKey: `recover-${Date.now()}` })
   if (result.error) throw new Error(result.error.message)
   const current = sessionStore.get()
   if (current) sessionStore.set({ ...current, accountStatus: 'active' })

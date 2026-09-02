@@ -50,7 +50,7 @@ const demoResponse = <T>(path: string, options: RequestOptions): ApiEnvelope<T> 
     } as T)
   }
   if (path === '/consents/base') return envelope({ ok: true } as T)
-  if (path === '/consents/community' && method === 'POST') { demoCommunityConsent = Boolean(options.data?.granted); return envelope({ displayName: '匿名同学', accountStatus: demoAccountStatus, recoveryUntil: null, basicConsent: true, communityConsent: demoCommunityConsent, identityVerified: true } as T) }
+  if (path === '/consents/community' && method === 'POST') { demoCommunityConsent = options.data?.action === 'accepted'; return envelope({ displayName: '匿名同学', accountStatus: demoAccountStatus, recoveryUntil: null, basicConsent: true, communityConsent: demoCommunityConsent, identityVerified: true } as T) }
   if (path === '/identity/verifications' && method === 'POST') return envelope({ verification_id: 'demo-verification', status: 'verified' } as T)
   if (path === '/moods/today' && method === 'PUT') {
     return envelope({ record_id: 'demo-mood', mood_code: String(options.data?.mood_code ?? ''), saved_at: now() } as T)

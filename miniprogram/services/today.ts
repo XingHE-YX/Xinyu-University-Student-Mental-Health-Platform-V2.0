@@ -11,7 +11,7 @@ export const fetchToday = async (): Promise<TodayProjection> => {
 }
 
 export const saveMood = async (mood: string): Promise<MoodRecord> => {
-  const result = await request<Record<string, unknown>>('/moods/today', { method: 'PUT', data: { record_date: new Date().toISOString().slice(0, 10), mood_code: mood, object_version: 0 }, idempotencyKey: `mood-${new Date().toISOString().slice(0, 10)}` })
+  const result = await request<Record<string, unknown>>('/moods/today', { method: 'PUT', data: { record_date: new Date().toISOString().slice(0, 10), mood_code: mood, object_version: 1 }, idempotencyKey: `mood-${new Date().toISOString().slice(0, 10)}` })
   if (result.error || !result.data) throw new Error(result.error?.message ?? '没有保存成功，请再试一次')
   const data = result.data
   return { id: String(data.record_id ?? data.id ?? ''), mood: String(data.mood_code ?? data.mood ?? mood), recordedAt: String(data.saved_at ?? data.recordedAt ?? new Date().toISOString()) }

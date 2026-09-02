@@ -1,1 +1,1 @@
-"""Deployment-time helper scripts for the Python function."""
+"""Utility scripts for backend data setup and deployment."""
