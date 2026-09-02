@@ -58,3 +58,11 @@
 - 冻结提示词包含长中文行，Ruff 的 E501 会将提示词文本误判为代码行；已仅对 `app/config/ai_prompt.py` 设置文件级 E501 忽略，策略代码仍保持默认 100 列限制，新增提示词文件必须单独执行格式和静态检查。
 - AI 输出即使结构合法、但 `status="needs_fallback"` 时也必须进入服务端固定回退，不能把模型主动请求回退误当作已采用结果；回退审计只记录任务类型、模型/提示词版本、结果类别和错误类别。
 - 自测辅助摘要长度要求为 40 至 90 个汉字；服务端输出校验必须执行契约中的长度、枚举、证据片段和违禁内容检查，不能只校验 JSON 可解析。
+
+## 2026-09-02：阶段 7 部署和环境初始化记录
+
+- 隔离 worktree 不会继承被 Git 忽略的 `backend/.venv`；首次从错误工作目录调用 `.venv/bin/pytest` 报文件不存在。以后每个 worktree 都要显式用 Python 3.11 创建虚拟环境，并在 `backend/` 目录执行 `.venv/bin/pytest`、`.venv/bin/ruff` 和 `.venv/bin/mypy`。
+- 在 macOS 上直接按锁文件安装依赖会把 Darwin 原生 wheel 放进 CloudBase 函数包，不能上传到 Linux 运行时。函数打包器现在强制 `--platform manylinux2014_x86_64 --implementation cp --python-version 3.11 --only-binary=:all:`，并验证重复构建产物确定性。
+- 依赖包中的 `certifi/cacert.pem` 是公开 CA bundle，不应被“禁止 `.pem` 文件”的秘密扫描误报；扫描器只阻止 `.env`、私钥容器后缀和 credentials/secrets 文件名。
+- CloudBase、微信开发者工具和静态托管的真实凭据在当前工作区仍未提供；阶段 7 只能提交模板、校验器和可复现本地构建，不能伪造 EnvID、AppID、域名、密钥或把 Python 包伪装为其他运行时。
+- Vite `dist` 预览需要验证根路由和深层路由刷新都回退到 `index.html`；仅检查构建成功不足以证明 SPA 静态托管配置正确。

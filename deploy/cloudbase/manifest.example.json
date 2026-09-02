@@ -1,0 +1,55 @@
+{
+  "apiVersion": "xinyu.cloudbase/v1",
+  "kind": "EnvironmentPair",
+  "note": "Non-secret validation fixture; example.invalid domains are not deployable.",
+  "environments": {
+    "demo": {
+      "envId": "demo-env-example",
+      "namespace": "demo-xinyu-v2",
+      "demoMode": true,
+      "function": {
+        "name": "xinyu-v2-api-demo",
+        "runtime": "Python3.11",
+        "httpPort": 9000,
+        "entrypoint": "scf_bootstrap"
+      },
+      "hostingOrigin": "https://demo-admin.example.invalid"
+    },
+    "authorized": {
+      "envId": "authorized-env-example",
+      "namespace": "authorized-xinyu-v2",
+      "demoMode": false,
+      "function": {
+        "name": "xinyu-v2-api-authorized",
+        "runtime": "Python3.11",
+        "httpPort": 9000,
+        "entrypoint": "scf_bootstrap"
+      },
+      "hostingOrigin": "https://authorized-admin.example.invalid"
+    }
+  },
+  "secrets": {
+    "demo": [
+      "CLOUDBASE_API_KEY_DEMO",
+      "DEEPSEEK_API_KEY_DEMO",
+      "WECHAT_APP_SECRET_DEMO",
+      "ADMIN_PASSWORD_HASH_DEMO"
+    ],
+    "authorized": [
+      "CLOUDBASE_API_KEY_AUTHORIZED",
+      "DEEPSEEK_API_KEY_AUTHORIZED",
+      "WECHAT_APP_SECRET_AUTHORIZED",
+      "ADMIN_PASSWORD_HASH_AUTHORIZED"
+    ]
+  },
+  "artifacts": {
+    "functionDependencyLock": "backend/requirements.lock",
+    "functionBootstrap": "backend/scf_bootstrap",
+    "adminStaticDir": "admin/dist"
+  },
+  "database": {
+    "sourceOfTruth": "BACKEND_STRUCTURE.md",
+    "provisionAtDeploy": true,
+    "createFromClient": false
+  }
+}

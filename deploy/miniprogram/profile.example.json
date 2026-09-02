@@ -1,0 +1,12 @@
+{
+  "demo": {
+    "appId": "wx-demo-example",
+    "cloudbaseEnvId": "demo-env-example",
+    "apiBaseUrl": "https://demo-api.example.invalid/api/v1"
+  },
+  "authorized": {
+    "appId": "wx-authorized-example",
+    "cloudbaseEnvId": "authorized-env-example",
+    "apiBaseUrl": "https://authorized-api.example.invalid/api/v1"
+  }
+}

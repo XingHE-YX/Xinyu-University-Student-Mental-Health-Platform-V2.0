@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hosting": {
+    "demo": {
+      "origin": "${ADMIN_WEB_ORIGIN_DEMO}",
+      "apiBaseUrl": "https://<demo-api-origin>/api/v1",
+      "artifact": "admin/dist",
+      "spaFallback": "/index.html",
+      "httpsOnly": true
+    },
+    "authorized": {
+      "origin": "${ADMIN_WEB_ORIGIN_AUTHORIZED}",
+      "apiBaseUrl": "https://<authorized-api-origin>/api/v1",
+      "artifact": "admin/dist",
+      "spaFallback": "/index.html",
+      "httpsOnly": true
+    }
+  }
+}

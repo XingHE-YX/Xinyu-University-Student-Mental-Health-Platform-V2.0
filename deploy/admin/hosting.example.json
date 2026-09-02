@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "hosting": {
+    "demo": {
+      "origin": "https://demo-admin.example.invalid",
+      "apiBaseUrl": "https://demo-api.example.invalid/api/v1",
+      "artifact": "admin/dist",
+      "spaFallback": "/index.html",
+      "httpsOnly": true
+    },
+    "authorized": {
+      "origin": "https://authorized-admin.example.invalid",
+      "apiBaseUrl": "https://authorized-api.example.invalid/api/v1",
+      "artifact": "admin/dist",
+      "spaFallback": "/index.html",
+      "httpsOnly": true
+    }
+  }
+}

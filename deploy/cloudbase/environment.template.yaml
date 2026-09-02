@@ -1,0 +1,113 @@
+# Secret-safe CloudBase phase 7.1 template (declarative operator input).
+# Replace placeholders only in the CloudBase console/secret manager or an
+# ignored local render. Never commit rendered values, credentials, or domains.
+
+api_version: xinyu.cloudbase/v1
+kind: EnvironmentPair
+environments:
+  demo:
+    env_id: ${CLOUDBASE_ENV_ID_DEMO}
+    database_namespace: ${DEMO_NAMESPACE}
+    function:
+      name: xinyu-v2-api-demo
+      runtime: Python3.11
+      http_port: 9000
+      entrypoint: scf_bootstrap
+      # Secret values are references only; resolve them in CloudBase's
+      # encrypted environment-variable/secret-manager UI.
+      environment_variables:
+        DEMO_MODE: "true"
+        CLOUDBASE_ENV_ID: ${CLOUDBASE_ENV_ID_DEMO}
+        CLOUDBASE_API_KEY: ${SECRET_REF:CLOUDBASE_API_KEY_DEMO}
+        DEEPSEEK_API_KEY: ${SECRET_REF:DEEPSEEK_API_KEY_DEMO}
+        WECHAT_APPID: ${SECRET_REF:WECHAT_APPID_DEMO}
+        WECHAT_APPSECRET: ${SECRET_REF:WECHAT_APPSECRET_DEMO}
+        ADMIN_PASSWORD_HASH: ${SECRET_REF:ADMIN_PASSWORD_HASH_DEMO}
+        ADMIN_SESSION_SECRET: ${SECRET_REF:ADMIN_SESSION_SECRET_DEMO}
+        SCHOOL_IDENTITY_PROVIDER_URL: ${SCHOOL_IDENTITY_PROVIDER_URL_DEMO}
+        SUPPORT_RESOURCE_VERSION: ${SUPPORT_RESOURCE_VERSION_DEMO}
+    hosting:
+      origin: ${ADMIN_WEB_ORIGIN_DEMO}
+      artifact: admin/dist
+      spa_fallback: /index.html
+      allowed_api_origin: ${API_BASE_URL_DEMO}
+  authorized:
+    env_id: ${CLOUDBASE_ENV_ID_AUTHORIZED}
+    database_namespace: ${AUTHORIZED_NAMESPACE}
+    function:
+      name: xinyu-v2-api-authorized
+      runtime: Python3.11
+      http_port: 9000
+      entrypoint: scf_bootstrap
+      environment_variables:
+        DEMO_MODE: "false"
+        CLOUDBASE_ENV_ID: ${CLOUDBASE_ENV_ID_AUTHORIZED}
+        CLOUDBASE_API_KEY: ${SECRET_REF:CLOUDBASE_API_KEY_AUTHORIZED}
+        DEEPSEEK_API_KEY: ${SECRET_REF:DEEPSEEK_API_KEY_AUTHORIZED}
+        WECHAT_APPID: ${SECRET_REF:WECHAT_APPID_AUTHORIZED}
+        WECHAT_APPSECRET: ${SECRET_REF:WECHAT_APPSECRET_AUTHORIZED}
+        ADMIN_PASSWORD_HASH: ${SECRET_REF:ADMIN_PASSWORD_HASH_AUTHORIZED}
+        ADMIN_SESSION_SECRET: ${SECRET_REF:ADMIN_SESSION_SECRET_AUTHORIZED}
+        SCHOOL_IDENTITY_PROVIDER_URL: ${SCHOOL_IDENTITY_PROVIDER_URL_AUTHORIZED}
+        SUPPORT_RESOURCE_VERSION: ${SUPPORT_RESOURCE_VERSION_AUTHORIZED}
+    hosting:
+      origin: ${ADMIN_WEB_ORIGIN_AUTHORIZED}
+      artifact: admin/dist
+      spa_fallback: /index.html
+      allowed_api_origin: ${API_BASE_URL_AUTHORIZED}
+
+database:
+  collections:
+    # Collection names and indexes are authoritative in BACKEND_STRUCTURE.md.
+    # Create them in each environment; do not create production structures from
+    # the mini-program at runtime.
+    - user_accounts
+    - auth_sessions
+    - identity_records
+    - consent_records
+    - anonymous_identities
+    - daily_mood_records
+    - assessment_modules
+    - assessment_questionnaires
+    - assessment_sessions
+    - assessment_results
+    - ai_assist_snapshots
+    - support_resources
+    - quote_entries
+    - treehole_posts
+    - treehole_responses
+    - work_tasks
+    - content_review_tasks
+    - safety_support_tasks
+    - identity_access_requests
+    - followup_records
+    - admin_accounts
+    - audit_events
+    - idempotency_records
+    - demo_reset_runs
+  indexes:
+    # Apply this list independently in both environments.
+    user_accounts: ["auth_subject_hash UNIQUE", "status,updated_at"]
+    auth_sessions: ["access_token_hash UNIQUE", "subject_id,status", "expires_at"]
+    identity_records: ["user_id,created_at", "verification_state,updated_at"]
+    consent_records: ["user_id,consent_kind,occurred_at"]
+    anonymous_identities: ["user_id UNIQUE", "anonymous_code UNIQUE"]
+    daily_mood_records: ["user_id,record_date UNIQUE", "user_id,record_date,deleted_at"]
+    assessment_modules: ["module_code UNIQUE", "status,updated_at"]
+    assessment_questionnaires: ["module_code,version UNIQUE", "module_code,status"]
+    assessment_sessions: ["user_id,created_at", "user_id,state"]
+    assessment_results: ["user_id,module_code,created_at", "session_id UNIQUE"]
+    ai_assist_snapshots: ["resource_type,resource_id,created_at", "owner_user_id,created_at"]
+    support_resources: ["resource_kind,status,sort_order"]
+    quote_entries: ["quote_date UNIQUE", "status,quote_date"]
+    treehole_posts: ["visibility_state,created_at", "author_user_id,created_at"]
+    treehole_responses: ["post_id,state,created_at", "author_user_id,created_at"]
+    work_tasks: ["state,updated_at", "available_capability,state", "assigned_admin_id,state"]
+    content_review_tasks: ["state,created_at", "assigned_admin_id,state"]
+    safety_support_tasks: ["state,created_at", "assigned_admin_id,state"]
+    identity_access_requests: ["user_reference_id,state", "valid_until"]
+    followup_records: ["task_id,created_at"]
+    admin_accounts: ["login_name UNIQUE", "status,updated_at"]
+    audit_events: ["occurred_at", "resource_type,resource_id,occurred_at", "actor_id,occurred_at"]
+    idempotency_records: ["actor_id,route_key,idempotency_key UNIQUE"]
+    demo_reset_runs: ["started_at", "status,started_at"]

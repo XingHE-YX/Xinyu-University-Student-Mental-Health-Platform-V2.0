@@ -1,4 +1,5 @@
 import { apiEnvelopeSchema } from "@/schemas/api";
+import { adminRuntime } from "@/config/runtime";
 
 export class AdminApiError extends Error {
   readonly code: string;
@@ -27,8 +28,7 @@ export class AdminApiError extends Error {
   }
 }
 
-const API_BASE =
-  (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? "";
+const API_BASE = adminRuntime.apiBaseUrl;
 
 export function createIdempotencyKey(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

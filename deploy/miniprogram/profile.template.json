@@ -1,0 +1,12 @@
+{
+  "demo": {
+    "appId": "${WECHAT_MINIPROGRAM_APPID_DEMO}",
+    "cloudbaseEnvId": "${CLOUDBASE_ENV_ID_DEMO}",
+    "apiBaseUrl": "https://<demo-api-origin>/api/v1"
+  },
+  "authorized": {
+    "appId": "${WECHAT_MINIPROGRAM_APPID_AUTHORIZED}",
+    "cloudbaseEnvId": "${CLOUDBASE_ENV_ID_AUTHORIZED}",
+    "apiBaseUrl": "https://<authorized-api-origin>/api/v1"
+  }
+}
