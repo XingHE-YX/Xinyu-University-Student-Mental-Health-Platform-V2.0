@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="恢复账户"></top-bar><view class="surface"><view class="page-shell__title">账户处于恢复期</view><view class="page-shell__description">恢复后可以继续记录、查看历史和参与树洞。已删除内容不会自动恢复。</view><state-message wx:if="{{error}}" title="恢复未完成" message="{{error}}"></state-message><primary-button label="恢复账户" loading="{{loading}}" bindaction="submit"></primary-button></view></view>

@@ -50,3 +50,20 @@ page {
   font-size: 16px;
   line-height: 26px;
 }
+
+.section-title { margin: 24px 0 12px; color: var(--xinyu-color-text); font-size: 18px; line-height: 28px; font-weight: 500; }
+.muted { color: var(--xinyu-color-text-secondary); font-size: 14px; line-height: 22px; }
+.surface { padding: 20px; background: var(--xinyu-color-surface); border: 1px solid var(--xinyu-color-divider); border-radius: 8px; }
+.surface + .surface { margin-top: 12px; }
+.link-row { display: flex; align-items: center; justify-content: space-between; min-height: 52px; border-bottom: 1px solid var(--xinyu-color-divider); color: var(--xinyu-color-text); }
+.link-row:last-child { border-bottom: 0; }
+.status-chip { display: inline-block; padding: 4px 8px; border-radius: 4px; background: var(--xinyu-color-primary-soft); color: var(--xinyu-color-primary-pressed); font-size: 12px; line-height: 18px; }
+.status-chip--waiting { background: var(--xinyu-color-caution-soft); color: var(--xinyu-color-caution); }
+.status-chip--safety { background: var(--xinyu-color-safety-soft); color: var(--xinyu-color-safety); }
+.textarea { width: 100%; min-height: 180px; box-sizing: border-box; padding: 12px; background: var(--xinyu-color-surface); border: 1px solid var(--xinyu-color-divider); border-radius: 8px; font-size: 16px; line-height: 26px; }
+.input { width: 100%; box-sizing: border-box; height: 48px; margin-top: 8px; padding: 0 12px; background: var(--xinyu-color-surface); border: 1px solid var(--xinyu-color-divider); border-radius: 8px; font-size: 16px; }
+.option { display: flex; align-items: center; min-height: 52px; margin-top: 8px; padding: 0 16px; box-sizing: border-box; background: var(--xinyu-color-surface); border: 1px solid var(--xinyu-color-divider); border-radius: 8px; color: var(--xinyu-color-text); }
+.option--selected { border: 2px solid var(--xinyu-color-primary); background: var(--xinyu-color-primary-soft); color: var(--xinyu-color-primary-pressed); }
+.progress { height: 4px; margin: 16px 0 24px; background: var(--xinyu-color-divider); border-radius: 4px; overflow: hidden; }
+.progress__bar { height: 100%; background: var(--xinyu-color-primary); }
+.resource + .resource { margin-top: 12px; }

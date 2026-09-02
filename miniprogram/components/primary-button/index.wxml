@@ -1,0 +1,1 @@
+<button class="primary-button {{secondary ? 'primary-button--secondary' : ''}}" disabled="{{disabled || loading}}" bindtap="onTap">{{loading ? '处理中…' : label}}</button>

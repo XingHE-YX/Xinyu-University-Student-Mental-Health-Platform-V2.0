@@ -1,0 +1,1 @@
+<view><view wx:for="{{resources}}" wx:key="id" class="surface resource"><view class="section-title" style="margin-top:0">{{item.title}}</view><view class="muted">{{item.description}}</view><button wx:if="{{item.phone}}" class="resource-action" data-phone="{{item.phone}}" bindtap="call">拨打 {{item.phone}}</button></view></view>

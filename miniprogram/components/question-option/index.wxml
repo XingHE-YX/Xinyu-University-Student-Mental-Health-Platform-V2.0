@@ -1,0 +1,1 @@
+<view class="option {{selected ? 'option--selected' : ''}}" bindtap="choose">{{label}}</view>

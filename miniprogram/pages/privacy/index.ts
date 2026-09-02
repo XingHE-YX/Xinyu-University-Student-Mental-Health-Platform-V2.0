@@ -1,6 +1,3 @@
-Page({
-  data: {
-    title: '数据与隐私',
-    description: '数据使用同意、社区同意和删除入口将在后续阶段接入。',
-  },
-})
+import { fetchProfile } from '../../services/me'
+import { updateCommunityConsent } from '../../services/auth'
+Page({ data: { loading: true, saving: false, error: '', communityConsent: false }, onShow() { this.load() }, async load() { try { const profile = await fetchProfile(); this.setData({ communityConsent: profile.communityConsent }) } catch (error) { this.setData({ error: error instanceof Error ? error.message : '隐私状态暂时不可用' }) } finally { this.setData({ loading: false }) } }, async toggleCommunity() { this.setData({ saving: true, error: '' }); try { const profile = await updateCommunityConsent(!this.data.communityConsent); this.setData({ communityConsent: profile.communityConsent }) } catch (error) { this.setData({ error: error instanceof Error ? error.message : '同意状态没有更新成功' }) } finally { this.setData({ saving: false }) } }, stop() { wx.navigateTo({ url: '/pages/account-stop/index' }) } })

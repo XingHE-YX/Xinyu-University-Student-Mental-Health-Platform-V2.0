@@ -1,0 +1,1 @@
+<view class="mood-picker"><view wx:for="{{options}}" wx:key="*this" class="option {{value === item ? 'option--selected' : ''}}" data-value="{{item}}" bindtap="choose">{{item}}</view></view>

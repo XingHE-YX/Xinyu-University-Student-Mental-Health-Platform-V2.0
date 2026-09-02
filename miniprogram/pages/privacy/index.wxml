@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="数据与隐私" back="true"></top-bar><view class="surface"><view class="section-title" style="margin-top:0">基础服务</view><view class="muted">用于保存你的观察、历史和账户状态。停止使用账户会进入 30 天恢复期。</view><view class="section-title">社区内容同意</view><view class="muted">撤回后仍可浏览公开树洞，但不能发帖或回应；已有内容不会自动删除。</view><button class="privacy-action" bindtap="toggleCommunity" disabled="{{saving}}">{{communityConsent ? '撤回社区同意' : '同意参与社区'}}</button></view><state-message wx:if="{{error}}" title="状态暂时无法更新" message="{{error}}"></state-message><view class="surface"><view class="section-title" style="margin-top:0">单条删除</view><view class="muted">你可以在历史记录中逐条删除已保存的观察。</view><button class="privacy-action" bindtap="stop">停止使用账户</button></view></view>

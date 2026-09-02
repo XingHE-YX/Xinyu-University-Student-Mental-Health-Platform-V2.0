@@ -1,0 +1,4 @@
+.empty-state { padding:32px 0; text-align:center; color:var(--xinyu-color-text-secondary); }
+.empty-state__title { display:block; font-size:16px; line-height:26px; }
+.empty-state__action { margin:12px auto 0; padding:0; border:0; color:var(--xinyu-color-primary); background:transparent; text-decoration:underline; font-size:14px; }
+.empty-state__action::after { border:0; }

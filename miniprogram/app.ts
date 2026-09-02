@@ -7,6 +7,7 @@ interface IAppOption {
 
 App<IAppOption>({
   globalData: {
+    // 真实构建通过环境配置注入 API 地址；未配置时页面只展示不可用状态。
     apiBaseUrl: '',
     environmentKind: 'unconfigured',
   },

@@ -1,0 +1,1 @@
+Component({ properties: { label: { type: String, value: '继续' }, loading: { type: Boolean, value: false }, disabled: { type: Boolean, value: false }, secondary: { type: Boolean, value: false } }, methods: { onTap() { if (!this.data.disabled && !this.data.loading) this.triggerEvent('action') } } })

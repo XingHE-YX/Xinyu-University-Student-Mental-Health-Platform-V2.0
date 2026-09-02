@@ -1,0 +1,5 @@
+.state-message { padding:24px 0; }
+.state-message__title { display:block; font-size:18px; line-height:28px; font-weight:500; }
+.state-message__message { display:block; margin-top:8px; color:var(--xinyu-color-text-secondary); font-size:14px; line-height:22px; }
+.state-message__action { margin:16px 0 0; padding:0; border:0; background:transparent; color:var(--xinyu-color-primary); font-size:14px; text-align:left; text-decoration:underline; }
+.state-message__action::after { border:0; }

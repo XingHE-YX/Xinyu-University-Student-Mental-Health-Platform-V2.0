@@ -1,0 +1,1 @@
+<view class="daily-quote"><text wx:if="{{available}}" class="daily-quote__text">{{text}}</text><text wx:if="{{available}}" class="daily-quote__source">{{attribution}}</text><text wx:else class="daily-quote__empty">今日短句暂未配置</text></view>

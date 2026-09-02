@@ -1,6 +1,2 @@
-Page({
-  data: {
-    title: '停止使用账户',
-    description: '账户停止使用和 30 天恢复期将在后续阶段接入。',
-  },
-})
+import { stopAccount } from '../../services/auth'
+Page({ data: { confirmText: '', loading: false, error: '' }, input(event: WechatMiniprogram.Input) { this.setData({ confirmText: event.detail.value, error: '' }) }, async submit() { if (this.data.confirmText !== '停止使用') { this.setData({ error: '请输入“停止使用”确认此操作' }); return } this.setData({ loading: true, error: '' }); try { await stopAccount(); wx.redirectTo({ url: '/pages/account-recover/index' }) } catch (error) { this.setData({ error: error instanceof Error ? error.message : '账户暂时没有停止成功' }) } finally { this.setData({ loading: false }) } } })

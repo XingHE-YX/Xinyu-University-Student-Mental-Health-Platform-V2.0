@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="自测"></top-bar><view class="page-shell__description">选择一个模块，做一次温和的自我观察。结果只属于你，不是诊断。</view><view class="link-row" bindtap="history"><text>查看历史记录</text><text class="muted">›</text></view><state-message wx:if="{{error}}" title="自测目录暂不可用" message="{{error}}" action-label="重新加载" bindaction="load"></state-message><view wx:if="{{loading}}" class="surface"><text class="muted">正在加载自测模块…</text></view><view wx:else class="module-list"><view wx:for="{{modules}}" wx:key="key" class="surface module"><view class="module__title">{{item.title}}</view><view class="muted">{{item.purpose}}</view><view class="muted">{{item.duration}} · {{item.questionCount}} 题</view><text wx:if="{{item.lastCompletedAt}}" class="muted">最近记录：{{item.lastCompletedAt}}</text><primary-button label="开始观察" data-key="{{item.key}}" bindaction="begin"></primary-button></view></view><bottom-nav current="assessment"></bottom-nav></view>

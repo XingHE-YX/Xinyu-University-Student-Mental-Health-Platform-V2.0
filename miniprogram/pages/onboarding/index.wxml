@@ -1,4 +1,4 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
+<view class="page-container page-container--padded">
+  <top-bar title="开始使用心语"></top-bar>
+  <view class="surface"><view class="page-shell__title">先从今天开始</view><view class="page-shell__description">心语帮助你做自我观察，也提供匿名交流空间。它不是医疗诊断或危机处置工具。</view><view class="section-title">基础服务说明</view><view class="muted">我们只保存完成服务所需的记录。你可以随时查看数据用途、逐条删除记录或停止使用账户。</view><view class="option {{agreed ? 'option--selected' : ''}}" bindtap="toggleAgree"><text>{{agreed ? '✓ ' : '○ '}}我已阅读并同意基础服务说明</text></view><state-message wx:if="{{error}}" title="暂时无法进入" message="{{error}}"></state-message><primary-button label="同意并继续" loading="{{loading}}" bindaction="begin"></primary-button><primary-button label="暂不使用" secondary="true" bindaction="leave"></primary-button></view>
 </view>

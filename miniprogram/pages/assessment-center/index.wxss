@@ -1,0 +1,2 @@
+.module + .module { margin-top:12px; }
+.module__title { font-size:18px; line-height:28px; font-weight:500; margin-bottom:8px; }

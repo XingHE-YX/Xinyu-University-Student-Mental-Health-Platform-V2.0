@@ -1,0 +1,4 @@
+.safety-panel { padding:20px; background:var(--xinyu-color-safety-soft); border-radius:8px; }
+.safety-option { width:100%; min-height:52px; margin-top:12px; padding:0 16px; border:1px solid var(--xinyu-color-divider); border-radius:8px; background:var(--xinyu-color-surface); color:var(--xinyu-color-text); text-align:left; font-size:16px; line-height:26px; }
+.safety-option::after { border:0; }
+.safety-option--urgent { color:var(--xinyu-color-safety); }

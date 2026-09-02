@@ -31,3 +31,10 @@
 - 微信适配器最初把原始 `unionid` 放入返回对象。即使不写入数据库，这仍然越过了适配器隐私边界；适配器现在只返回不可逆主体摘要，不能向后续服务传递原始 openid、unionid 或 session_key。
 - CloudBase 适配器不能只用 mock 响应验证。官方文档核对后，查询使用 `documents:find`、更新使用 `documents:updateOne`、请求体使用 EJSON 字符串、认证头使用 CloudBase Open API 约定；这些路径和响应形状已写入适配器测试。条件更新无匹配时必须异步回查当前文档版本，再返回版本冲突。
 - Ruff 和 mypy 的报错必须在阶段交付前清零；本阶段曾出现导入排序、行宽、SecretStr 类型、`app.state` 的 Any 类型和错误异常捕获等问题，均已修复并重新验证。
+
+## 2026-09-02：阶段 4 学生端实现记录
+
+- 本阶段首次从仓库根目录调用 `backend/.venv/bin/pytest` 和 `backend/.venv/bin/ruff` 时因工作目录已设置为 `backend/` 而报“文件不存在”；后端验证应在 `backend/` 工作目录使用 `.venv/bin/pytest`、`.venv/bin/ruff` 和 `.venv/bin/mypy`，避免重复拼接路径。
+- 原生小程序组件事件需要通过组件 `triggerEvent` 传递；页面不能假设组件内部按钮的 `dataset` 会自动继承页面上下文，因此业务参数必须显式放在组件节点或事件 detail 中。
+- 微信 WXML 不应依赖内联对象数组作为循环数据；底部导航改为组件 `data.items` 提供固定导航项，减少开发者工具解析差异。
+- 安全确认的 `cannot_be_safe` 分支不能提供“返回继续观察”入口；支持资源页必须同时读取分支状态并隐藏继续按钮，避免绕过安全支持路径。

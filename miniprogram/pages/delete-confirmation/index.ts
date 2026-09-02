@@ -1,6 +1,3 @@
-Page({
-  data: {
-    title: '删除确认',
-    description: '单条删除确认和结果提示将在后续阶段接入。',
-  },
-})
+import { deleteHistoryItem } from '../../services/me'
+import type { HistoryItem } from '../../types/api'
+Page({ data: { id: '', category: 'assessment' as HistoryItem['category'], loading: false, error: '' }, onLoad(query: Record<string, string>) { this.setData({ id: query.id ?? '', category: (query.category ?? 'assessment') as HistoryItem['category'] }) }, async remove() { if (!this.data.id) return; this.setData({ loading: true, error: '' }); try { await deleteHistoryItem(this.data.id, this.data.category); wx.navigateBack() } catch (error) { this.setData({ error: error instanceof Error ? error.message : '删除没有成功，请稍后重试' }) } finally { this.setData({ loading: false }) } }, cancel() { wx.navigateBack() } })

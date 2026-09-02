@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="历史记录" back="true"></top-bar><view class="page-shell__description">这里只显示你的心情、自测和睡眠观察。记录按时间倒序排列，可以逐条删除。</view><state-message wx:if="{{error}}" title="历史记录暂时不可用" message="{{error}}" action-label="重新加载" bindaction="load"></state-message><view wx:if="{{loading}}" class="surface"><text class="muted">正在读取记录…</text></view><empty-state wx:elif="{{!items.length}}" title="还没有历史记录" action-label="开始一次观察" bindaction="start"></empty-state><view wx:else><view wx:for="{{items}}" wx:key="id" class="surface history-item" data-id="{{item.id}}" data-category="{{item.category}}" bindtap="open"><view class="post__meta"><text>{{item.title}}</text><text class="status-chip">{{item.category === 'mood' ? '心情' : item.category === 'sleep' ? '睡眠' : '自测'}}</text></view><view class="muted">{{item.summary}}</view><view class="muted">{{item.recordedAt}}</view></view></view></view>

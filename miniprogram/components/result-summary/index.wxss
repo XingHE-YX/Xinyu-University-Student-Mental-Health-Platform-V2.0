@@ -1,0 +1,1 @@
+.result-score{display:block;margin:12px 0;color:var(--xinyu-color-primary-pressed);font-size:32px;line-height:42px;font-weight:600}

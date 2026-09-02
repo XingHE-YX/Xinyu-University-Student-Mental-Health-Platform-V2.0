@@ -1,0 +1,4 @@
+.page-container { min-height: 100vh; box-sizing: border-box; background: var(--xinyu-color-paper); color: var(--xinyu-color-text); }
+.page-container--padded { padding: 24px 20px calc(96px + env(safe-area-inset-bottom)); }
+@media (min-width: 393px) { .page-container--padded { padding-left: 24px; padding-right: 24px; } }
+@media (max-width: 359px) { .page-container--padded { padding-left: 16px; padding-right: 16px; } }

@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="匿名身份" back="true"></top-bar><view wx:if="{{loading}}" class="surface"><text class="muted">正在加载匿名身份…</text></view><view wx:elif="{{error}}"><state-message title="匿名身份暂时不可用" message="{{error}}" action-label="重新加载" bindaction="load"></state-message></view><view wx:else class="surface"><view class="page-shell__title">{{displayName}}</view><view class="page-shell__description">这是由服务端生成的展示名，仅在树洞中使用。真实姓名和学号不会公开。</view></view></view>

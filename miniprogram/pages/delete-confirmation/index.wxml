@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="删除记录" back="true"></top-bar><view class="surface"><view class="page-shell__description" style="margin-top:0">删除后，这条记录将从你的历史中移除，不能恢复。请确认是否继续。</view><state-message wx:if="{{error}}" title="删除未完成" message="{{error}}"></state-message><primary-button label="确认删除" loading="{{loading}}" bindaction="remove"></primary-button><primary-button label="暂不删除" secondary="true" bindaction="cancel"></primary-button></view></view>

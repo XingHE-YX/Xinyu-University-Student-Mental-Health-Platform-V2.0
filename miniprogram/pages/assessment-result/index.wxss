@@ -1,0 +1,4 @@
+.result-score { margin-top:16px; color:var(--xinyu-color-primary-pressed); font-size:32px; line-height:42px; font-weight:600; }
+.result-kind { margin-top:8px; color:var(--xinyu-color-primary); font-size:18px; line-height:28px; font-weight:500; }
+.result-text { margin-top:12px; font-size:16px; line-height:26px; }
+.result-note { margin-top:16px; }

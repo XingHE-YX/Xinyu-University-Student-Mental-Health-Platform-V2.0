@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="停止使用账户" back="true"></top-bar><view class="surface"><view class="page-shell__description" style="margin-top:0">停止使用会限制新的观察、发帖和回应，并进入 30 天恢复期。恢复期内可以重新恢复账户；已删除的数据不会自动恢复。</view><view class="section-title">请输入确认词</view><input class="input" value="{{confirmText}}" bindinput="input" placeholder="停止使用" /><state-message wx:if="{{error}}" title="还不能停止" message="{{error}}"></state-message><primary-button label="确认停止使用" loading="{{loading}}" bindaction="submit"></primary-button></view></view>

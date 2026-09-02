@@ -1,6 +1,2 @@
-Page({
-  data: {
-    title: '匿名身份',
-    description: '匿名展示身份将在身份核验完成后由服务端生成。',
-  },
-})
+import { fetchProfile } from '../../services/me'
+Page({ data: { loading: true, error: '', displayName: '' }, onShow() { this.load() }, async load() { try { const profile = await fetchProfile(); this.setData({ displayName: profile.displayName ?? '匿名同学' }) } catch (error) { this.setData({ error: error instanceof Error ? error.message : '匿名身份暂时不可用' }) } finally { this.setData({ loading: false }) } } })

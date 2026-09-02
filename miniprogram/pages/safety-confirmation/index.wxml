@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="安全确认"></top-bar><view class="safety-panel"><view class="page-shell__title">先确认此刻是否安全</view><view class="page-shell__description">你刚才的回答需要我们先确认当前状态。这里不会显示分数、历史记录、身份或模型内容。</view><view class="section-title">请选择最符合现在的情况</view><button class="safety-option" data-state="can_be_safe" bindtap="choose">我现在可以保证安全</button><button class="safety-option" data-state="uncertain" bindtap="choose">我不太确定</button><button class="safety-option safety-option--urgent" data-state="cannot_be_safe" bindtap="choose">我现在无法保证安全</button></view><state-message wx:if="{{error}}" title="确认未完成" message="{{error}}"></state-message><view wx:if="{{loading}}" class="muted">正在保存当前选择…</view></view>

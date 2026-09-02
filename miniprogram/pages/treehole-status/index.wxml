@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="帖子状态"></top-bar><view class="surface"><text class="status-chip {{status === 'checking' || status === 'pending_confirmation' ? 'status-chip--waiting' : status === 'safety_priority' ? 'status-chip--safety' : ''}}">{{status === 'published' ? '已公开' : status === 'protected' ? '保护展示' : status === 'checking' ? '检查中' : status === 'pending_confirmation' ? '等待确认' : status === 'unpublished' ? '未公开' : status === 'safety_priority' ? '安全优先' : status === 'deleted' ? '已删除' : '状态未知'}}</text><view class="status-message">{{message}}</view><view class="muted">帖子编号：{{id}}</view></view><primary-button label="回到树洞" bindaction="back"></primary-button></view>

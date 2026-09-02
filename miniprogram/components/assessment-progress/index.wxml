@@ -1,0 +1,1 @@
+<view><view class="muted">第 {{current}} 题 / 共 {{total}} 题</view><view class="progress"><view class="progress__bar" style="width:{{current / total * 100}}%"></view></view></view>

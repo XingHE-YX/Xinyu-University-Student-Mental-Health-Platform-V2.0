@@ -1,0 +1,4 @@
+.quote { display:block; font-size:20px; line-height:30px; }
+.quote__source { display:block; margin-top:12px; }
+.mood-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+.mood-grid .option { margin-top:0; }

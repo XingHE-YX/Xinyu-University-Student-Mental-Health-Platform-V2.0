@@ -1,4 +1,1 @@
-<view class="page-shell">
-  <view class="page-shell__title">{{title}}</view>
-  <view class="page-shell__description">{{description}}</view>
-</view>
+<view class="page-container page-container--padded"><top-bar title="我的内容" back="true"></top-bar><state-message wx:if="{{error}}" title="内容暂时不可用" message="{{error}}" action-label="重新加载" bindaction="load"></state-message><view wx:if="{{loading}}" class="surface"><text class="muted">正在加载你的内容…</text></view><empty-state wx:elif="{{!posts.length}}" title="你还没有发布内容" action-label="去树洞写一段" bindaction="publish"></empty-state><view wx:else><view wx:for="{{posts}}" wx:key="id" class="surface history-item" data-id="{{item.id}}" bindtap="open"><view class="post__meta"><text>{{item.createdAt}}</text><text class="status-chip">{{item.status}}</text></view><view class="muted">{{item.excerpt || '这条内容当前不展示正文'}}</view></view></view></view>

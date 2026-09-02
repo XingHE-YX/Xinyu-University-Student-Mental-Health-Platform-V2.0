@@ -1,0 +1,10 @@
+.confirm-sheet { position:fixed; z-index:20; inset:0; }
+.confirm-sheet__mask { position:absolute; inset:0; background:rgba(31,45,43,.28); }
+.confirm-sheet__panel { position:absolute; left:0; right:0; bottom:0; padding:24px 20px calc(24px + env(safe-area-inset-bottom)); background:var(--xinyu-color-surface); border-radius:8px 8px 0 0; box-shadow:0 -4px 16px rgba(31,45,43,.12); }
+.confirm-sheet__title { display:block; font-size:18px; line-height:28px; font-weight:500; }
+.confirm-sheet__message { display:block; margin-top:8px; color:var(--xinyu-color-text-secondary); font-size:14px; line-height:22px; }
+.confirm-sheet__actions { display:flex; gap:12px; margin-top:20px; }
+.confirm-sheet__actions button { flex:1; height:44px; border-radius:8px; font-size:16px; line-height:44px; }
+.confirm-sheet__actions button::after { border:0; }
+.confirm-sheet__cancel { color:var(--xinyu-color-text-secondary); background:var(--xinyu-color-paper); }
+.confirm-sheet__confirm { color:var(--xinyu-color-surface); background:var(--xinyu-color-primary); }

@@ -1,0 +1,5 @@
+.post-body { margin:16px 0; font-size:16px; line-height:26px; white-space:pre-wrap; }
+.response + .response { margin-top:12px; }
+.response-input { min-height:96px; }
+.manage-action { margin:0; padding:0; border:0; background:transparent; color:var(--xinyu-color-primary); font-size:16px; text-align:left; }
+.manage-action::after { border:0; }

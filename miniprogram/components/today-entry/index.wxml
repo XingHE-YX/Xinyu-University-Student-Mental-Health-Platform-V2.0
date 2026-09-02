@@ -1,0 +1,1 @@
+<view class="today-entry" bindtap="tap"><view>{{title}}</view><view class="muted">{{description}}</view><text>›</text></view>

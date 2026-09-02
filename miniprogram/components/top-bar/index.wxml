@@ -1,0 +1,1 @@
+<view class="top-bar"><button wx:if="{{back}}" class="top-bar__back" bindtap="onBack" aria-label="返回">‹</button><text class="top-bar__title">{{title}}</text></view>

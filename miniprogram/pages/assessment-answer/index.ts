@@ -1,6 +1,15 @@
+import { submitAssessment } from '../../services/assessment'
+import { assessmentStore } from '../../stores/assessment'
+import type { AssessmentQuestion, AssessmentModule } from '../../types/api'
+
 Page({
-  data: {
-    title: '答题',
-    description: '答题会话、进度和安全确认将在后续阶段接入。',
-  },
+  data: { title: '答题', sessionId: '', module: 'phq9' as AssessmentModule['key'], questions: [] as AssessmentQuestion[], currentIndex: 0, selected: -1, submitting: false, error: '', showLeave: false },
+  onLoad(query: Record<string, string>) { const questions = JSON.parse(decodeURIComponent(query.questions ?? '[]')) as AssessmentQuestion[]; assessmentStore.start({ sessionId: query.sessionId ?? '', module: (query.module ?? 'phq9') as AssessmentModule['key'], title: decodeURIComponent(query.title ?? '答题'), questions }); this.sync() },
+  onShow() { this.sync() },
+  sync() { const state = assessmentStore.get(); if (state) this.setData({ title: state.title, sessionId: state.sessionId, module: state.module, questions: state.questions, currentIndex: state.currentIndex, selected: state.answers[state.currentIndex] ?? -1 }) },
+  choose(event: WechatMiniprogram.BaseEvent) { const value = Number((event.currentTarget as WechatMiniprogram.Target).dataset.value); const state = assessmentStore.get(); if (!state) return; assessmentStore.setAnswer(state.currentIndex, value); this.setData({ selected: value }); if (state.module === 'phq9' && state.currentIndex === 8 && value > 0) { wx.navigateTo({ url: `/pages/safety-confirmation/index?sessionId=${state.sessionId}` }); return } if (state.currentIndex < state.questions.length - 1) { state.currentIndex += 1; this.setData({ currentIndex: state.currentIndex, selected: state.answers[state.currentIndex] ?? -1 }) } },
+  previous() { const state = assessmentStore.get(); if (!state || state.currentIndex === 0) return; state.currentIndex -= 1; this.setData({ currentIndex: state.currentIndex, selected: state.answers[state.currentIndex] ?? -1 }) },
+  next() { const state = assessmentStore.get(); if (!state || state.answers[state.currentIndex] === undefined) { this.setData({ error: '请先选择当前答案' }); return } if (state.currentIndex < state.questions.length - 1) { state.currentIndex += 1; this.setData({ currentIndex: state.currentIndex, selected: state.answers[state.currentIndex] ?? -1, error: '' }) } },
+  async submit() { const state = assessmentStore.get(); if (!state) return; if (state.answers.length < state.questions.length || state.answers.some((answer) => answer === undefined)) { this.setData({ error: '还有题目未完成，请回到第一道未答题' }); return } this.setData({ submitting: true, error: '' }); try { const result = await submitAssessment(state.sessionId, state.module, state.answers, state.safetyState); assessmentStore.setResult(result); wx.redirectTo({ url: `/pages/assessment-result/index?result=${encodeURIComponent(JSON.stringify(result))}` }) } catch (error) { this.setData({ error: error instanceof Error ? error.message : '结果暂时没有保存成功，请稍后重试' }) } finally { this.setData({ submitting: false }) } },
+  askLeave() { this.setData({ showLeave: true }) }, cancelLeave() { this.setData({ showLeave: false }) }, leave() { assessmentStore.clear(); this.setData({ showLeave: false }); wx.switchTab({ url: '/pages/assessment-center/index' }) },
 })
