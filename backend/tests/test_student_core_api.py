@@ -90,3 +90,13 @@ def test_student_core_identity_status_and_account_stop_require_idempotency_and_a
     status = client.get("/api/v1/account/status", headers=headers)
     assert status.status_code == 200
     assert status.json()["data"]["can_recover"] is True
+
+    recovered = client.post(
+        "/api/v1/account/recover",
+        headers={**headers, "Idempotency-Key": "recover-1"},
+        json={"object_version": 2},
+    )
+    assert recovered.status_code == 200
+    assert recovered.json()["data"]["status"] == "active"
+    me = client.get("/api/v1/me", headers=headers)
+    assert me.json()["data"]["account_status"] == "active"

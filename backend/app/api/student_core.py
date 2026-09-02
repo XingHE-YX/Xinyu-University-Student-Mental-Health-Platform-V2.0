@@ -4,7 +4,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Header, Query, Request
 
-from app.api.dependencies import bearer_token, request_id, require_idempotency_key
+from app.api.dependencies import bearer_token, request_id, require_idempotency_key, student_subject
 from app.schemas.envelope import ApiEnvelope
 from app.schemas.student_core import (
     AccountActionRequest,
@@ -34,9 +34,12 @@ async def base_consent(
 
         raise ApiException(422, "VALIDATION_FAILED")
     token = bearer_token(authorization)
-    version = body.object_version or request.app.state.consent_service.repository.get_user(
-        request.app.state.auth_service.authenticate(token).subject_id
-    ).version
+    version = (
+        body.object_version
+        or request.app.state.consent_service.repository.get_user(
+            request.app.state.auth_service.authenticate(token).subject_id
+        ).version
+    )
     data = request.app.state.consent_service.accept_base_consent(
         token,
         document_version=body.document_version,
@@ -53,9 +56,12 @@ async def community_consent(
 ) -> ApiEnvelope[object]:
     token = bearer_token(authorization)
     key = require_idempotency_key(request)
-    version = body.object_version or request.app.state.consent_service.repository.get_user(
-        request.app.state.auth_service.authenticate(token).subject_id
-    ).version
+    version = (
+        body.object_version
+        or request.app.state.consent_service.repository.get_user(
+            request.app.state.auth_service.authenticate(token).subject_id
+        ).version
+    )
     if body.action == "accepted":
         data = request.app.state.consent_service.accept_community_consent(
             token,
@@ -194,7 +200,7 @@ async def support_resources(
     context: str = Query(default="normal"),
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[object]:
-    bearer_token(authorization)
+    student_subject(request, authorization)
     return ApiEnvelope.success(
         request_id(request),
         request.app.state.support_resource_service.list_resources(context=context),
@@ -228,7 +234,7 @@ async def recover_account(
 ) -> ApiEnvelope[object]:
     from app.schemas.errors import ApiException
 
-    if body.confirmation_text != "恢复使用":
+    if body.confirmation_text not in {None, "恢复使用"}:
         raise ApiException(422, "VALIDATION_FAILED")
     data = request.app.state.account_service.recover(
         bearer_token(authorization),

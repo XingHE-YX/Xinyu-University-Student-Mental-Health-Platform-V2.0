@@ -1,6 +1,6 @@
 """Student session and self-subject routes."""
 
-from typing import Annotated
+from typing import Annotated, Literal, cast
 
 from fastapi import APIRouter, Header, Request
 
@@ -54,9 +54,16 @@ async def me(
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[StudentMeData]:
     subject = student_subject(request, authorization)
+    account_status: Literal["active", "recovery_pending", "stopped", "purged"] = "active"
+    account_service = getattr(request.app.state, "account_service", None)
+    if account_service is not None:
+        account_status = cast(
+            Literal["active", "recovery_pending", "stopped", "purged"],
+            account_service.status(bearer_token(authorization)).status,
+        )
     data = StudentMeData(
         subject_type="student",
         subject_id=subject.subject_id,
-        account_status="active",
+        account_status=account_status,
     )
     return ApiEnvelope.success(request_id(request), data=data)
