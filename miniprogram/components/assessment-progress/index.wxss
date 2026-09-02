@@ -1,1 +1,1 @@
-.progress{height:4px;margin:16px 0 24px;background:var(--xinyu-color-divider);border-radius:4px;overflow:hidden}.progress__bar{height:100%;background:var(--xinyu-color-primary)}
+.progress-segments{display:flex;gap:4px;margin:16px 0 24px}.progress-segment{flex:1;height:4px;background:var(--xinyu-color-divider);border-radius:4px}.progress-segment--active{background:var(--xinyu-color-primary)}

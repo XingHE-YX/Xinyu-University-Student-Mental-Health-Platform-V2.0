@@ -1,1 +1,1 @@
-<view class="surface"><view class="section-title" style="margin-top:0">{{title}}</view><text wx:if="{{score >= 0}}" class="result-score">{{score}}</text><view>{{interpretation}}</view><view class="muted">{{kind}}</view></view>
+<view class="surface"><view class="section-title section-title--first">{{title}}</view><text wx:if="{{score >= 0}}" class="result-score">{{score}}</text><view>{{interpretation}}</view><view class="muted">{{kind}}</view></view>

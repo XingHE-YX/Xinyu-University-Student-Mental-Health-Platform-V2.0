@@ -52,6 +52,9 @@ page {
 }
 
 .section-title { margin: 24px 0 12px; color: var(--xinyu-color-text); font-size: 18px; line-height: 28px; font-weight: 500; }
+.section-title--first { margin-top: 0; }
+.page-shell__description--first { margin-top: 0; }
+.page-shell__title--compact { font-size: 20px; line-height: 30px; }
 .muted { color: var(--xinyu-color-text-secondary); font-size: 14px; line-height: 22px; }
 .surface { padding: 20px; background: var(--xinyu-color-surface); border: 1px solid var(--xinyu-color-divider); border-radius: 8px; }
 .surface + .surface { margin-top: 12px; }
@@ -66,4 +69,7 @@ page {
 .option--selected { border: 2px solid var(--xinyu-color-primary); background: var(--xinyu-color-primary-soft); color: var(--xinyu-color-primary-pressed); }
 .progress { height: 4px; margin: 16px 0 24px; background: var(--xinyu-color-divider); border-radius: 4px; overflow: hidden; }
 .progress__bar { height: 100%; background: var(--xinyu-color-primary); }
+.progress-segments { display: flex; gap: 4px; margin: 16px 0 24px; }
+.progress-segment { flex: 1; height: 4px; background: var(--xinyu-color-divider); border-radius: 4px; }
+.progress-segment--active { background: var(--xinyu-color-primary); }
 .resource + .resource { margin-top: 12px; }

@@ -1,1 +1,1 @@
-<view><view class="muted">第 {{current}} 题 / 共 {{total}} 题</view><view class="progress"><view class="progress__bar" style="width:{{current / total * 100}}%"></view></view></view>
+<view><view class="muted">第 {{current}} 题 / 共 {{total}} 题</view><view class="progress-segments" aria-label="答题进度"><view wx:for="{{segments}}" wx:key="*this" class="progress-segment {{index < current ? 'progress-segment--active' : ''}}"></view></view></view>

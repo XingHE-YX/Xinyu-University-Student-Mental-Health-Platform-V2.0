@@ -144,3 +144,11 @@
 - 微信开发者工具游客 AppID 的 CLI 预览先报“二维码输出路径无效或不存在”，终端预览又报 `INVALID_LOGIN, access_token expired`；模拟器本地编译和页面渲染仍成功，这些是游客凭据/工具环境阻断，不是小程序 TypeScript 编译错误，也不能当作真实发布验收。
 - 阶段 8 对照 APP_FLOW 检查时确认当前学生端在未配置 API 地址时使用演示响应夹具；真实同意、身份核验、心情、自测、树洞和账户接口联调需要 CloudBase Python API 和真实 AppID，不能把演示夹具结果写成授权环境通过。
 - 阶段 8 文档检查对整份 `lessons.md` 报 Prettier 风格差异；该文件包含各阶段已审阅的历史排版，未对全文做无关重排，仅对新增 `docs/v2/PHASE_8_ACCEPTANCE.md` 执行格式化并以 `git diff --check` 作为历史文档门禁。
+
+## 2026-09-02：第 12 节完成定义验收记录
+
+- 第 12 节接口对照首次按 `BACKEND_STRUCTURE.md` 和 FastAPI 路由反射执行，确认规范当前定义 50 个端点而运行时仅注册 18 个，缺少 32 个端点。领域服务已存在不能视为 HTTP 契约已实现；后续接入路由时必须为每个端点补齐认证、权限、错误信封和最小投影测试。
+- 本轮首次重跑函数包哈希时从 `backend/` 使用了相对于仓库根目录解析的输出路径，哈希命令报 `No such file or directory`；改用仓库根目录和显式 `backend/dist/...` 路径后，两次 SHA-256 一致。构建脚本的输出路径以仓库根目录为基准，验收命令必须先确认产物实际位置。
+- 本轮首次运行接口对照脚本时使用系统 Python，导入 FastAPI 报 `ModuleNotFoundError: No module named 'fastapi'`；改用 `backend/.venv/bin/python` 后得到有效的 50/18/32 对照结果。所有后端脚本必须使用项目锁定的 Python 3.11 虚拟环境。
+- 函数包秘密扫描最初把依赖中的 `mypy/typeshed/stdlib/secrets.pyi` 误报为秘密文件；项目打包器只阻止 `.env`、`credentials`、`secrets` 精确文件名及 `.key`/`.p12` 后缀，验收扫描必须采用同一规则，不能把合法依赖类型存根当作密钥。
+- 设计验收发现学生端仍有多处 WXML `style=`，违反 `AGENT.md` 的硬约束；已统一改为 WXSS 语义类，并把动态百分比进度改成分段进度组件。以后设计验收必须直接扫描 `*.wxml` 和 `*.vue` 的内联样式属性。
