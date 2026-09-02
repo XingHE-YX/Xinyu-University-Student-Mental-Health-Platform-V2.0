@@ -337,6 +337,22 @@ class IdentityService:
             "identity_status": to_student_session_identity_status(verification_status),
         }
 
+    def get_verification(
+        self, access_token: str, verification_id: str
+    ) -> dict[str, str | int | None]:
+        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        if subject.subject_type != "student":
+            raise ApiException(403, "FORBIDDEN")
+        user = self.repository.get_user(subject.subject_id)
+        record = _get_bound_identity_record(self.repository, user)
+        if record is None or record.document_id != verification_id:
+            raise ApiException(404, "NOT_FOUND")
+        return {
+            "verification_id": record.document_id,
+            "status": record.verification_status,
+            "next_poll_after_seconds": 5 if record.verification_status == "pending" else None,
+        }
+
     def get_anonymous_identity(self, access_token: str) -> dict[str, str]:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":

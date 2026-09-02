@@ -2,11 +2,11 @@
 
 import secrets
 from datetime import UTC, datetime
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from app.config.settings import Settings
-from app.integrations.wechat_auth import WechatAuthClient, WechatIdentity
 from app.domain.models import UserAccountDocument
+from app.integrations.wechat_auth import WechatAuthClient, WechatIdentity
 from app.repositories.domain_data_repository import InMemoryDomainDataRepository
 from app.repositories.session_repository import InMemorySessionRepository
 from app.schemas.auth import AdminSessionData, StudentSessionData, TokenData
@@ -136,7 +136,7 @@ class AuthService:
             return existing
         now = datetime.now(UTC)
         user = UserAccountDocument(
-            _id=f"user_{subject_id[:24]}",
+            _id=subject_id,
             auth_subject_hash=subject_id,
             status="active",
             base_consent_status="not_accepted",
@@ -166,7 +166,7 @@ def _pair_data(pair: TokenPair) -> dict[str, Any]:
 def _ephemeral_user(subject_id: str) -> UserAccountDocument:
     now = datetime.now(UTC)
     return UserAccountDocument(
-        _id=f"user_{subject_id[:24]}",
+        _id=subject_id,
         auth_subject_hash=subject_id,
         status="active",
         base_consent_status="not_accepted",
@@ -177,5 +177,11 @@ def _ephemeral_user(subject_id: str) -> UserAccountDocument:
     )
 
 
-def _session_account_status(status: str) -> str:
-    return status if status in {"active", "recovery_pending", "stopped", "purged"} else "active"
+def _session_account_status(
+    status: str,
+) -> Literal["active", "recovery_pending", "stopped", "purged"]:
+    return (
+        status  # type: ignore[return-value]
+        if status in {"active", "recovery_pending", "stopped", "purged"}
+        else "active"
+    )

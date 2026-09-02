@@ -186,11 +186,7 @@ class InMemoryDomainDataRepository:
     def get_user_by_auth_subject_hash(self, subject_hash: str) -> UserAccountDocument | None:
         with self._lock:
             return next(
-                (
-                    user
-                    for user in self._users.values()
-                    if user.auth_subject_hash == subject_hash
-                ),
+                (user for user in self._users.values() if user.auth_subject_hash == subject_hash),
                 None,
             )
 

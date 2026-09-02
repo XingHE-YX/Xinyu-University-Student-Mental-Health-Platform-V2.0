@@ -15,6 +15,7 @@ from app.api.dependencies import (
     register_exception_handlers,
     resolve_request_id,
 )
+from app.api.student_core import router as student_core_router
 from app.audit.writer import AuditWriter
 from app.config.settings import Settings
 from app.repositories.audit_repository import InMemoryAuditRepository
@@ -24,12 +25,20 @@ from app.repositories.session_repository import InMemorySessionRepository
 from app.schemas.envelope import ApiEnvelope
 from app.schemas.errors import ApiException
 from app.security.tokens import TokenManager
+from app.services.account_service import AccountService
 from app.services.admin_workbench_service import AdminWorkbenchService
 from app.services.ai_assist_service import AiAssistService
 from app.services.assessment_service import AssessmentService
 from app.services.auth_service import AuthService, WechatClient
+from app.services.bootstrap_service import BootstrapService
+from app.services.consent_service import ConsentService
 from app.services.idempotency_service import IdempotencyService
+from app.services.identity_service import IdentityService
+from app.services.mood_service import MoodService
+from app.services.quote_service import QuoteService
 from app.services.safety_service import SafetyService
+from app.services.support_resource_service import SupportResourceService
+from app.services.today_service import TodayService
 
 
 class HealthData(BaseModel):
@@ -91,6 +100,56 @@ def create_app(
         idempotency_service=runtime_idempotency,
         audit_writer=runtime_audit,
     )
+    app.state.consent_service = ConsentService(
+        settings=runtime_settings,
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        idempotency_service=runtime_idempotency,
+        audit_writer=runtime_audit,
+    )
+    app.state.identity_service = IdentityService(
+        settings=runtime_settings,
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        idempotency_service=runtime_idempotency,
+        audit_writer=runtime_audit,
+    )
+    support_service = SupportResourceService(
+        settings=runtime_settings, repository=runtime_domain_repository
+    )
+    app.state.support_resource_service = support_service
+    app.state.mood_service = MoodService(
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        idempotency_service=runtime_idempotency,
+        audit_writer=runtime_audit,
+    )
+    app.state.today_service = TodayService(
+        settings=runtime_settings,
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        quote_service=QuoteService(repository=runtime_domain_repository),
+        support_resource_service=support_service,
+    )
+    app.state.account_service = AccountService(
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        idempotency_service=runtime_idempotency,
+        audit_writer=runtime_audit,
+    )
+    app.state.bootstrap_service = BootstrapService(
+        settings=runtime_settings,
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        identity_service=app.state.identity_service,
+        today_service=app.state.today_service,
+    )
 
     register_exception_handlers(app)
 
@@ -123,6 +182,7 @@ def create_app(
     app.include_router(admin_auth_router)
     app.include_router(admin_workbench_router)
     app.include_router(assessment_router)
+    app.include_router(student_core_router)
     return app
 
 
