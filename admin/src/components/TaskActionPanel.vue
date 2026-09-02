@@ -18,6 +18,8 @@ const reason = ref("");
 const factNote = ref("");
 const followupDueAt = ref("");
 const actionCode = ref("resource_provided");
+const confirmOpen = ref(false);
+const pendingDecision = ref<TaskDecision>();
 const isContent = computed(() => props.task.task_kind === "content_review");
 const isSupport = computed(() => props.task.task_kind === "safety_support");
 const isFollowup = computed(() => props.task.task_kind === "followup");
@@ -55,29 +57,36 @@ const actionLabels: Record<string, string> = {
 function submit(): void {
   if (!selectedAction.value || props.busy || props.readonly) return;
   if (isContent.value)
-    emit("submit", {
+    pendingDecision.value = {
       action: selectedAction.value as
         "publish" | "protect" | "unpublish" | "safety_review",
       internal_reason: reason.value,
-    });
+    };
   else if (isSupport.value)
-    emit("submit", {
+    pendingDecision.value = {
       action: selectedAction.value as
         "record_support" | "set_followup" | "complete",
       fact_note: factNote.value,
       followup_due_at: followupDueAt.value || undefined,
-    });
+    };
   else if (isFollowup.value)
-    emit("submit", {
+    pendingDecision.value = {
       action: selectedAction.value as "record_followup" | "complete",
       action_code: actionCode.value,
       fact_note: factNote.value,
       next_due_at: followupDueAt.value || undefined,
-    });
+    };
   else
-    emit("submit", {
+    pendingDecision.value = {
       action: selectedAction.value as "approve" | "deny" | "revoke",
-    });
+    };
+  confirmOpen.value = true;
+}
+function confirmSubmit(): void {
+  if (!pendingDecision.value) return;
+  emit("submit", pendingDecision.value);
+  confirmOpen.value = false;
+  pendingDecision.value = undefined;
 }
 </script>
 <template>
@@ -128,7 +137,9 @@ function submit(): void {
       ><label v-if="isFollowup" class="field"
         >记录类型<select v-model="actionCode">
           <option value="resource_provided">已提供资源</option>
-          <option value="contact_made">已完成经授权的联系</option>
+          <option v-if="task.environment_kind !== 'demo'" value="contact_made">
+            已完成经授权的联系
+          </option>
           <option value="contact_failed">未能完成经授权的步骤</option>
           <option value="next_contact_agreed">已约定下一次跟进</option>
         </select></label
@@ -152,11 +163,38 @@ function submit(): void {
     <p v-else class="readonly-note">
       {{
         task.state === "waiting_other"
-          ? "这条记录正在等待他人处理。"
+          ? "这条记录正在由其他审核员处理。"
           : "这条记录已经完成，页面仅供回看。"
       }}
     </p>
   </section>
+  <div
+    v-if="confirmOpen"
+    class="confirmation"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="confirm-title"
+  >
+    <h3 id="confirm-title">提交前确认</h3>
+    <p>你将：{{ actionLabels[selectedAction] ?? selectedAction }}</p>
+    <p>
+      学生端不会显示后台内部判断，身份状态不会自动揭示，也不会自动联系任何人。
+    </p>
+    <p>审计记录将保存对象、能力、依据、时间、模式和结果。</p>
+    <div class="actions">
+      <button type="button" :disabled="busy" @click="confirmOpen = false">
+        返回修改
+      </button>
+      <button
+        class="primary"
+        type="button"
+        :disabled="busy"
+        @click="confirmSubmit"
+      >
+        确认提交
+      </button>
+    </div>
+  </div>
 </template>
 <style scoped>
 .action-panel {
@@ -236,6 +274,21 @@ button:disabled {
 .error {
   margin-top: var(--xinyu-space-4);
   color: var(--xinyu-color-safety);
+  line-height: 24px;
+}
+.confirmation {
+  margin-top: var(--xinyu-space-6);
+  padding: var(--xinyu-space-6);
+  border: 1px solid var(--xinyu-color-primary);
+  background: var(--xinyu-color-primary-soft);
+}
+.confirmation h3 {
+  margin: 0 0 var(--xinyu-space-3);
+  font-size: 18px;
+}
+.confirmation p {
+  margin: var(--xinyu-space-2) 0;
+  color: var(--xinyu-color-text-secondary);
   line-height: 24px;
 }
 </style>

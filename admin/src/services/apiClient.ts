@@ -45,6 +45,7 @@ export async function request<T>(
     body?: unknown;
     idempotent?: boolean;
     signal?: AbortSignal;
+    fetchImpl?: typeof fetch;
   } = {},
   parse: (value: unknown) => T,
 ): Promise<{ data: T; requestId: string }> {
@@ -57,7 +58,7 @@ export async function request<T>(
 
   let response: Response;
   try {
-    response = await fetch(`${API_BASE}${path}`, {
+    response = await (options.fetchImpl ?? fetch)(`${API_BASE}${path}`, {
       method: options.method ?? "GET",
       headers,
       body:

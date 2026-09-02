@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { taskSummarySchema } from "../schemas/api";
+import { AdminApiError, request as apiRequest } from "@/services/apiClient";
 
 export const WORKBENCH_SECTIONS = [
   "needs_action",
@@ -22,34 +23,27 @@ const demoPage: WorkbenchPage = { items: [], next_cursor: null };
 export async function fetchWorkbenchSection(
   section: WorkbenchSectionKey,
   cursor?: string | null,
-  request: typeof fetch = fetch,
+  requestFn: typeof fetch = fetch,
   accessToken?: string,
 ): Promise<WorkbenchPage> {
   const params = new URLSearchParams({ section });
   if (cursor) params.set("cursor", cursor);
-  const response = await request(
-    `/api/v1/admin/workbench?${params.toString()}`,
-    {
-      credentials: "include",
-      headers: {
-        Accept: "application/json",
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-    },
-  );
-  if (response.status === 404 || response.status === 501) return demoPage;
-  if (!response.ok) throw new Error(`workbench_${response.status}`);
-  const json: unknown = await response.json();
-  const envelope = z
-    .object({
-      data: z.unknown().optional(),
-      error: z.unknown().nullable().optional(),
-    })
-    .passthrough()
-    .parse(json);
-  if (envelope.error) throw new Error("workbench_api_error");
-  const page = pageSchema.parse(envelope.data ?? json);
-  return { items: page.items, next_cursor: page.next_cursor ?? null };
+  try {
+    const result = await apiRequest(
+      `/api/v1/admin/workbench?${params.toString()}`,
+      { token: accessToken, fetchImpl: requestFn },
+      (value) => pageSchema.parse(value),
+    );
+    return {
+      items: result.data.items,
+      next_cursor: result.data.next_cursor ?? null,
+    };
+  } catch (error) {
+    if (error instanceof AdminApiError && [404, 501].includes(error.status)) {
+      return demoPage;
+    }
+    throw error;
+  }
 }
 
 export function getEmptyWorkbench(): {

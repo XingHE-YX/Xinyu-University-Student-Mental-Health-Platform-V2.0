@@ -36,11 +36,11 @@ export type TaskMutationResult = z.infer<typeof mutationSchema>;
 export async function fetchTaskDetail(
   taskId: string,
   token?: string,
-): Promise<TaskMutationResult> {
+): Promise<TaskDetail> {
   const result = await request(
     `/api/v1/admin/tasks/${encodeURIComponent(taskId)}`,
     { token },
-    (value) => mutationSchema.parse(value),
+    (value) => taskDetailSchema.parse(value),
   );
   return result.data;
 }
@@ -86,7 +86,7 @@ export async function decideTask(
   objectVersion: number,
   decision: TaskDecision,
   token?: string,
-): Promise<TaskDetail> {
+): Promise<TaskMutationResult> {
   const result = await request(
     `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/decision`,
     {
@@ -95,7 +95,7 @@ export async function decideTask(
       body: { ...decision, object_version: objectVersion },
       idempotent: true,
     },
-    (value) => taskDetailSchema.parse(value),
+    (value) => mutationSchema.parse(value),
   );
   return result.data;
 }

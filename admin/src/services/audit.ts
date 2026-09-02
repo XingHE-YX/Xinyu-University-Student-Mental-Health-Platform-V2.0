@@ -1,3 +1,7 @@
+import { auditPageSchema } from "@/schemas/api";
+import { request as apiRequest } from "@/services/apiClient";
+import { z } from "zod";
+
 export type AuditMode = "演示模式" | "授权模式";
 export type AuditEvent = {
   id: string;
@@ -139,11 +143,97 @@ export async function getAuditEvents(
   page = 1,
   pageSize = 10,
   environmentKind: "demo" | "authorized" | "unconfigured" = "demo",
+  accessToken?: string,
 ): Promise<AuditPage> {
+  if (accessToken) {
+    const params = new URLSearchParams({ limit: "100" });
+    if (filters.from) params.set("from", `${filters.from}T00:00:00Z`);
+    if (filters.to) params.set("to", `${filters.to}T23:59:59Z`);
+    const actionFilter: Record<string, string> = {
+      公开: "publish",
+      授权: "approve",
+      跟进: "record_followup",
+    };
+    if (filters.eventType && actionFilter[filters.eventType])
+      params.set("action", actionFilter[filters.eventType]);
+    const result = await apiRequest(
+      `/api/v1/admin/audit-events?${params.toString()}`,
+      { token: accessToken },
+      (value) => auditPageSchema.parse(value),
+    );
+    const mapped = result.data.items.map(toAuditEvent);
+    const clientFiltered = mapped
+      .filter((event) => filters.mode === "全部" || event.mode === filters.mode)
+      .filter(
+        (event) =>
+          !filters.objectId ||
+          event.objectId
+            .toLowerCase()
+            .includes(filters.objectId.trim().toLowerCase()),
+      );
+    const safePage = Math.max(1, page);
+    const start = (safePage - 1) * pageSize;
+    return {
+      items: clientFiltered.slice(start, start + pageSize),
+      total: clientFiltered.length,
+      page: safePage,
+      pageSize,
+      requestId: result.requestId,
+    };
+  }
   if (environmentKind === "authorized") {
     return filterAuditEvents([], filters, page, pageSize);
   }
   return filterAuditEvents(demoAuditEvents, filters, page, pageSize);
+}
+
+function toAuditEvent(event: {
+  request_id: string;
+  actor: string;
+  capability: string;
+  resource: string;
+  action: string;
+  data_scope: string[];
+  outcome: "success" | "denied" | "conflict" | "failure";
+  reason_code?: string | null;
+  occurred_at: string;
+  environment_kind: "demo" | "authorized" | "unconfigured";
+}): AuditEvent {
+  const [resourceType, ...resourceId] = event.resource.split(":");
+  const result: Record<typeof event.outcome, string> = {
+    success: "成功",
+    denied: "拒绝",
+    conflict: "冲突",
+    failure: "失败",
+  };
+  const mode: Record<typeof event.environment_kind, AuditMode> = {
+    demo: "演示模式",
+    authorized: "授权模式",
+    unconfigured: "授权模式",
+  };
+  return {
+    id: event.request_id,
+    occurredAt: event.occurred_at,
+    eventType:
+      resourceType === "task"
+        ? event.action === "publish"
+          ? "公开"
+          : event.action === "approve"
+            ? "授权"
+            : event.action === "record_followup"
+              ? "跟进"
+              : "任务"
+        : event.action,
+    objectId: resourceId.join(":") || event.resource,
+    capability: event.capability,
+    result: result[event.outcome],
+    mode: mode[event.environment_kind],
+    actor: event.actor,
+    action: event.action,
+    rationale: event.reason_code ?? "未记录额外理由",
+    fields: event.data_scope.join("、"),
+    requestId: event.request_id,
+  };
 }
 
 export type CollectionResetter = (
@@ -162,6 +252,7 @@ const demoCollections = [
 export async function resetDemoData(
   request: ResetRequest,
   resetter?: CollectionResetter,
+  accessToken?: string,
 ): Promise<ResetResult> {
   if (
     request.environment !== "演示环境" ||
@@ -171,6 +262,43 @@ export async function resetDemoData(
       "REAL_ENVIRONMENT_REJECTED",
       "真实环境不允许重置演示数据",
     );
+  if (accessToken) {
+    const result = await apiRequest(
+      "/api/v1/admin/demo/reset",
+      {
+        method: "POST",
+        token: accessToken,
+        body: {
+          confirmation_text: "确认重置",
+          reset_scope: demoCollections,
+        },
+        idempotent: true,
+      },
+      (value) =>
+        z
+          .object({
+            success: z.boolean(),
+            request_id: z.string(),
+            collections: z.array(
+              z.object({
+                collection: z.string(),
+                state: z.enum(["completed", "failed", "skipped"]),
+                message: z.string().nullable().optional(),
+              }),
+            ),
+          })
+          .parse(value),
+    );
+    return {
+      success: result.data.success,
+      requestId: result.data.request_id,
+      collections: result.data.collections.map((item) => ({
+        collection: item.collection,
+        success: item.state === "completed",
+        message: item.message ?? undefined,
+      })),
+    };
+  }
   const collections = resetter
     ? await Promise.all(
         demoCollections.map(async (collection) => {

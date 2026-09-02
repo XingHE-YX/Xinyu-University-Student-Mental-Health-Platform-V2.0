@@ -10,4 +10,5 @@
 已完成：阶段 4 本地验证。学生端 TypeScript 严格检查通过；页面与组件 JSON 注册文件解析通过；后端现有 30 项测试、Ruff 和 mypy 重新通过。微信开发者工具真机/模拟器仍需在配置真实 AppID 和 API 地址后按阶段 1 的工具流程复核。
 待办：见 IMPLEMENTATION_PLAN.md 第 8 节“阶段 5：后台 Web 工作台”。
 已完成：IMPLEMENTATION_PLAN.md 第 8 节阶段 5（5.1-5.6）后台 Web 工作台。后台新增 1280px 宽度阻断、固定账号登录与会话状态、W-02 三个独立任务区块及分页/重试、W-03 四类任务统一两栏详情与对象版本/幂等提交、W-04 并发/无权限/会话过期/提交失败状态、W-05 只读审计筛选分页和演示重置确认。新增 Zod API 边界校验、后台请求层、任务动作服务和 Vitest 覆盖；窄屏不渲染受保护工作区，受限字段不在前端投影中保留。
-已完成：阶段 5 本地验证。后台 `npm run typecheck`、`npm run test`（4 项）、`npm run build`、`npm run format:check` 和 `npm run lint` 均通过；后台页面持续显示演示/授权模式与会话状态，提交失败、版本冲突和会话过期均不会显示成功假象。并行实现中出现的类型、测试 alias 和详情动作响应解析问题已记录进 lessons.md 并修复。
+已完成：阶段 5 后台接口闭环。新增 Python 后端工作台服务与路由，接入固定管理员会话、最小任务摘要/详情投影、认领/释放/决定的对象版本校验、幂等键、审计写入、审计只读分页和演示重置；演示命名空间仅保存合成任务，真实授权环境在执行前拒绝重置。
+已完成：阶段 5 本地验证。后台 `npm run typecheck`、`npm run test`（5 项）、`npm run build`、`npm run format:check` 和 `npm run lint` 均通过；后端 `.venv/bin/ruff check`、`.venv/bin/ruff format --check`、`.venv/bin/mypy` 和 `.venv/bin/pytest`（34 项）均通过；后台页面持续显示演示/授权模式与会话状态，提交失败、版本冲突和会话过期均不会显示成功假象。并行实现中出现的类型、测试 alias、详情动作响应解析和缺少服务端路由问题已记录进 lessons.md 并修复。

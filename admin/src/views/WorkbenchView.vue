@@ -12,6 +12,7 @@ import {
 } from "@/services/workbench";
 import type { TaskKind, TaskState } from "@/schemas/api";
 import { useAdminSessionStore } from "@/stores/adminSession";
+import { AdminApiError } from "@/services/apiClient";
 type SectionState = {
   tasks: TaskSummary[];
   loading: boolean;
@@ -55,7 +56,15 @@ async function load(key: WorkbenchSectionKey, append = false) {
     );
     state.tasks = append ? [...state.tasks, ...page.items] : page.items;
     state.nextCursor = page.next_cursor;
-  } catch {
+  } catch (error) {
+    if (
+      error instanceof AdminApiError &&
+      (error.status === 401 || error.code === "SESSION_EXPIRED")
+    ) {
+      session.clear();
+      void router.push("/login");
+      return;
+    }
     state.error = "暂时没有加载到任务，请重新尝试";
   } finally {
     state.loading = false;

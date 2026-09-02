@@ -40,6 +40,7 @@ async function load() {
       page.value,
       8,
       session.environmentKind,
+      session.accessToken,
     );
     events.value = result.items;
     total.value = result.total;
@@ -61,10 +62,14 @@ async function confirmReset() {
   resetError.value = "";
   resetMessage.value = "";
   try {
-    const result = await resetDemoData({
-      environment: "演示环境",
-      namespace: "demo-xinyu-v2",
-    });
+    const result = await resetDemoData(
+      {
+        environment: "演示环境",
+        namespace: "demo-xinyu-v2",
+      },
+      undefined,
+      session.accessToken,
+    );
     if (!result.success || result.collections.some((item) => !item.success))
       resetError.value = "演示数据暂时没有完成重置，请重新尝试";
     else {
