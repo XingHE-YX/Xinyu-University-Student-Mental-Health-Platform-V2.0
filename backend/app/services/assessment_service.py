@@ -34,6 +34,12 @@ from app.repositories.protocols import (
 )
 from app.repositories.session_repository import InMemorySessionRepository
 from app.schemas.assessment import (
+    AssessmentModuleListResponse,
+    AssessmentModuleProjection,
+    AssessmentResultDeleteResponse,
+    AssessmentResultListResponse,
+    AssessmentResultProjection,
+    AssessmentSessionStateResponse,
     CompleteAssessmentSessionRequest,
     CompleteAssessmentSessionResponse,
     PublicQuestion,
@@ -156,6 +162,242 @@ class AssessmentService:
                     "resource_version": session.questionnaire_version,
                     "status": session.state,
                 },
+            )
+            return response
+        except RepositoryVersionConflict as error:
+            failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except RepositoryError as error:
+            failure = _repository_failure(error)
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except ApiException as error:
+            _complete_failure(self.idempotency, reservation, error)
+            raise
+        except Exception as error:
+            failure = ApiException(500, "INTERNAL_ERROR")
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+
+    def list_modules(self, access_token: str) -> AssessmentModuleListResponse:
+        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        if subject.subject_type != "student":
+            raise ApiException(403, "FORBIDDEN")
+        self._ensure_assessment_access(subject.subject_id)
+        modules: list[AssessmentModuleProjection] = []
+        for module_code in ("phq9", "gad7", "sleep_observation"):
+            try:
+                module = self.repository.get_assessment_module(module_code)
+            except RepositoryNotFound:
+                continue
+            latest = next(
+                (
+                    result
+                    for result in self.repository.list_assessment_results_by_user(
+                        subject.subject_id
+                    )
+                    if result.module_code == module_code
+                ),
+                None,
+            )
+            latest_date = latest.created_at.date().isoformat() if latest is not None else None
+            modules.append(
+                AssessmentModuleProjection(
+                    module_code=module.module_code,
+                    title=module.title,
+                    description=module.description,
+                    expected_minutes=module.expected_minutes,
+                    current_questionnaire_version=module.current_questionnaire_version,
+                    enabled=module.enabled,
+                    latest_completed_date=latest_date,
+                    latest_completed_text=latest_date or "尚未记录",
+                )
+            )
+        return AssessmentModuleListResponse(modules=modules)
+
+    def abandon_session(
+        self,
+        access_token: str,
+        *,
+        session_id: str,
+        object_version: int,
+        request_id: str,
+        idempotency_key: str,
+    ) -> AssessmentSessionStateResponse:
+        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        if subject.subject_type != "student":
+            raise ApiException(403, "FORBIDDEN")
+        self._ensure_assessment_access(subject.subject_id)
+        reservation = self.idempotency.begin(
+            "student",
+            subject.subject_id,
+            f"/assessment-sessions/{session_id}/abandon",
+            idempotency_key,
+            {"session_id": session_id, "object_version": object_version},
+        )
+        if reservation.replayed:
+            return _decode_session_state_response(reservation.record.response_digest)
+        try:
+            with self.repository.transaction():
+                session = self.repository.get_assessment_session(session_id)
+                if session.user_id != subject.subject_id:
+                    raise ApiException(404, "NOT_FOUND")
+                if session.version != object_version:
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=session.version)
+                if session.state in {"abandoned", "expired"}:
+                    response = _session_state(session)
+                elif session.state == "completed":
+                    response = _session_state(session)
+                else:
+                    now = datetime.now(UTC)
+                    saved = self.repository.save_assessment_session(
+                        session.model_copy(
+                            update={
+                                "state": "abandoned",
+                                "abandoned_at": now,
+                                "answers": None,
+                                "answered_count": None,
+                                "safety_triggered": False,
+                                "safety_confirmation_state": None,
+                                "safety_resource_version": None,
+                                "safety_resource_acknowledged_at": None,
+                            }
+                        ),
+                        expected_version=session.version,
+                    )
+                    response = _session_state(saved)
+            self.idempotency.complete(
+                reservation,
+                status_code=200,
+                response_digest=response.model_dump_json(),
+            )
+            self._audit(
+                request_id=request_id,
+                actor_id=subject.subject_id,
+                action="assessment_abandon",
+                resource_id=session_id,
+                reason_code="abandoned" if response.state == "abandoned" else response.state,
+                facts={"action_code": "abandon", "object_version": response.object_version},
+            )
+            return response
+        except RepositoryVersionConflict as error:
+            failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except RepositoryError as error:
+            failure = _repository_failure(error)
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+        except ApiException as error:
+            _complete_failure(self.idempotency, reservation, error)
+            raise
+        except Exception as error:
+            failure = ApiException(500, "INTERNAL_ERROR")
+            _complete_failure(self.idempotency, reservation, failure)
+            raise failure from error
+
+    def get_result(self, access_token: str, *, result_id: str) -> AssessmentResultProjection:
+        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        if subject.subject_type != "student":
+            raise ApiException(403, "FORBIDDEN")
+        self._ensure_assessment_access(subject.subject_id)
+        try:
+            result = self.repository.get_assessment_result(result_id)
+        except RepositoryNotFound as error:
+            raise ApiException(404, "NOT_FOUND") from error
+        if result.user_id != subject.subject_id or result.deleted_at is not None:
+            raise ApiException(404, "NOT_FOUND")
+        return _result_projection(result)
+
+    def list_results(
+        self,
+        access_token: str,
+        *,
+        module_code: str | None = None,
+        from_date: str | None = None,
+        to_date: str | None = None,
+        cursor: str | None = None,
+        limit: int = 20,
+    ) -> AssessmentResultListResponse:
+        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        if subject.subject_type != "student":
+            raise ApiException(403, "FORBIDDEN")
+        self._ensure_assessment_access(subject.subject_id)
+        if module_code is not None and module_code not in {"phq9", "gad7", "sleep_observation"}:
+            raise ApiException(422, "VALIDATION_FAILED")
+        if limit < 1:
+            raise ApiException(422, "VALIDATION_FAILED")
+        try:
+            offset = _decode_assessment_cursor(cursor)
+        except ValueError as error:
+            raise ApiException(422, "VALIDATION_FAILED") from error
+        results = [
+            result
+            for result in self.repository.list_assessment_results_by_user(subject.subject_id)
+            if (module_code is None or result.module_code == module_code)
+            and (from_date is None or result.created_at.date().isoformat() >= from_date)
+            and (to_date is None or result.created_at.date().isoformat() <= to_date)
+        ]
+        page_size = min(limit, 100)
+        page = results[offset : offset + page_size]
+        next_cursor = str(offset + page_size) if offset + page_size < len(results) else None
+        return AssessmentResultListResponse(
+            items=[_result_projection(result) for result in page],
+            next_cursor=next_cursor,
+        )
+
+    def delete_result(
+        self,
+        access_token: str,
+        *,
+        result_id: str,
+        object_version: int,
+        request_id: str,
+        idempotency_key: str,
+    ) -> AssessmentResultDeleteResponse:
+        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        if subject.subject_type != "student":
+            raise ApiException(403, "FORBIDDEN")
+        self._ensure_assessment_access(subject.subject_id)
+        reservation = self.idempotency.begin(
+            "student",
+            subject.subject_id,
+            f"/assessment-results/{result_id}",
+            idempotency_key,
+            {"result_id": result_id, "object_version": object_version},
+        )
+        if reservation.replayed:
+            return _decode_result_delete_response(reservation.record.response_digest)
+        try:
+            with self.repository.transaction():
+                result = self.repository.get_assessment_result(result_id)
+                if result.user_id != subject.subject_id or result.deleted_at is not None:
+                    raise ApiException(404, "NOT_FOUND")
+                if result.version != object_version:
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=result.version)
+                now = datetime.now(UTC)
+                saved = self.repository.save_assessment_result(
+                    result.model_copy(update={"deleted_at": now}),
+                    expected_version=result.version,
+                )
+                response = AssessmentResultDeleteResponse(
+                    result_id=saved.document_id,
+                    deleted_at=saved.deleted_at or now,
+                    object_version=saved.version,
+                )
+            self.idempotency.complete(
+                reservation,
+                status_code=200,
+                response_digest=response.model_dump_json(),
+            )
+            self._audit(
+                request_id=request_id,
+                actor_id=subject.subject_id,
+                action="assessment_result_delete",
+                resource_id=result_id,
+                reason_code="deleted",
+                facts={"action_code": "delete", "object_version": response.object_version},
             )
             return response
         except RepositoryVersionConflict as error:
@@ -649,3 +891,72 @@ def _safety_support_dimension_summary(
         "questionnaire_completed": True,
         "task_state": "needs_action",
     }
+
+
+def _session_state(session: AssessmentSessionDocument) -> AssessmentSessionStateResponse:
+    return AssessmentSessionStateResponse(
+        session_id=session.document_id,
+        state=session.state,
+        object_version=session.version,
+        abandoned_at=session.abandoned_at,
+    )
+
+
+def _result_projection(result: AssessmentResultDocument) -> AssessmentResultProjection:
+    # The document validator rejects ``cannot_be_safe`` results. Keep the
+    # invariant explicit here so the public projection never exposes it.
+    if result.safety_state == "cannot_be_safe":
+        raise ApiException(500, "INTERNAL_ERROR")
+    is_safety_support = result.result_state == "safety_support"
+    return AssessmentResultProjection(
+        result_id=result.document_id,
+        session_id=result.session_id,
+        module_code=result.module_code,
+        result_state=result.result_state,
+        score=None if is_safety_support else result.score,
+        fixed_summary=result.fixed_summary,
+        reference_band=None if is_safety_support else result.reference_band,
+        boundary_notice=result.boundary_notice,
+        dimension_summary=result.dimension_summary,
+        safety_state=result.safety_state,
+        visible_copy_version=result.visible_copy_version,
+        created_at=result.created_at,
+        updated_at=result.updated_at,
+        object_version=result.version,
+    )
+
+
+def _decode_assessment_cursor(cursor: str | None) -> int:
+    if cursor is None:
+        return 0
+    try:
+        value = int(cursor)
+    except (TypeError, ValueError) as error:
+        raise ValueError("invalid cursor") from error
+    if value < 0:
+        raise ValueError("invalid cursor")
+    return value
+
+
+def _decode_result_delete_response(value: str | None) -> AssessmentResultDeleteResponse:
+    if value is None:
+        raise ApiException(500, "INTERNAL_ERROR")
+    error = deserialize_api_error(value)
+    if error is not None:
+        raise error
+    try:
+        return AssessmentResultDeleteResponse.model_validate_json(value)
+    except Exception as exc:
+        raise ApiException(500, "INTERNAL_ERROR") from exc
+
+
+def _decode_session_state_response(value: str | None) -> AssessmentSessionStateResponse:
+    if value is None:
+        raise ApiException(500, "INTERNAL_ERROR")
+    error = deserialize_api_error(value)
+    if error is not None:
+        raise error
+    try:
+        return AssessmentSessionStateResponse.model_validate_json(value)
+    except Exception as exc:
+        raise ApiException(500, "INTERNAL_ERROR") from exc

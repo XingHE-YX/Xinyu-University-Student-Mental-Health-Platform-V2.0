@@ -70,6 +70,12 @@ class MoodRequest(BaseModel):
     object_version: int = Field(ge=1)
 
 
+class ObjectVersionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    object_version: int = Field(ge=1)
+
+
 class AccountActionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

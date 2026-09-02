@@ -6,7 +6,9 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 
 from app.api.admin_auth import router as admin_auth_router
+from app.api.admin_identity import router as admin_identity_router
 from app.api.admin_workbench import router as admin_workbench_router
+from app.api.assessment import contract_router as assessment_contract_router
 from app.api.assessment import router as assessment_router
 from app.api.auth import me_router
 from app.api.auth import router as auth_router
@@ -16,6 +18,8 @@ from app.api.dependencies import (
     resolve_request_id,
 )
 from app.api.student_core import router as student_core_router
+from app.api.treehole import router as treehole_router
+from app.api.treehole import student_router as treehole_student_router
 from app.audit.writer import AuditWriter
 from app.config.settings import Settings
 from app.repositories.audit_repository import InMemoryAuditRepository
@@ -33,12 +37,14 @@ from app.services.auth_service import AuthService, WechatClient
 from app.services.bootstrap_service import BootstrapService
 from app.services.consent_service import ConsentService
 from app.services.idempotency_service import IdempotencyService
+from app.services.identity_access_service import IdentityAccessService
 from app.services.identity_service import IdentityService
 from app.services.mood_service import MoodService
 from app.services.quote_service import QuoteService
 from app.services.safety_service import SafetyService
 from app.services.support_resource_service import SupportResourceService
 from app.services.today_service import TodayService
+from app.services.treehole_service import TreeholeService
 
 
 class HealthData(BaseModel):
@@ -150,6 +156,23 @@ def create_app(
         identity_service=app.state.identity_service,
         today_service=app.state.today_service,
     )
+    app.state.treehole_service = TreeholeService(
+        settings=runtime_settings,
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        idempotency_service=runtime_idempotency,
+        audit_writer=runtime_audit,
+        consent_service=app.state.consent_service,
+    )
+    app.state.identity_access_service = IdentityAccessService(
+        repository=runtime_domain_repository,
+        session_repository=runtime_sessions,
+        token_manager=runtime_tokens,
+        idempotency_service=runtime_idempotency,
+        audit_writer=runtime_audit,
+        identity_service=app.state.identity_service,
+    )
 
     register_exception_handlers(app)
 
@@ -181,7 +204,11 @@ def create_app(
     app.include_router(me_router)
     app.include_router(admin_auth_router)
     app.include_router(admin_workbench_router)
+    app.include_router(admin_identity_router)
     app.include_router(assessment_router)
+    app.include_router(assessment_contract_router)
+    app.include_router(treehole_router)
+    app.include_router(treehole_student_router)
     app.include_router(student_core_router)
     return app
 

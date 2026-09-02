@@ -18,10 +18,13 @@ from app.domain.models import (
     AssessmentSessionDocument,
     ConsentEventDocument,
     DailyMoodRecordDocument,
+    IdentityAccessRequestDocument,
     IdentityRecordDocument,
     QuoteEntryDocument,
     SafetySupportTaskDocument,
     SupportResourceDocument,
+    TreeholePostDocument,
+    TreeholeResponseDocument,
     UserAccountDocument,
     WorkTaskDocument,
 )
@@ -43,6 +46,8 @@ class _DomainDataSnapshot:
     support_resources: dict[str, SupportResourceDocument]
     safety_support_tasks: dict[str, SafetySupportTaskDocument]
     work_tasks: dict[str, WorkTaskDocument]
+    treehole_posts: dict[str, TreeholePostDocument]
+    treehole_responses: dict[str, TreeholeResponseDocument]
     extra_collections: dict[str, list[dict[str, Any]]]
     identity_counter: int
     consent_counter: int
@@ -52,6 +57,10 @@ class _DomainDataSnapshot:
     daily_mood_counter: int
     safety_support_task_counter: int
     work_task_counter: int
+    treehole_post_counter: int
+    treehole_response_counter: int
+    identity_access_requests: dict[str, IdentityAccessRequestDocument]
+    identity_access_request_counter: int
 
 
 class InMemoryDomainDataRepository:
@@ -71,6 +80,9 @@ class InMemoryDomainDataRepository:
         support_resources: list[SupportResourceDocument] | None = None,
         safety_support_tasks: list[SafetySupportTaskDocument] | None = None,
         work_tasks: list[WorkTaskDocument] | None = None,
+        treehole_posts: list[TreeholePostDocument] | None = None,
+        treehole_responses: list[TreeholeResponseDocument] | None = None,
+        identity_access_requests: list[IdentityAccessRequestDocument] | None = None,
         extra_collections: Mapping[str, list[Mapping[str, Any]]] | None = None,
     ) -> None:
         self._lock = RLock()
@@ -101,6 +113,13 @@ class InMemoryDomainDataRepository:
         }
         self._safety_support_tasks = {task.document_id: task for task in safety_support_tasks or []}
         self._work_tasks = {task.document_id: task for task in work_tasks or []}
+        self._treehole_posts = {post.document_id: post for post in treehole_posts or []}
+        self._treehole_responses = {
+            response.document_id: response for response in treehole_responses or []
+        }
+        self._identity_access_requests = {
+            item.document_id: item for item in identity_access_requests or []
+        }
         self._extra_collections = {
             name: [deepcopy(dict(item)) for item in items]
             for name, items in (extra_collections or {}).items()
@@ -113,6 +132,9 @@ class InMemoryDomainDataRepository:
         self._daily_mood_counter = len(self._daily_moods)
         self._safety_support_task_counter = len(self._safety_support_tasks)
         self._work_task_counter = len(self._work_tasks)
+        self._treehole_post_counter = len(self._treehole_posts)
+        self._treehole_response_counter = len(self._treehole_responses)
+        self._identity_access_request_counter = len(self._identity_access_requests)
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
@@ -141,6 +163,8 @@ class InMemoryDomainDataRepository:
             support_resources=deepcopy(self._support_resources),
             safety_support_tasks=deepcopy(self._safety_support_tasks),
             work_tasks=deepcopy(self._work_tasks),
+            treehole_posts=deepcopy(self._treehole_posts),
+            treehole_responses=deepcopy(self._treehole_responses),
             extra_collections=deepcopy(self._extra_collections),
             identity_counter=self._identity_counter,
             consent_counter=self._consent_counter,
@@ -150,6 +174,10 @@ class InMemoryDomainDataRepository:
             daily_mood_counter=self._daily_mood_counter,
             safety_support_task_counter=self._safety_support_task_counter,
             work_task_counter=self._work_task_counter,
+            treehole_post_counter=self._treehole_post_counter,
+            treehole_response_counter=self._treehole_response_counter,
+            identity_access_requests=deepcopy(self._identity_access_requests),
+            identity_access_request_counter=self._identity_access_request_counter,
         )
 
     def _restore(self, snapshot: _DomainDataSnapshot) -> None:
@@ -166,6 +194,8 @@ class InMemoryDomainDataRepository:
         self._support_resources = snapshot.support_resources
         self._safety_support_tasks = snapshot.safety_support_tasks
         self._work_tasks = snapshot.work_tasks
+        self._treehole_posts = snapshot.treehole_posts
+        self._treehole_responses = snapshot.treehole_responses
         self._extra_collections = snapshot.extra_collections
         self._identity_counter = snapshot.identity_counter
         self._consent_counter = snapshot.consent_counter
@@ -175,6 +205,10 @@ class InMemoryDomainDataRepository:
         self._daily_mood_counter = snapshot.daily_mood_counter
         self._safety_support_task_counter = snapshot.safety_support_task_counter
         self._work_task_counter = snapshot.work_task_counter
+        self._treehole_post_counter = snapshot.treehole_post_counter
+        self._treehole_response_counter = snapshot.treehole_response_counter
+        self._identity_access_requests = snapshot.identity_access_requests
+        self._identity_access_request_counter = snapshot.identity_access_request_counter
 
     def get_user(self, user_id: str) -> UserAccountDocument:
         with self._lock:
@@ -402,6 +436,22 @@ class InMemoryDomainDataRepository:
                     return result
             return None
 
+    def save_assessment_result(
+        self,
+        result: AssessmentResultDocument,
+        *,
+        expected_version: int,
+    ) -> AssessmentResultDocument:
+        with self._lock:
+            current = self.get_assessment_result(result.document_id)
+            if current.version != expected_version:
+                raise RepositoryVersionConflict(current.version)
+            updated = result.model_copy(
+                update={"updated_at": datetime.now(UTC), "version": current.version + 1}
+            )
+            self._assessment_results[result.document_id] = updated
+            return updated
+
     def list_assessment_results_by_session(
         self,
         session_id: str,
@@ -539,6 +589,80 @@ class InMemoryDomainDataRepository:
             self._work_tasks[task.document_id] = task
             return task
 
+    def create_treehole_post(self, post: TreeholePostDocument) -> TreeholePostDocument:
+        with self._lock:
+            self._treehole_posts[post.document_id] = post
+            return post
+
+    def get_treehole_post(self, post_id: str) -> TreeholePostDocument:
+        with self._lock:
+            try:
+                return self._treehole_posts[post_id]
+            except KeyError as error:
+                raise RepositoryNotFound("treehole post not found") from error
+
+    def save_treehole_post(
+        self,
+        post: TreeholePostDocument,
+        *,
+        expected_version: int,
+    ) -> TreeholePostDocument:
+        with self._lock:
+            current = self.get_treehole_post(post.document_id)
+            if current.version != expected_version:
+                raise RepositoryVersionConflict(current.version)
+            updated = post.model_copy(
+                update={"updated_at": datetime.now(UTC), "version": current.version + 1}
+            )
+            self._treehole_posts[post.document_id] = updated
+            return updated
+
+    def list_treehole_posts(self) -> tuple[TreeholePostDocument, ...]:
+        with self._lock:
+            posts = list(self._treehole_posts.values())
+            posts.sort(key=lambda post: (post.created_at, post.document_id), reverse=True)
+            return tuple(posts)
+
+    def create_treehole_response(
+        self, response: TreeholeResponseDocument
+    ) -> TreeholeResponseDocument:
+        with self._lock:
+            self._treehole_responses[response.document_id] = response
+            return response
+
+    def get_treehole_response(self, response_id: str) -> TreeholeResponseDocument:
+        with self._lock:
+            try:
+                return self._treehole_responses[response_id]
+            except KeyError as error:
+                raise RepositoryNotFound("treehole response not found") from error
+
+    def save_treehole_response(
+        self,
+        response: TreeholeResponseDocument,
+        *,
+        expected_version: int,
+    ) -> TreeholeResponseDocument:
+        with self._lock:
+            current = self.get_treehole_response(response.document_id)
+            if current.version != expected_version:
+                raise RepositoryVersionConflict(current.version)
+            updated = response.model_copy(
+                update={"updated_at": datetime.now(UTC), "version": current.version + 1}
+            )
+            self._treehole_responses[response.document_id] = updated
+            return updated
+
+    def list_treehole_responses(self, post_id: str) -> tuple[TreeholeResponseDocument, ...]:
+        with self._lock:
+            responses = [
+                response
+                for response in self._treehole_responses.values()
+                if response.post_id == post_id
+            ]
+            responses.sort(key=lambda response: (response.created_at, response.document_id))
+            return tuple(responses)
+
     def next_assessment_session_id(self) -> str:
         with self._lock:
             self._assessment_session_counter += 1
@@ -563,6 +687,57 @@ class InMemoryDomainDataRepository:
         with self._lock:
             self._work_task_counter += 1
             return f"work_task_{self._work_task_counter:04d}"
+
+    def next_treehole_post_id(self) -> str:
+        with self._lock:
+            self._treehole_post_counter += 1
+            return f"treehole_post_{self._treehole_post_counter:04d}"
+
+    def next_treehole_response_id(self) -> str:
+        with self._lock:
+            self._treehole_response_counter += 1
+            return f"treehole_response_{self._treehole_response_counter:04d}"
+
+    def create_identity_access_request(
+        self, request: IdentityAccessRequestDocument
+    ) -> IdentityAccessRequestDocument:
+        with self._lock:
+            self._identity_access_requests[request.document_id] = request
+            return request
+
+    def get_identity_access_request(self, request_id: str) -> IdentityAccessRequestDocument:
+        with self._lock:
+            try:
+                return self._identity_access_requests[request_id]
+            except KeyError as error:
+                raise RepositoryNotFound("identity access request not found") from error
+
+    def save_identity_access_request(
+        self,
+        request: IdentityAccessRequestDocument,
+        *,
+        expected_version: int,
+    ) -> IdentityAccessRequestDocument:
+        with self._lock:
+            current = self.get_identity_access_request(request.document_id)
+            if current.version != expected_version:
+                raise RepositoryVersionConflict(current.version)
+            updated = request.model_copy(
+                update={"updated_at": datetime.now(UTC), "version": current.version + 1}
+            )
+            self._identity_access_requests[request.document_id] = updated
+            return updated
+
+    def next_identity_access_request_id(self) -> str:
+        with self._lock:
+            self._identity_access_request_counter += 1
+            return f"identity_access_request_{self._identity_access_request_counter:04d}"
+
+    def list_identity_access_requests(self) -> tuple[IdentityAccessRequestDocument, ...]:
+        with self._lock:
+            items = list(self._identity_access_requests.values())
+            items.sort(key=lambda item: (item.created_at, item.document_id), reverse=True)
+            return tuple(items)
 
     def extra_collection(self, name: str) -> list[dict[str, Any]]:
         with self._lock:
@@ -606,4 +781,25 @@ class InMemoryDomainDataRepository:
                         key=lambda resource: (resource.sort_order, resource.document_id),
                     )
                 ]
+            if name == "treehole_posts":
+                documents = [
+                    post.model_dump(by_alias=True, mode="json")
+                    for post in sorted(
+                        self._treehole_posts.values(),
+                        key=lambda post: (post.created_at, post.document_id),
+                    )
+                ]
+                return documents or deepcopy(self._extra_collections.get(name, []))
+            if name == "treehole_responses":
+                return [
+                    response.model_dump(by_alias=True, mode="json")
+                    for response in sorted(
+                        self._treehole_responses.values(),
+                        key=lambda response: (response.created_at, response.document_id),
+                    )
+                ]
             return deepcopy(self._extra_collections.get(name, []))
+
+    def append_extra_document(self, name: str, document: Mapping[str, Any]) -> None:
+        with self._lock:
+            self._extra_collections.setdefault(name, []).append(deepcopy(dict(document)))

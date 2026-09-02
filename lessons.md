@@ -152,3 +152,19 @@
 - 本轮首次运行接口对照脚本时使用系统 Python，导入 FastAPI 报 `ModuleNotFoundError: No module named 'fastapi'`；改用 `backend/.venv/bin/python` 后得到有效的 50/18/32 对照结果。所有后端脚本必须使用项目锁定的 Python 3.11 虚拟环境。
 - 函数包秘密扫描最初把依赖中的 `mypy/typeshed/stdlib/secrets.pyi` 误报为秘密文件；项目打包器只阻止 `.env`、`credentials`、`secrets` 精确文件名及 `.key`/`.p12` 后缀，验收扫描必须采用同一规则，不能把合法依赖类型存根当作密钥。
 - 设计验收发现学生端仍有多处 WXML `style=`，违反 `AGENT.md` 的硬约束；已统一改为 WXSS 语义类，并把动态百分比进度改成分段进度组件。以后设计验收必须直接扫描 `*.wxml` 和 `*.vue` 的内联样式属性。
+
+## 2026-09-03：第 12 节本地阻断修复和最终验收记录
+
+- 评估 HTTP 适配器初版把模块级 `_decode_session_state_response` 当成实例方法调用，且 `AssessmentResultDocument` 的内部 `cannot_be_safe` 枚举直接传入公开投影；mypy 分别报属性不存在/返回 `Any` 和 Literal 不兼容。修复为模块函数调用，并在投影边界显式拒绝该不变量，避免内部安全阻断状态泄漏。
+- 树洞确认排序初版使用了反向布尔条件，导致 `published` 排在 `protected` 前；新增排序回归测试并改为 `visibility_state == "protected"`，确认展示优先级与契约一致。树洞状态变量同时补上 Literal 标注，避免字符串推断绕过模型枚举。
+- 为保持既有身份核验测试替身兼容，身份加密 Protocol 不能把只读 `decrypt` 设为所有实现的必需方法；已将解密保留在 `HmacIdentityCipher` 的身份授权边界，并由授权服务在运行时检查可选能力。这样既不削弱生产解密边界，也不迫使仅负责加密的测试替身伪造解密实现。
+- 后台身份授权服务和树洞服务的主体辅助函数缺少返回类型，严格 mypy 将其作为阻断；统一标注 `AuthenticatedSubject`，并新增路由契约测试持续保护 50 个接口。
+- 第 12 节修复后验证顺序必须覆盖静态类型、聚焦 HTTP、安全分支、全量后端、三端构建、配置示例、函数包和健康检查；本轮最终结果为后端 180 项、聚焦回归 40 项通过，端点反射 `50/50`。文档中的发布结论应区分“本地通过”和“真实凭据待配置”，不能把 `example.invalid` 或 `status=degraded` 写成线上完成。
+- 删除类接口的 `object_version` 位置必须与 HTTP 合同和客户端请求方式一致；本地客户端通过 DELETE 请求体发送版本后，统一改为 Pydantic body 校验，并补充缺失资源的错误信封回归，避免查询参数与请求体契约漂移。
+
+## 2026-09-03：第 12 节最终验收命令复核记录
+
+- `validate_manifest.py` 只接受 manifest 文件路径，误传 `--help` 会把参数当作文件并报 `FileNotFoundError`；先查看脚本源码或使用实际示例文件，不能假设所有脚本都提供 argparse 帮助。
+- 在 `backend/` 工作目录启动 Uvicorn 时误用了仓库根目录相对路径 `backend/.venv/bin/uvicorn`，得到 `no such file or directory`；工作目录内应使用 `.venv/bin/uvicorn`。
+- 通过 shell 内嵌 Python 做路由统计时曾因引号未闭合、正则反斜杠过度转义和根目录缺少 `app` 导致无效结果或 `ModuleNotFoundError`；最终使用项目解释器、`PYTHONPATH=backend` 和可读的 heredoc 脚本得到 `expected=50 actual=50`。
+- 函数包秘密扫描若按任意路径段匹配 `secrets`，会误报依赖中的 `mypy/typeshed/stdlib/secrets.pyi`；验收必须复用打包器的精确规则（basename 为 `credentials`/`secrets`、`.env*` 或 `.key`/`.p12` 后缀），公开类型存根不属于秘密文件。

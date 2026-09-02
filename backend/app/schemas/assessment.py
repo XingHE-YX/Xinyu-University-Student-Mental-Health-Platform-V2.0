@@ -12,6 +12,7 @@ class StartAssessmentSessionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     module_code: Literal["phq9", "gad7", "sleep_observation"]
+    client_start_key: str
 
 
 class AssessmentAnswerSubmission(BaseModel):
@@ -53,6 +54,80 @@ class StartAssessmentSessionResponse(BaseModel):
     questions: list[PublicQuestion]
     state: Literal["in_progress"]
     expires_at: datetime
+    object_version: int
+
+
+class AssessmentModuleProjection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    module_code: Literal["phq9", "gad7", "sleep_observation"]
+    title: str
+    description: str
+    expected_minutes: int
+    current_questionnaire_version: str
+    enabled: bool
+    latest_completed_date: str | None = None
+    latest_completed_text: str = "尚未记录"
+
+
+class AssessmentModuleListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    modules: list[AssessmentModuleProjection]
+
+
+class AssessmentSessionStateResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: str
+    state: Literal["in_progress", "completed", "abandoned", "expired"]
+    object_version: int
+    abandoned_at: datetime | None = None
+
+
+class AbandonAssessmentSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    object_version: int
+
+
+class AssessmentResultDeleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    object_version: int
+
+
+class AssessmentResultProjection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    result_id: str
+    session_id: str
+    module_code: Literal["phq9", "gad7", "sleep_observation"]
+    result_state: Literal["ordinary", "higher_score", "safety_support"]
+    score: int | None = None
+    fixed_summary: str
+    reference_band: str | None = None
+    boundary_notice: str
+    dimension_summary: dict[str, object]
+    safety_state: Literal["not_triggered", "can_be_safe", "uncertain"]
+    visible_copy_version: str
+    created_at: datetime
+    updated_at: datetime
+    object_version: int
+
+
+class AssessmentResultListResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AssessmentResultProjection]
+    next_cursor: str | None = None
+
+
+class AssessmentResultDeleteResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    result_id: str
+    deleted_at: datetime
     object_version: int
 
 

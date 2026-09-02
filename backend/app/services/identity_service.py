@@ -94,6 +94,28 @@ class HmacIdentityCipher:
         encoded = _urlsafe_encode(nonce + ciphertext + tag)
         return f"enc:v1:{encoded}"
 
+    def decrypt(self, value: str) -> str:
+        if not value.startswith("enc:v1:"):
+            raise ValueError("unsupported identity ciphertext")
+        try:
+            raw = base64.urlsafe_b64decode(value[7:].encode("ascii"))
+        except (ValueError, UnicodeEncodeError) as error:
+            raise ValueError("invalid identity ciphertext") from error
+        if len(raw) < self.NONCE_SIZE + self.TAG_SIZE:
+            raise ValueError("invalid identity ciphertext")
+        nonce = raw[: self.NONCE_SIZE]
+        ciphertext = raw[self.NONCE_SIZE : -self.TAG_SIZE]
+        tag = raw[-self.TAG_SIZE :]
+        expected = hmac.new(
+            self._authentication_key,
+            nonce + ciphertext,
+            hashlib.sha256,
+        ).digest()
+        if not hmac.compare_digest(tag, expected):
+            raise ValueError("identity ciphertext authentication failed")
+        keystream = _hmac_keystream(self._encryption_key, nonce, len(ciphertext))
+        return bytes(left ^ right for left, right in zip(ciphertext, keystream)).decode("utf-8")
+
 
 class IdentityService:
     ANONYMOUS_GENERATION_VERSION = "anon-v1"

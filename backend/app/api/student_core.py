@@ -11,6 +11,7 @@ from app.schemas.student_core import (
     ConsentRequest,
     IdentityVerificationRequest,
     MoodRequest,
+    ObjectVersionRequest,
 )
 
 router = APIRouter(prefix="/api/v1", tags=["student-core"])
@@ -181,13 +182,13 @@ async def moods(
 async def delete_mood(
     request: Request,
     record_id: str,
-    object_version: int = Query(..., ge=1),
+    body: ObjectVersionRequest,
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[object]:
     data = request.app.state.mood_service.delete_mood(
         bearer_token(authorization),
         record_id=record_id,
-        object_version=object_version,
+        object_version=body.object_version,
         request_id=request_id(request),
         idempotency_key=require_idempotency_key(request),
     )

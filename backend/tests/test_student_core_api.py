@@ -100,3 +100,18 @@ def test_student_core_identity_status_and_account_stop_require_idempotency_and_a
     assert recovered.json()["data"]["status"] == "active"
     me = client.get("/api/v1/me", headers=headers)
     assert me.json()["data"]["account_status"] == "active"
+
+
+def test_mood_delete_reads_object_version_from_request_body() -> None:
+    client = TestClient(create_app(configured_settings(), wechat_client=FakeWechatClient()))
+    token = login(client)
+
+    response = client.request(
+        "DELETE",
+        "/api/v1/moods/missing-record",
+        headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "delete-mood-1"},
+        json={"object_version": 1},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "CONSENT_REQUIRED"
