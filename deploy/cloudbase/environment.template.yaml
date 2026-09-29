@@ -66,7 +66,7 @@ environments:
 
 database:
   collections:
-    # Collection names and indexes are authoritative in BACKEND_STRUCTURE.md.
+    # Collection names and indexes are authoritative in docs/develop/BACKEND_STRUCTURE.md.
     # Create them in each environment; do not create production structures from
     # the mini-program at runtime.
     - user_accounts

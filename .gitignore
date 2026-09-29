@@ -29,7 +29,6 @@ backend/dist/
 .idea/
 .vscode/
 .worktrees/
-.superpowers/
 miniprogram/project.private.config.json
 miniprogram/ext.json
 *.swp

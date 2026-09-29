@@ -17,7 +17,13 @@ def _normalize_route(path: str) -> str:
 
 
 def _declared_contract() -> set[tuple[str, str]]:
-    document = Path(__file__).resolve().parents[2].joinpath("BACKEND_STRUCTURE.md").read_text()
+    document = (
+        Path(__file__)
+        .resolve()
+        .parents[2]
+        .joinpath("docs/develop/BACKEND_STRUCTURE.md")
+        .read_text()
+    )
     entries = re.findall(
         r"^####?\s+(GET|POST|PUT|DELETE|PATCH)\s+`?(/api/v1[^`\s]+)`?",
         document,

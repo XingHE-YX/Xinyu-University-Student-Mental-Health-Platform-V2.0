@@ -52,7 +52,7 @@
     "adminStaticDir": "admin/dist"
   },
   "database": {
-    "sourceOfTruth": "BACKEND_STRUCTURE.md",
+    "sourceOfTruth": "docs/develop/BACKEND_STRUCTURE.md",
     "provisionAtDeploy": true,
     "createFromClient": false
   }

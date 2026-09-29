@@ -622,7 +622,7 @@ def _quote_source_url(item_id: str, source_kind: str) -> str:
     if item_id == "Q-0001":
         return "https://ctext.org/book-of-changes/qian/zh"
     if source_kind == "project_original":
-        return f"project://docs/v2/V2_DAILY_QUOTE_LIBRARY.md#{item_id}"
+        return f"project://docs/product/V2_DAILY_QUOTE_LIBRARY.md#{item_id}"
     if source_kind == "copyright_pending":
         return "https://zh.wikiquote.org/wiki/Wikiquote:%E9%A6%96%E9%A1%B5"
     return "https://ctext.org/zh"
