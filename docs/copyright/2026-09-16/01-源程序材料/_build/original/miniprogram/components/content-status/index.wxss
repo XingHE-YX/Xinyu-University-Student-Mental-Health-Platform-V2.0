@@ -1,0 +1,1 @@
+.status-chip{display:inline-block;padding:4px 8px;border-radius:4px;background:var(--xinyu-color-primary-soft);color:var(--xinyu-color-primary-pressed);font-size:12px;line-height:18px}.status-chip--waiting{background:var(--xinyu-color-caution-soft);color:var(--xinyu-color-caution)}.status-chip--safety{background:var(--xinyu-color-safety-soft);color:var(--xinyu-color-safety)}

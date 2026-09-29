@@ -1,0 +1,1 @@
+Component({ properties: { title: { type: String, value: '' }, message: { type: String, value: '' }, actionLabel: { type: String, value: '' } }, methods: { action() { this.triggerEvent('action') } } })

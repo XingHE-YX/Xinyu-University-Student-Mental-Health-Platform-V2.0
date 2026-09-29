@@ -63,7 +63,7 @@ async def test_cloudbase_gateway_maps_document_api_and_dependency_failures() -> 
         requests.append(request)
         return httpx.Response(
             200,
-            json={"data": {"offset": 0, "limit": 20, "list": [json.dumps({"_id": "post-1"})]}},
+            json={"offset": 0, "limit": 20, "list": [{"_id": "post-1"}]},
         )
 
     gateway = CloudBaseGateway(
@@ -76,10 +76,10 @@ async def test_cloudbase_gateway_maps_document_api_and_dependency_failures() -> 
 
     assert page.items == ({"_id": "post-1"},)
     assert page.next_cursor is None
-    assert requests[0].url.path == ("/api/v2/envs/demo-env/databases/treehole_posts/documents:find")
+    assert requests[0].url.path == "/collections/treehole_posts/documents"
     assert requests[0].url.params["limit"] == "20"
-    assert requests[0].headers["X-CloudBase-Authorization"] == "cloudbase-secret"
-    assert json.loads(json.loads(requests[0].content)["query"]) == {"state": "published"}
+    assert requests[0].headers["authorization"] == "Bearer cloudbase-secret"
+    assert json.loads(requests[0].url.params["query"]) == {"state": "published"}
 
     def failure_handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(503, json={"message": "database offline"})
@@ -116,16 +116,17 @@ async def test_cloudbase_gateway_uses_version_conditions_for_update_and_logical_
 
     def handler(request: httpx.Request) -> httpx.Response:
         requests.append(request)
-        if request.url.path.endswith("documents:updateOne"):
-            return httpx.Response(200, json={"data": {"matched": 1, "updated": 1}})
+        if request.method == "PATCH":
+            return httpx.Response(200, json={"matched": 1, "updated": 1, "upsert_id": ""})
+        requested_version = (
+            1 if len([item for item in requests if item.method == "PATCH"]) == 0 else 2
+        )
         return httpx.Response(
             200,
             json={
-                "data": {
-                    "offset": 0,
-                    "limit": 1,
-                    "list": [json.dumps({"_id": "post-1", "version": 2})],
-                }
+                "offset": 0,
+                "limit": 1,
+                "list": [{"_id": "post-1", "version": requested_version}],
             },
         )
 
@@ -144,32 +145,20 @@ async def test_cloudbase_gateway_uses_version_conditions_for_update_and_logical_
     deleted = await gateway.logical_delete("treehole_posts", "post-1", expected_version=2)
 
     assert updated["version"] == 2
-    assert deleted["version"] == 2
-    update_request = next(
-        item for item in requests if item.url.path.endswith("documents:updateOne")
-    )
+    assert deleted["version"] == 3
+    update_request = next(item for item in requests if item.method == "PATCH")
     update_body = json.loads(update_request.content)
-    assert json.loads(update_body["query"]) == {"_id": "post-1", "version": 1}
-    assert json.loads(update_body["data"]) == {
-        "$inc": {"version": 1},
-        "$set": {"state": "protected"},
-    }
+    assert update_body["query"] == {"_id": "post-1", "version": 1}
+    assert update_body["data"]["$set"]["state"] == "protected"
+    assert update_body["data"]["$set"]["version"] == 2
 
 
 @pytest.mark.asyncio
 async def test_cloudbase_gateway_returns_current_version_when_update_matches_nothing() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("documents:updateOne"):
-            return httpx.Response(200, json={"data": {"matched": 0, "updated": 0}})
         return httpx.Response(
             200,
-            json={
-                "data": {
-                    "offset": 0,
-                    "limit": 1,
-                    "list": [json.dumps({"_id": "post-1", "version": 3})],
-                }
-            },
+            json={"offset": 0, "limit": 1, "list": [{"_id": "post-1", "version": 3}]},
         )
 
     gateway = CloudBaseGateway(

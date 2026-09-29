@@ -1,0 +1,24 @@
+{
+  "software_name": "心语大学生心理健康平台",
+  "registration_version": "V1.0",
+  "name_and_version_status": "provisional pending applicant confirmation; distinct from repository and package versions",
+  "source_root": "/Users/xingheluqi/XinYu-V2",
+  "snapshot_time": "2026-09-16T14:24:55.100Z",
+  "git_commit": "ef64bb7caa8089446625b5915d1c26aeb1b965aa",
+  "source_state": "current working tree, including uncommitted edits",
+  "source_files": 255,
+  "original_physical_lines": 16753,
+  "original_nonblank_lines": 15182,
+  "formatted_physical_lines": 19990,
+  "formatted_nonblank_lines": 18419,
+  "formatted_nonblank_noncomment_lines": 18295,
+  "typescript_ast_equivalence_files": 62,
+  "full_listing_pages": 365,
+  "submitted_pages": 60,
+  "submitted_counted_code_lines": 3030,
+  "final_module": "backend/app/services/admin_workbench_service.py",
+  "final_module_last_line": 479,
+  "final_module_last_text": "        )",
+  "word_text_roundtrip_verified": true
+}
+WORD: /Users/xingheluqi/XinYu-V2/docs/copyright/2026-09-16/01-源程序材料/心语大学生心理健康平台_V1.0_源程序_前30页后30页.docx

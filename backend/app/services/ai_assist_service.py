@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
@@ -21,8 +22,10 @@ from app.domain.ai_policy import (
     validate_ai_output,
 )
 from app.integrations.deepseek_client import DeepSeekClient
+from app.repositories.domain_data_repository import InMemoryDomainDataRepository
 
 TaskType = Literal["assessment_explanation", "treehole_review_assist"]
+logger = logging.getLogger(__name__)
 
 
 class AiClient(Protocol):
@@ -75,6 +78,7 @@ class AiAssistService:
         *,
         client: AiClient | None = None,
         audit_writer: AuditWriter | None = None,
+        repository: InMemoryDomainDataRepository | None = None,
     ) -> None:
         self.settings = settings
         self.client = client or DeepSeekClient(
@@ -85,7 +89,24 @@ class AiAssistService:
         self.audit = audit_writer or AuditWriter(
             environment_id=settings.cloudbase_env_id or settings.environment_kind.value
         )
+        self.repository = repository
         self.snapshots: dict[str, AiAssistSnapshot] = {}
+
+    def snapshot_projection(self, snapshot_id: str | None) -> dict[str, Any] | None:
+        if not snapshot_id:
+            return None
+        snapshot = self.snapshots.get(snapshot_id) or self._load_snapshot(snapshot_id)
+        if snapshot is None:
+            return None
+        return {
+            "status": "adopted" if snapshot.output_status == "adopted" else "fallback",
+            "output_projection": snapshot.output_projection,
+            "fallback_copy": (
+                "AI 辅助解读暂时不可用，当前使用固定规则说明"
+                if snapshot.output_status != "adopted"
+                else None
+            ),
+        }
 
     async def assessment_explanation(
         self,
@@ -323,7 +344,30 @@ class AiAssistService:
             updated_at=now,
         )
         self.snapshots[snapshot.snapshot_id] = snapshot
+        if self.repository is not None:
+            try:
+                document = snapshot.model_dump(mode="python")
+                document["_id"] = document.pop("snapshot_id")
+                self.repository.append_extra_document("ai_assist_snapshots", document)
+            except Exception:
+                logger.warning("ai_snapshot_write_failed")
         return snapshot
+
+    def _load_snapshot(self, snapshot_id: str) -> AiAssistSnapshot | None:
+        if self.repository is None:
+            return None
+        try:
+            for document in self.repository.extra_collection("ai_assist_snapshots"):
+                if document.get("_id") != snapshot_id:
+                    continue
+                values = dict(document)
+                values["snapshot_id"] = values.pop("_id")
+                snapshot = AiAssistSnapshot.model_validate(values)
+                self.snapshots[snapshot.snapshot_id] = snapshot
+                return snapshot
+        except Exception:
+            logger.warning("ai_snapshot_read_failed")
+        return None
 
     def _audit(self, task_type: TaskType, outcome: str, reason: str | None) -> None:
         self.audit.write(

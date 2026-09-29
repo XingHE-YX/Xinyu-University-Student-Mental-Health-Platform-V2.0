@@ -38,7 +38,7 @@ export async function fetchTaskDetail(
   token?: string,
 ): Promise<TaskDetail> {
   const result = await request(
-    `/api/v1/admin/tasks/${encodeURIComponent(taskId)}`,
+    `/admin/tasks/${encodeURIComponent(taskId)}`,
     { token },
     (value) => taskDetailSchema.parse(value),
   );
@@ -51,7 +51,7 @@ export async function claimTask(
   token?: string,
 ): Promise<TaskMutationResult> {
   const result = await request(
-    `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/claim`,
+    `/admin/tasks/${encodeURIComponent(taskId)}/claim`,
     {
       method: "POST",
       token,
@@ -69,7 +69,7 @@ export async function releaseTask(
   token?: string,
 ): Promise<TaskMutationResult> {
   const result = await request(
-    `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/release`,
+    `/admin/tasks/${encodeURIComponent(taskId)}/release`,
     {
       method: "POST",
       token,
@@ -88,7 +88,7 @@ export async function decideTask(
   token?: string,
 ): Promise<TaskMutationResult> {
   const result = await request(
-    `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/decision`,
+    `/admin/tasks/${encodeURIComponent(taskId)}/decision`,
     {
       method: "POST",
       token,

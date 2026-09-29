@@ -1,0 +1,1 @@
+Component({ properties: { resources: { type: Array, value: [] } }, methods: { call(event: WechatMiniprogram.BaseEvent) { const phone = (event.currentTarget as WechatMiniprogram.Target).dataset.phone as string; if (phone) wx.makePhoneCall({ phoneNumber: phone }) } } })

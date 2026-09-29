@@ -1,0 +1,10 @@
+Component({
+  properties: { options: { type: Array, value: [] }, value: String },
+  methods: {
+    choose(event: WechatMiniprogram.BaseEvent) {
+      this.triggerEvent('change', {
+        value: (event.currentTarget as WechatMiniprogram.Target).dataset.value,
+      });
+    },
+  },
+});

@@ -1,0 +1,64 @@
+<view class="page-container page-container--padded page-container--main">
+  <view class="page-heading">
+    <text class="page-heading__title">自测</text>
+  </view>
+  <view class="page-intro">
+    <text class="page-intro__line">把最近的状态记下来。</text>
+    <text class="page-intro__line">不需要一次完成全部。</text>
+  </view>
+
+  <view wx:if="{{loading && !modules.length}}" class="reading-block"
+    ><text class="reading-block__body">正在加载自测模块…</text></view
+  >
+  <state-message
+    wx:elif="{{error && !modules.length}}"
+    title="暂时没有加载到自测"
+    message="请稍后重新试试。"
+    action-label="重新试试"
+    bindaction="load"
+  ></state-message>
+  <view wx:elif="{{!modules.length}}" class="reading-block"
+    ><text class="reading-block__body">暂时没有可用的自测模块。</text></view
+  >
+  <view wx:else class="plain-list assessment-list">
+    <view
+      wx:for="{{modules}}"
+      wx:key="key"
+      class="plain-list__item plain-list__item--stacked assessment-row"
+      data-key="{{item.key}}"
+      bindtap="begin"
+    >
+      <view class="assessment-row__content">
+        <text class="plain-list__title">{{item.title}}</text>
+        <text class="plain-list__meta">{{item.purpose}}</text>
+        <text class="plain-list__meta"
+          >{{item.duration}}<text wx:if="{{item.questionCount}}">
+            · {{item.questionCount}} 题</text
+          ></text
+        >
+        <text class="plain-list__status"
+          >{{item.lastCompletedAt ? '最近一次：' + item.lastCompletedAt :
+          '尚未记录'}}</text
+        >
+      </view>
+      <text class="plain-list__chevron">›</text>
+    </view>
+  </view>
+
+  <view class="content-section assessment-history">
+    <view class="plain-list">
+      <view class="plain-list__item" bindtap="history"
+        ><text class="plain-list__title">查看全部记录</text
+        ><text class="plain-list__chevron">›</text></view
+      >
+    </view>
+    <text class="content-section__hint">记录只属于你，不是诊断。</text>
+  </view>
+  <state-message
+    wx:if="{{error && modules.length}}"
+    title="暂时无法更新"
+    message="{{error}}"
+    action-label="重新试试"
+    bindaction="load"
+  ></state-message>
+</view>

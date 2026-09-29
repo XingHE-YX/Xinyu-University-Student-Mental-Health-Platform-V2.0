@@ -32,6 +32,6 @@ CORS/会话允许来源和 SPA fallback `/index.html`。验证登录、W-02 三�
 W-03 两栏详情、W-04 异常状态和 W-05 审计/演示重置；直接刷新深层路由不能泄露
 受限详情，未授权环境不能读取演示数据。
 
-按 `FRONTEND_GUIDELINES.md` 验收 1440×900；低于 1280px 只显示电脑浏览器提示，
-不渲染可操作工作区。后台构建产物独立于小程序包，不将 `admin/dist` 复制到
+按 `FRONTEND_GUIDELINES.md` 验收 1440×900，同时验证 974px 窄桌面窗口下登录、
+任务列表和详情仍可操作。后台构建产物独立于小程序包，不将 `admin/dist` 复制到
 `miniprogram/`。

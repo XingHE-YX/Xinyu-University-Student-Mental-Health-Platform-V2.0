@@ -1,19 +1,17 @@
-"""HTTP-only CloudBase document database gateway.
+"""Compatibility facade over the current CloudBase NoSQL REST store."""
 
-Business services use repository contracts and never assemble CloudBase requests
-themselves. The adapter speaks the documented CloudBase Open API and keeps
-CloudBase-specific paths, headers and EJSON serialization in one place.
-"""
+from __future__ import annotations
 
+import asyncio
 import base64
 import binascii
-import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 import httpx
 
+from app.repositories.cloudbase_store import CloudBaseStore
 from app.repositories.protocols import (
     DocumentPage,
     JsonDocument,
@@ -33,26 +31,27 @@ __all__ = [
 
 
 class CloudBaseGateway:
-    """The only adapter allowed to know CloudBase document API details."""
-
-    DEFAULT_BASE_URL = "https://tcb-api.tencentcloudapi.com"
+    """Retain the original async document interface for existing callers."""
 
     def __init__(
         self,
         *,
         environment_id: str,
         api_key: str,
-        base_url: str = DEFAULT_BASE_URL,
+        base_url: str | None = None,
         session_token: str | None = None,
-        transport: httpx.AsyncBaseTransport | None = None,
+        transport: httpx.BaseTransport | None = None,
         timeout: float = 8.0,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
-        self.environment_id = environment_id
-        self.api_key = api_key
-        self.session_token = session_token
-        self.transport = transport
-        self.timeout = timeout
+        if session_token:
+            raise ValueError("session tokens are not supported by the service API key facade")
+        self.store = CloudBaseStore(
+            environment_id,
+            api_key,
+            base_url=base_url,
+            transport=transport,
+            timeout=timeout,
+        )
 
     async def query(
         self,
@@ -64,29 +63,17 @@ class CloudBaseGateway:
     ) -> DocumentPage:
         page_size = max(1, min(limit, 100))
         offset = _decode_cursor(cursor)
-        payload = await self._request(
-            "find",
+        documents = await asyncio.to_thread(
+            self.store.query,
             collection,
-            params={
-                "limit": str(page_size),
-                "skip": str(offset),
-                "fields": "{}",
-                "sort": '{"_id":1}',
-            },
-            body={"query": _ejson(where or {})},
+            where,
+            limit=page_size,
+            offset=offset,
         )
-        data = self._data(payload)
-        raw_documents = data.get("list", [])
-        if not isinstance(raw_documents, list):
-            raise RepositoryUnavailable("CloudBase returned an invalid query list")
-        documents = tuple(_decode_document(item) for item in raw_documents)
-        response_limit = data.get("limit", page_size)
-        if not isinstance(response_limit, int) or response_limit < 1:
-            raise RepositoryUnavailable("CloudBase returned an invalid query limit")
         next_cursor = (
-            _encode_cursor(offset + len(documents)) if len(documents) >= response_limit else None
+            _encode_cursor(offset + len(documents)) if len(documents) >= page_size else None
         )
-        return DocumentPage(documents, next_cursor)
+        return DocumentPage(tuple(documents), next_cursor)
 
     async def conditional_update(
         self,
@@ -98,16 +85,17 @@ class CloudBaseGateway:
     ) -> JsonDocument:
         if "_id" in updates or "version" in updates:
             raise ValueError("_id and version are managed by the repository")
-        payload = await self._request(
-            "updateOne",
-            collection,
-            body={
-                "query": _ejson({"_id": document_id, "version": expected_version}),
-                "data": _ejson({"$set": dict(updates), "$inc": {"version": 1}}),
-            },
-        )
-        await self._require_update_match(payload, collection, document_id, expected_version)
-        return await self._find_by_id(collection, document_id)
+        current = await asyncio.to_thread(self.store.get, collection, document_id)
+        if current.get("version") != expected_version:
+            raise RepositoryVersionConflict(_version(current))
+        updated = {
+            **current,
+            **dict(updates),
+            "updated_at": datetime.now(UTC),
+            "version": expected_version + 1,
+        }
+        await asyncio.to_thread(self.store.replace, collection, updated, expected_version)
+        return updated
 
     async def logical_delete(
         self,
@@ -116,131 +104,17 @@ class CloudBaseGateway:
         *,
         expected_version: int,
     ) -> JsonDocument:
-        deleted_at = datetime.now(UTC).isoformat()
-        payload = await self._request(
-            "updateOne",
+        return await self.conditional_update(
             collection,
-            body={
-                "query": _ejson({"_id": document_id, "version": expected_version}),
-                "data": _ejson(
-                    {
-                        "$set": {"is_deleted": True, "deleted_at": deleted_at},
-                        "$inc": {"version": 1},
-                    }
-                ),
-            },
-        )
-        await self._require_update_match(payload, collection, document_id, expected_version)
-        return await self._find_by_id(collection, document_id)
-
-    async def _find_by_id(self, collection: str, document_id: str) -> JsonDocument:
-        page = await self.query(collection, {"_id": document_id}, limit=1)
-        if not page.items:
-            raise RepositoryNotFound("CloudBase document not found")
-        return page.items[0]
-
-    async def _request(
-        self,
-        operation: str,
-        collection: str,
-        *,
-        params: Mapping[str, str] | None = None,
-        body: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        url = (
-            f"{self.base_url}/api/v2/envs/{self.environment_id}/databases/"
-            f"{collection}/documents:{operation}"
-        )
-        headers = {
-            "X-CloudBase-Authorization": self.api_key,
-            "X-CloudBase-TimeStamp": str(int(datetime.now(UTC).timestamp())),
-            "Content-Type": "application/json",
-        }
-        if self.session_token:
-            headers["X-CloudBase-SessionToken"] = self.session_token
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout, transport=self.transport) as client:
-                response = await client.post(url, params=params, headers=headers, json=body or {})
-        except httpx.HTTPError as error:
-            raise RepositoryUnavailable("CloudBase HTTP request failed") from error
-
-        if response.status_code == 404:
-            raise RepositoryNotFound("CloudBase document not found")
-        if response.status_code == 409:
-            raise RepositoryVersionConflict(_current_version(response))
-        if response.status_code >= 400:
-            raise RepositoryUnavailable("CloudBase returned a dependency error")
-        try:
-            payload = response.json()
-        except ValueError as error:
-            raise RepositoryUnavailable("CloudBase returned invalid JSON") from error
-        if not isinstance(payload, dict):
-            raise RepositoryUnavailable("CloudBase returned an invalid response")
-        response_code = payload.get("code")
-        if response_code not in (None, 0, "0", "OK", "SUCCESS"):
-            if response_code in {"VERSION_CONFLICT", "CONFLICT"}:
-                raise RepositoryVersionConflict(_current_version_from_payload(payload))
-            raise RepositoryUnavailable("CloudBase returned a dependency error")
-        return payload
-
-    @staticmethod
-    def _data(payload: Mapping[str, Any]) -> dict[str, Any]:
-        data = payload.get("data")
-        if not isinstance(data, dict):
-            raise RepositoryUnavailable("CloudBase returned invalid data")
-        return dict(data)
-
-    async def _require_update_match(
-        self,
-        payload: Mapping[str, Any],
-        collection: str,
-        document_id: str,
-        expected_version: int,
-    ) -> None:
-        data = self._data(payload)
-        matched = data.get("matched")
-        updated = data.get("updated")
-        if not isinstance(matched, int) or not isinstance(updated, int):
-            raise RepositoryUnavailable("CloudBase returned an invalid update result")
-        if matched > 0 and updated > 0:
-            return
-        try:
-            current_document = await self._find_by_id(collection, document_id)
-        except RepositoryNotFound:
-            raise RepositoryNotFound("CloudBase document not found") from None
-        current_version = current_document.get("version")
-        raise RepositoryVersionConflict(
-            current_version if isinstance(current_version, int) else None
+            document_id,
+            expected_version=expected_version,
+            updates={"is_deleted": True, "deleted_at": datetime.now(UTC)},
         )
 
 
-def _ejson(value: Mapping[str, Any]) -> str:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        default=_json_default,
-    )
-
-
-def _json_default(value: Any) -> Any:
-    if isinstance(value, datetime):
-        return {"$date": int(value.timestamp() * 1000)}
-    raise TypeError(f"unsupported CloudBase value: {type(value).__name__}")
-
-
-def _decode_document(value: Any) -> JsonDocument:
-    if isinstance(value, dict):
-        return dict(value)
-    if isinstance(value, str):
-        try:
-            parsed = json.loads(value)
-        except ValueError as error:
-            raise RepositoryUnavailable("CloudBase returned invalid document data") from error
-        if isinstance(parsed, dict):
-            return parsed
-    raise RepositoryUnavailable("CloudBase returned invalid document data")
+def _version(document: Mapping[str, Any]) -> int | None:
+    value = document.get("version")
+    return value if isinstance(value, int) else None
 
 
 def _encode_cursor(offset: int) -> str:
@@ -252,18 +126,5 @@ def _decode_cursor(cursor: str | None) -> int:
         return 0
     try:
         return max(0, int(base64.urlsafe_b64decode(cursor.encode("ascii")).decode("ascii")))
-    except (ValueError, UnicodeDecodeError, binascii.Error) as error:
-        raise ValueError("invalid cursor") from error
-
-
-def _current_version(response: httpx.Response) -> int | None:
-    try:
-        payload = response.json()
-    except ValueError:
-        return None
-    return _current_version_from_payload(payload) if isinstance(payload, dict) else None
-
-
-def _current_version_from_payload(payload: Mapping[str, Any]) -> int | None:
-    value = payload.get("current_version")
-    return value if isinstance(value, int) else None
+    except (ValueError, UnicodeDecodeError, binascii.Error):
+        return 0

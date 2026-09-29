@@ -31,5 +31,6 @@ backend/dist/
 .worktrees/
 .superpowers/
 miniprogram/project.private.config.json
+miniprogram/ext.json
 *.swp
 *.swo

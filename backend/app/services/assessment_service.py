@@ -48,6 +48,7 @@ from app.schemas.assessment import (
 )
 from app.schemas.errors import ApiException
 from app.security.tokens import TokenManager
+from app.services.ai_assist_service import AiAssistService
 from app.services.idempotency_service import (
     IdempotencyReservation,
     IdempotencyService,
@@ -70,6 +71,7 @@ class AssessmentService:
         token_manager: TokenManager,
         idempotency_service: IdempotencyService,
         audit_writer: AuditWriter,
+        ai_assist_service: AiAssistService | None = None,
     ) -> None:
         self.settings = settings
         self.repository = repository
@@ -77,6 +79,48 @@ class AssessmentService:
         self.tokens = token_manager
         self.idempotency = idempotency_service
         self.audit = audit_writer
+        self.ai_assist = ai_assist_service
+
+    async def attach_ai_assist(self, access_token: str, *, result_id: str) -> None:
+        if self.ai_assist is None:
+            return
+        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        result = self.repository.get_assessment_result(result_id)
+        if (
+            subject.subject_type != "student"
+            or result.user_id != subject.subject_id
+            or result.module_code not in {"phq9", "gad7"}
+            or result.safety_state != "not_triggered"
+            or result.result_state == "safety_support"
+            or result.ai_assist_snapshot_id is not None
+            or result.score is None
+            or result.reference_band is None
+        ):
+            return
+        maximum = 27 if result.module_code == "phq9" else 21
+        assist = await self.ai_assist.assessment_explanation(
+            resource_id=result.document_id,
+            owner_user_id=result.user_id,
+            input_data={
+                "task_type": "assessment_explanation",
+                "module": result.module_code.upper(),
+                "score": result.score,
+                "max_score": maximum,
+                "fixed_band": result.reference_band,
+                "fixed_summary": result.fixed_summary,
+                "derived_facts": [f"固定分数为 {result.score}/{maximum}"],
+                "allowed_steps": ["查看支持资源", "按自己的节奏记录变化"],
+            },
+        )
+        if assist.snapshot_id is None:
+            return
+        latest = self.repository.get_assessment_result(result_id)
+        if latest.ai_assist_snapshot_id is not None:
+            return
+        self.repository.save_assessment_result(
+            latest.model_copy(update={"ai_assist_snapshot_id": assist.snapshot_id}),
+            expected_version=latest.version,
+        )
 
     def start_session(
         self,
@@ -308,7 +352,12 @@ class AssessmentService:
             raise ApiException(404, "NOT_FOUND") from error
         if result.user_id != subject.subject_id or result.deleted_at is not None:
             raise ApiException(404, "NOT_FOUND")
-        return _result_projection(result)
+        ai_assist = (
+            self.ai_assist.snapshot_projection(result.ai_assist_snapshot_id)
+            if self.ai_assist is not None
+            else None
+        )
+        return _result_projection(result, ai_assist=ai_assist)
 
     def list_results(
         self,
@@ -902,7 +951,11 @@ def _session_state(session: AssessmentSessionDocument) -> AssessmentSessionState
     )
 
 
-def _result_projection(result: AssessmentResultDocument) -> AssessmentResultProjection:
+def _result_projection(
+    result: AssessmentResultDocument,
+    *,
+    ai_assist: dict[str, object] | None = None,
+) -> AssessmentResultProjection:
     # The document validator rejects ``cannot_be_safe`` results. Keep the
     # invariant explicit here so the public projection never exposes it.
     if result.safety_state == "cannot_be_safe":
@@ -923,6 +976,7 @@ def _result_projection(result: AssessmentResultDocument) -> AssessmentResultProj
         created_at=result.created_at,
         updated_at=result.updated_at,
         object_version=result.version,
+        ai_assist=ai_assist,
     )
 
 

@@ -2,7 +2,6 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import AdminShell from "@/components/AdminShell.vue";
-import DesktopWidthNotice from "@/components/DesktopWidthNotice.vue";
 import TaskSection from "@/components/TaskSection.vue";
 import {
   fetchWorkbenchSection,
@@ -88,8 +87,7 @@ onMounted(() => WORKBENCH_SECTIONS.forEach((key) => void load(key)));
 </script>
 <template>
   <AdminShell title="统一任务工作台"
-    ><DesktopWidthNotice />
-    <section class="workbench" aria-label="统一任务工作台内容">
+    ><section class="workbench" aria-label="统一任务工作台内容">
       <div class="workbench__intro">
         <p class="workbench__title">当前工作台</p>
         <p class="workbench__description">
@@ -187,9 +185,27 @@ onMounted(() => WORKBENCH_SECTIONS.forEach((key) => void load(key)));
   background: var(--xinyu-color-surface);
   color: var(--xinyu-color-text);
 }
-@media (max-width: 1279px) {
-  .workbench {
-    display: none;
+@media (max-width: 1399px) {
+  .workbench__sections {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .workbench__sections :deep(.task-section:nth-child(3)) {
+    grid-column: 1 / -1;
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--xinyu-color-divider);
+    padding-top: var(--xinyu-space-6);
+  }
+}
+@media (max-width: 760px) {
+  .workbench__sections {
+    grid-template-columns: 1fr;
+  }
+  .workbench__sections :deep(.task-section) {
+    grid-column: auto;
+    padding: var(--xinyu-space-6) 0 0;
+    border-top: 1px solid var(--xinyu-color-divider);
+    border-left: 0;
   }
 }
 </style>

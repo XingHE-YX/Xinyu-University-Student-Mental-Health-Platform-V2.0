@@ -1,7 +1,12 @@
 {
   "description": "心语 V2 原生微信小程序",
   "packOptions": {
-    "ignore": []
+    "ignore": [
+      {
+        "type": "folder",
+        "value": "tests"
+      }
+    ]
   },
   "setting": {
     "urlCheck": false,
@@ -10,10 +15,12 @@
     "postcss": true,
     "minified": false,
     "compileHotReLoad": true,
-    "useCompilerPlugins": ["typescript"]
+    "useCompilerPlugins": [
+      "typescript"
+    ]
   },
   "compileType": "miniprogram",
-  "appid": "",
+  "appid": "wx22f399558d68bc7f",
   "projectname": "xinyu-v2",
   "miniprogramRoot": "./"
 }

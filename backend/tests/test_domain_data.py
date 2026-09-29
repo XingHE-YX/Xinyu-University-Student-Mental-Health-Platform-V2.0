@@ -695,9 +695,10 @@ def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> Non
     validated_resources = [models.SupportResourceDocument(**entry) for entry in support_resources]
     assert all(resource.resource_set_version == "support-v1" for resource in validated_resources)
     assert all(resource.expires_at is None for resource in validated_resources)
+    assert all(entry["action_type"] == "text_only" for entry in support_resources)
+    assert all(entry["action_target"] is None for entry in support_resources)
     assert all(
-        target is None or ".invalid" in target or target.startswith("DEMO-")
-        for target in (entry["action_target"] for entry in support_resources)
+        entry["availability_text"] == "待学校授权，暂无真实联系方式" for entry in support_resources
     )
 
 

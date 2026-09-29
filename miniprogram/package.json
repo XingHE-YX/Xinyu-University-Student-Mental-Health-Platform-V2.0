@@ -5,7 +5,8 @@
   "packageManager": "npm@10.9.4",
   "description": "心语 V2 原生微信小程序学生端",
   "scripts": {
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test:structure": "node --import ./tests/register-ts.mjs --test tests/*.test.mjs"
   },
   "devDependencies": {
     "miniprogram-api-typings": "5.2.3",

@@ -23,7 +23,8 @@ describe("task detail actions", () => {
     const result = await claimTask("task-1", 1, "access-token");
 
     expect(result.new_state).toBe("claimed");
-    const [, init] = fetcher.mock.calls[0] ?? [];
+    const [url, init] = fetcher.mock.calls[0] ?? [];
+    expect(url).toBe("/admin/tasks/task-1/claim");
     const headers = new Headers(init?.headers);
     expect(headers.get("Authorization")).toBe("Bearer access-token");
     expect(headers.get("Idempotency-Key")).toEqual(expect.any(String));

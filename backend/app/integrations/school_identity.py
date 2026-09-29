@@ -36,6 +36,32 @@ class UnavailableSchoolIdentityProvider:
         return SchoolIdentityVerificationResult(status="unavailable")
 
 
+class DemoSchoolIdentityProvider:
+    """Match one synthetic identity only inside the registered demo environment."""
+
+    STUDENT_NAME = "王小雨"
+    STUDENT_NUMBER = "20260001"
+
+    async def verify_student(
+        self,
+        *,
+        student_name: str,
+        student_number: str,
+    ) -> SchoolIdentityVerificationResult:
+        if (
+            student_name.strip() == self.STUDENT_NAME
+            and student_number.strip() == self.STUDENT_NUMBER
+        ):
+            return SchoolIdentityVerificationResult(
+                status="verified",
+                provider_reference="demo-school-identity-001",
+            )
+        return SchoolIdentityVerificationResult(
+            status="failed",
+            failed_reason_code="demo_identity_mismatch",
+        )
+
+
 class HttpSchoolIdentityProvider:
     def __init__(
         self,

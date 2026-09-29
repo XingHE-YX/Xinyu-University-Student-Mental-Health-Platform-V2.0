@@ -1,0 +1,1 @@
+<view class="surface post" bindtap="tap"><view class="post__meta"><text>{{displayName}}</text><text class="status-chip">{{status}}</text></view><view class="post__excerpt">{{excerpt}}</view><view class="muted">{{responseCount}} 条回应</view></view>

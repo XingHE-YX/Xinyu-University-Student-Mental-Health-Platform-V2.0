@@ -35,7 +35,7 @@ export async function loginAdmin(
   password: string,
 ): Promise<AdminSessionSummary> {
   const result = await request(
-    "/api/v1/admin/auth/login",
+    "/admin/auth/login",
     { method: "POST", body: { login_name: FIXED_ADMIN_LOGIN, password } },
     (value) => sessionSchema.parse(value),
   );
@@ -52,10 +52,8 @@ export async function loadAdminMe(
     "displayName" | "capabilityLabel" | "environmentKind" | "sessionExpiresAt"
   >
 > {
-  const result = await request(
-    "/api/v1/admin/me",
-    { token: accessToken },
-    (value) => meSchema.parse(value),
+  const result = await request("/admin/me", { token: accessToken }, (value) =>
+    meSchema.parse(value),
   );
   return {
     displayName: result.data.display_name,
@@ -67,7 +65,7 @@ export async function loadAdminMe(
 
 export async function logoutAdmin(accessToken: string): Promise<void> {
   await request(
-    "/api/v1/admin/auth/logout",
+    "/admin/auth/logout",
     { method: "POST", token: accessToken },
     (value) => z.object({ success: z.boolean() }).parse(value),
   );

@@ -42,11 +42,17 @@ async def create_post(
     body: TreeholePostRequest,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeMutationResponse]:
+    access_token = bearer_token(authorization)
     data = request.app.state.treehole_service.create_post(
-        bearer_token(authorization),
+        access_token,
         body=body.body,
         request_id=request_id(request),
         idempotency_key=body.client_idempotency_key,
+    )
+    data = await request.app.state.treehole_service.attach_post_ai_review(
+        access_token,
+        post_id=data.post_id,
+        body=body.body,
     )
     return ApiEnvelope.success(request_id(request), data=data)
 
@@ -115,13 +121,19 @@ async def create_response(
     body: TreeholeResponseRequest,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeResponseProjection]:
+    access_token = bearer_token(authorization)
     data = request.app.state.treehole_service.create_response(
-        bearer_token(authorization),
+        access_token,
         post_id=post_id,
         body=body.body,
         object_version=body.object_version,
         request_id=request_id(request),
         idempotency_key=body.client_idempotency_key,
+    )
+    data = await request.app.state.treehole_service.attach_response_ai_review(
+        access_token,
+        response_id=data.response_id,
+        body=body.body,
     )
     return ApiEnvelope.success(request_id(request), data=data)
 

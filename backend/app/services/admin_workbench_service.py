@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, cast
 
 from app.audit.writer import AuditWriter
 from app.config.settings import Settings
+from app.domain.models import WorkTaskDocument
+from app.repositories.admin_task_repository import AdminTaskRepository
 from app.repositories.audit_repository import AuditRepository, InMemoryAuditRepository
+from app.repositories.domain_data_repository import InMemoryDomainDataRepository
+from app.repositories.protocols import (
+    RepositoryError,
+    RepositoryNotFound,
+    RepositoryVersionConflict,
+)
 from app.schemas.admin_workbench import (
     AuditEvent,
     TaskDetail,
@@ -33,15 +42,21 @@ class AdminWorkbenchService:
         settings: Settings,
         *,
         audit_repository: AuditRepository | None = None,
+        task_repository: AdminTaskRepository | None = None,
+        content_repository: InMemoryDomainDataRepository | None = None,
     ) -> None:
         self.settings = settings
+        self.task_repository = task_repository
+        self.content_repository = content_repository
         self.tasks: dict[str, dict[str, Any]] = {}
         self.audit = AuditWriter(
             audit_repository or InMemoryAuditRepository(),
             environment_id=settings.cloudbase_env_id or settings.environment_kind.value,
         )
         self._idempotency: dict[tuple[str, str], TaskMutationResult] = {}
-        self._seed_demo_tasks()
+        self._reload_tasks()
+        if not self.tasks:
+            self._seed_demo_tasks()
 
     def list_tasks(
         self,
@@ -51,6 +66,7 @@ class AdminWorkbenchService:
         cursor: str | None,
         limit: int,
     ) -> WorkbenchPage:
+        self._reload_tasks()
         tasks = [
             task
             for task in self.tasks.values()
@@ -68,6 +84,7 @@ class AdminWorkbenchService:
         )
 
     def get_task(self, task_id: str, *, admin_id: str) -> TaskDetail:
+        self._reload_tasks()
         task = self.tasks.get(task_id)
         if task is None or task.get("is_deleted", False):
             raise ApiException(404, "NOT_FOUND")
@@ -76,6 +93,7 @@ class AdminWorkbenchService:
     def record_view(self, task_id: str, *, admin_id: str, request_id: str) -> None:
         """Record a minimal detail-view audit event after the projection is authorized."""
 
+        self._reload_tasks()
         task = self.tasks.get(task_id)
         if task is None or task.get("is_deleted", False):
             return
@@ -104,6 +122,7 @@ class AdminWorkbenchService:
         outcome: Literal["denied", "conflict", "failure"],
         reason_code: str,
     ) -> None:
+        self._reload_tasks()
         task = self.tasks.get(task_id)
         if task is None or task.get("is_deleted", False):
             return
@@ -142,6 +161,7 @@ class AdminWorkbenchService:
                 "updated_at": datetime.now(UTC),
             }
         )
+        self._save_task(task, expected_version=object_version)
         result = self._result(task, request_id)
         self._remember(admin_id, idempotency_key, result)
         self._write_audit(request_id, task, "task_claim", "success")
@@ -167,6 +187,7 @@ class AdminWorkbenchService:
                 "updated_at": datetime.now(UTC),
             }
         )
+        self._save_task(task, expected_version=object_version)
         result = self._result(task, request_id)
         self._remember(admin_id, idempotency_key, result)
         self._write_audit(request_id, task, "task_release", "success")
@@ -189,7 +210,7 @@ class AdminWorkbenchService:
         task = self._get_mutable(task_id, object_version, admin_id, idempotency_key)
         if task.get("assigned_admin_id") != admin_id or task["state"] != "claimed":
             raise ApiException(403, "FORBIDDEN")
-        allowed = set(self._allowed_actions(task["task_kind"]))
+        allowed = set(self._allowed_actions(task["task_kind"], task.get("source_type")))
         if action not in allowed:
             raise ApiException(422, "VALIDATION_FAILED")
         if (
@@ -215,6 +236,23 @@ class AdminWorkbenchService:
             )
             if due_at:
                 task["records"].append({"label": "下一次跟进时间", "value": due_at.isoformat()})
+        task["last_action"] = action
+        task["object_version"] = task["version"]
+        try:
+            if task["task_kind"] == "content_review" and self.content_repository is not None:
+                with self.content_repository.transaction():
+                    self._apply_content_decision(task, action)
+                    self._save_task(task, expected_version=object_version)
+            else:
+                self._save_task(task, expected_version=object_version)
+        except RepositoryNotFound as error:
+            raise ApiException(404, "NOT_FOUND") from error
+        except RepositoryVersionConflict as error:
+            raise ApiException(
+                409, "VERSION_CONFLICT", current_version=error.current_version
+            ) from error
+        except RepositoryError as error:
+            raise ApiException(503, "DEPENDENCY_UNAVAILABLE") from error
         result = self._result(task, request_id)
         self._remember(admin_id, idempotency_key, result)
         self._write_audit(request_id, task, action, "success")
@@ -373,6 +411,16 @@ class AdminWorkbenchService:
                 templates
             )
         }
+        if self.task_repository is not None:
+            for task_id, task in tuple(self.tasks.items()):
+                current = self.task_repository.get(task_id)
+                if current is None:
+                    self.task_repository.create(task)
+                    continue
+                task["version"] = int(current["version"]) + 1
+                task["object_version"] = task["version"]
+                self.task_repository.save(task, expected_version=int(current["version"]))
+            self._reload_tasks()
 
     def _get_mutable(
         self, task_id: str, object_version: int, admin_id: str, key: str
@@ -380,12 +428,89 @@ class AdminWorkbenchService:
         remembered = self._idempotency.get((admin_id, key))
         if remembered is not None:
             raise ApiException(409, "IDEMPOTENCY_CONFLICT")
+        self._reload_tasks()
         task = self.tasks.get(task_id)
         if task is None or task.get("is_deleted", False):
             raise ApiException(404, "NOT_FOUND")
         if int(task["version"]) != object_version:
             raise ApiException(409, "VERSION_CONFLICT", current_version=task["version"])
-        return task
+        return deepcopy(task)
+
+    def _reload_tasks(self) -> None:
+        if self.task_repository is not None:
+            self.tasks = {task["task_id"]: task for task in self.task_repository.list()}
+        elif self.content_repository is not None:
+            for document in self.content_repository.list_work_tasks():
+                task = document.model_dump(by_alias=True, mode="python")
+                task["task_id"] = task.pop("_id")
+                self.tasks[str(task["task_id"])] = task
+
+    def _save_task(self, task: dict[str, Any], *, expected_version: int) -> None:
+        task["object_version"] = task["version"]
+        if self.task_repository is not None:
+            self.task_repository.save(task, expected_version=expected_version)
+        elif self.content_repository is not None:
+            try:
+                self.content_repository.get_work_task(str(task["task_id"]))
+            except RepositoryNotFound:
+                pass
+            else:
+                payload: dict[str, Any] = {"_id": task["task_id"]}
+                for field in WorkTaskDocument.model_fields:
+                    if field != "document_id" and field in task:
+                        payload[field] = task[field]
+                self.content_repository.save_work_task(
+                    WorkTaskDocument.model_validate(payload),
+                    expected_version=expected_version,
+                )
+        self.tasks[str(task["task_id"])] = task
+
+    def _apply_content_decision(self, task: dict[str, Any], action: str) -> None:
+        if self.content_repository is None:
+            return
+        source_type = task.get("source_type")
+        source_id = task.get("source_id")
+        if source_type not in {"post", "response"} or not isinstance(source_id, str):
+            return
+        if source_id == task.get("task_id"):
+            return  # Built-in workbench fixture with no student content behind it.
+        if source_type == "post":
+            post = self.content_repository.get_treehole_post(source_id)
+            if post.deleted_at is not None:
+                raise RepositoryNotFound("treehole post is deleted")
+            target = {
+                "publish": "published",
+                "protect": "protected",
+                "unpublish": "unpublished",
+                "safety_review": "safety_priority",
+            }[action]
+            self.content_repository.save_treehole_post(
+                post.model_copy(
+                    update={
+                        "visibility_state": target,
+                        "review_state": "decided",
+                        "safety_state": (
+                            "needs_support_review"
+                            if action == "safety_review"
+                            else post.safety_state
+                        ),
+                    }
+                ),
+                expected_version=post.version,
+            )
+            return
+        if action == "protect":
+            raise ApiException(422, "VALIDATION_FAILED", "树洞回应不能使用保护展示")
+        response = self.content_repository.get_treehole_response(source_id)
+        if response.deleted_at is not None:
+            raise RepositoryNotFound("treehole response is deleted")
+        target = "published" if action == "publish" else "unpublished"
+        if action == "safety_review":
+            target = "checking"
+        self.content_repository.save_treehole_response(
+            response.model_copy(update={"state": target}),
+            expected_version=response.version,
+        )
 
     @staticmethod
     def _decode_cursor(cursor: str | None) -> int:
@@ -434,19 +559,22 @@ class AdminWorkbenchService:
             object_version=task["version"],
             facts=[TaskFact(**fact) for fact in task.get("facts", [])],
             redacted_content=task.get("redacted_content"),
-            allowed_actions=self._allowed_actions(task["task_kind"]),
+            allowed_actions=self._allowed_actions(task["task_kind"], task.get("source_type")),
             records=[TaskFact(**fact) for fact in task.get("records", [])],
             environment_kind=self.settings.environment_kind.value,
         )
 
     @staticmethod
-    def _allowed_actions(task_kind: TaskKind) -> list[str]:
-        return {
+    def _allowed_actions(task_kind: TaskKind, source_type: str | None = None) -> list[str]:
+        actions = {
             "content_review": ["publish", "protect", "unpublish", "safety_review"],
             "safety_support": ["record_support", "set_followup", "complete"],
             "identity_access": ["approve", "deny", "revoke"],
             "followup": ["record_followup", "complete"],
         }[task_kind]
+        return [
+            action for action in actions if not (source_type == "response" and action == "protect")
+        ]
 
     @staticmethod
     def _result(task: dict[str, Any], request_id: str) -> TaskMutationResult:

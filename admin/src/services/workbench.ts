@@ -30,7 +30,7 @@ export async function fetchWorkbenchSection(
   if (cursor) params.set("cursor", cursor);
   try {
     const result = await apiRequest(
-      `/api/v1/admin/workbench?${params.toString()}`,
+      `/admin/workbench?${params.toString()}`,
       { token: accessToken, fetchImpl: requestFn },
       (value) => pageSchema.parse(value),
     );

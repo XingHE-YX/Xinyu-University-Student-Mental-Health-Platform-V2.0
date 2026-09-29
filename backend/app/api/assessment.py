@@ -58,14 +58,20 @@ async def complete_assessment_session(
     body: CompleteAssessmentSessionRequest,
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[object]:
+    access_token = bearer_token(authorization)
     data = request.app.state.assessment_service.complete_session(
-        bearer_token(authorization),
+        access_token,
         session_id=session_id,
         object_version=body.object_version,
         answers=[answer.model_dump(mode="json") for answer in body.answers],
         request_id=request_id(request),
         idempotency_key=require_idempotency_key(request),
     )
+    if data.completion_state == "result_ready" and data.result_id:
+        await request.app.state.assessment_service.attach_ai_assist(
+            access_token,
+            result_id=data.result_id,
+        )
     return ApiEnvelope.success(request_id(request), data=data)
 
 

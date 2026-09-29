@@ -1,0 +1,3 @@
+<view class="page-container {{padded ? 'page-container--padded' : ''}}"
+  ><slot
+/></view>

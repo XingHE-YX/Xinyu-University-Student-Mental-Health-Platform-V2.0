@@ -22,9 +22,20 @@ from app.api.treehole import router as treehole_router
 from app.api.treehole import student_router as treehole_student_router
 from app.audit.writer import AuditWriter
 from app.config.settings import Settings
-from app.repositories.audit_repository import InMemoryAuditRepository
+from app.repositories.admin_task_repository import CloudBaseAdminTaskRepository
+from app.repositories.audit_repository import AuditRepository, InMemoryAuditRepository
+from app.repositories.cloudbase_domain_repository import CloudBaseDomainDataRepository
+from app.repositories.cloudbase_security_repositories import (
+    CloudBaseAuditRepository,
+    CloudBaseIdempotencyRepository,
+    CloudBaseSessionRepository,
+)
+from app.repositories.cloudbase_store import CloudBaseStore
 from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.repositories.idempotency_repository import InMemoryIdempotencyRepository
+from app.repositories.idempotency_repository import (
+    IdempotencyRepository,
+    InMemoryIdempotencyRepository,
+)
 from app.repositories.session_repository import InMemorySessionRepository
 from app.schemas.envelope import ApiEnvelope
 from app.schemas.errors import ApiException
@@ -63,22 +74,49 @@ def create_app(
     admin_workbench_service: AdminWorkbenchService | None = None,
     ai_assist_service: AiAssistService | None = None,
     domain_repository: InMemoryDomainDataRepository | None = None,
-    idempotency_repository: InMemoryIdempotencyRepository | None = None,
-    audit_repository: InMemoryAuditRepository | None = None,
+    idempotency_repository: IdempotencyRepository | None = None,
+    audit_repository: AuditRepository | None = None,
 ) -> FastAPI:
     runtime_settings = settings or Settings.from_environment()
-    runtime_sessions = session_repository or InMemorySessionRepository()
+    cloudbase_store: CloudBaseStore | None = None
+    runtime_admin_task_repository: CloudBaseAdminTaskRepository | None = None
+    runtime_sessions: InMemorySessionRepository
+    runtime_domain_repository: InMemoryDomainDataRepository
+    if (
+        session_repository is None
+        and domain_repository is None
+        and idempotency_repository is None
+        and audit_repository is None
+        and runtime_settings.cloudbase_persistence_ready
+    ):
+        cloudbase_store = CloudBaseStore(
+            runtime_settings.cloudbase_env_id or "",
+            runtime_settings.cloudbase_secret or "",
+        )
+        runtime_sessions = CloudBaseSessionRepository(cloudbase_store)
+        runtime_domain_repository = CloudBaseDomainDataRepository(cloudbase_store)
+        runtime_idempotency_repository: IdempotencyRepository = CloudBaseIdempotencyRepository(
+            cloudbase_store
+        )
+        runtime_audit_repository: AuditRepository = CloudBaseAuditRepository(cloudbase_store)
+        runtime_admin_task_repository = CloudBaseAdminTaskRepository(cloudbase_store)
+    else:
+        runtime_sessions = session_repository or InMemorySessionRepository()
+        runtime_domain_repository = domain_repository or InMemoryDomainDataRepository()
+        runtime_idempotency_repository = idempotency_repository or InMemoryIdempotencyRepository()
+        runtime_audit_repository = audit_repository or InMemoryAuditRepository()
     runtime_tokens = token_manager or TokenManager(
         runtime_settings.session_secret or "local-development-session-secret"
     )
-    runtime_domain_repository = domain_repository or InMemoryDomainDataRepository()
-    runtime_idempotency = IdempotencyService(idempotency_repository)
+    runtime_idempotency = IdempotencyService(runtime_idempotency_repository)
     runtime_audit = AuditWriter(
-        audit_repository,
+        runtime_audit_repository,
         environment_id=runtime_settings.cloudbase_env_id or "unconfigured",
     )
     app = FastAPI(title="心语 V2 API", version="0.1.0")
     app.state.settings = runtime_settings
+    app.state.persistence_backend = "cloudbase" if cloudbase_store else "memory"
+    app.state.cloudbase_store = cloudbase_store
     app.state.auth_service = AuthService(
         runtime_settings,
         session_repository=runtime_sessions,
@@ -87,9 +125,16 @@ def create_app(
         domain_repository=runtime_domain_repository,
     )
     app.state.admin_workbench_service = admin_workbench_service or AdminWorkbenchService(
-        runtime_settings
+        runtime_settings,
+        audit_repository=runtime_audit_repository,
+        task_repository=runtime_admin_task_repository,
+        content_repository=runtime_domain_repository,
     )
-    app.state.ai_assist_service = ai_assist_service or AiAssistService(runtime_settings)
+    app.state.ai_assist_service = ai_assist_service or AiAssistService(
+        runtime_settings,
+        audit_writer=runtime_audit,
+        repository=runtime_domain_repository,
+    )
     app.state.assessment_service = AssessmentService(
         settings=runtime_settings,
         repository=runtime_domain_repository,
@@ -97,6 +142,7 @@ def create_app(
         token_manager=runtime_tokens,
         idempotency_service=runtime_idempotency,
         audit_writer=runtime_audit,
+        ai_assist_service=app.state.ai_assist_service,
     )
     app.state.safety_service = SafetyService(
         settings=runtime_settings,
@@ -164,6 +210,7 @@ def create_app(
         idempotency_service=runtime_idempotency,
         audit_writer=runtime_audit,
         consent_service=app.state.consent_service,
+        ai_assist_service=app.state.ai_assist_service,
     )
     app.state.identity_access_service = IdentityAccessService(
         repository=runtime_domain_repository,

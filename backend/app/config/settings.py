@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import Iterable, Mapping
-from typing import Literal
+from typing import Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
@@ -32,10 +32,14 @@ class Settings(BaseModel):
     school_identity_provider_url: str | None = None
     support_resource_version: str | None = None
     demo_mode: bool | None = None
+    persistence_backend: Literal["memory", "cloudbase"] = "memory"
 
     demo_env_ids: tuple[str, ...] = Field(default=(), exclude=True)
     authorized_env_ids: tuple[str, ...] = Field(default=(), exclude=True)
     declared_environment_kind: EnvironmentKind = EnvironmentKind.UNCONFIGURED
+    persistence_environment_kind: EnvironmentKind = Field(
+        default=EnvironmentKind.UNCONFIGURED, exclude=True
+    )
     environment_kind: EnvironmentKind = EnvironmentKind.UNCONFIGURED
     configuration_status: Literal["ready", "unconfigured"] = "unconfigured"
     missing_requirements: tuple[str, ...] = ()
@@ -46,16 +50,20 @@ class Settings(BaseModel):
         cls,
         environment: Mapping[str, str] | None = None,
         *,
-        demo_env_ids: Iterable[str] = (),
-        authorized_env_ids: Iterable[str] = (),
+        demo_env_ids: Iterable[str] | None = None,
+        authorized_env_ids: Iterable[str] | None = None,
     ) -> "Settings":
         """Build settings from server variables without exposing their raw values."""
 
-        source = dict(os.environ if environment is None else environment)
+        source = {
+            key: normalized
+            for key, value in (os.environ if environment is None else environment).items()
+            if (normalized := _configured_value(value)) is not None
+        }
         parsed_demo_mode = parse_demo_mode(source.get("DEMO_MODE"))
-        normalized_demo_ids = tuple(sorted({item.strip() for item in demo_env_ids if item.strip()}))
-        normalized_authorized_ids = tuple(
-            sorted({item.strip() for item in authorized_env_ids if item.strip()})
+        normalized_demo_ids = _environment_ids(demo_env_ids, source.get("CLOUDBASE_ENV_ID_DEMO"))
+        normalized_authorized_ids = _environment_ids(
+            authorized_env_ids, source.get("CLOUDBASE_ENV_ID_AUTHORIZED")
         )
         decision = resolve_environment(
             demo_mode=parsed_demo_mode,
@@ -63,18 +71,27 @@ class Settings(BaseModel):
             demo_env_ids=normalized_demo_ids,
             authorized_env_ids=normalized_authorized_ids,
         )
+        demo_environment = decision.matched_kind is EnvironmentKind.DEMO
+        support_resource_version = source.get("SUPPORT_RESOURCE_VERSION") or (
+            "support-v1" if demo_environment else None
+        )
+        persistence_backend = source.get("PERSISTENCE_BACKEND", "memory")
+        if persistence_backend not in {"memory", "cloudbase"}:
+            raise ValueError("PERSISTENCE_BACKEND must be memory or cloudbase")
+        cloudbase_api_key = source.get("CLOUDBASE_API_KEY") or source.get("CLOUDBASE_APIKEY")
 
         missing: list[str] = []
+        # Optional AI assistance must not disable core services when its key is absent.
         required_values = {
             "cloudbase_env_id": source.get("CLOUDBASE_ENV_ID"),
-            "cloudbase_api_key": source.get("CLOUDBASE_API_KEY"),
+            "cloudbase_api_key": cloudbase_api_key,
             "wechat_appid": source.get("WECHAT_APPID"),
             "wechat_appsecret": source.get("WECHAT_APPSECRET"),
             "admin_password_hash": source.get("ADMIN_PASSWORD_HASH"),
             "admin_session_secret": source.get("ADMIN_SESSION_SECRET"),
-            "identity_provider": source.get("SCHOOL_IDENTITY_PROVIDER_URL"),
-            "support_resources": source.get("SUPPORT_RESOURCE_VERSION"),
-            "deepseek_api_key": source.get("DEEPSEEK_API_KEY"),
+            "identity_provider": source.get("SCHOOL_IDENTITY_PROVIDER_URL")
+            or ("demo-synthetic" if demo_environment else None),
+            "support_resources": support_resource_version,
         }
         missing.extend(
             name for name, value in required_values.items() if not value or not value.strip()
@@ -93,16 +110,18 @@ class Settings(BaseModel):
             wechat_appid=source.get("WECHAT_APPID"),
             wechat_appsecret=_secret(source.get("WECHAT_APPSECRET")),
             cloudbase_env_id=source.get("CLOUDBASE_ENV_ID"),
-            cloudbase_api_key=_secret(source.get("CLOUDBASE_API_KEY")),
+            cloudbase_api_key=_secret(cloudbase_api_key),
             deepseek_api_key=_secret(source.get("DEEPSEEK_API_KEY")),
             admin_password_hash=_secret(source.get("ADMIN_PASSWORD_HASH")),
             admin_session_secret=_secret(source.get("ADMIN_SESSION_SECRET")),
             school_identity_provider_url=source.get("SCHOOL_IDENTITY_PROVIDER_URL"),
-            support_resource_version=source.get("SUPPORT_RESOURCE_VERSION"),
+            support_resource_version=support_resource_version,
             demo_mode=parsed_demo_mode,
+            persistence_backend=cast(Literal["memory", "cloudbase"], persistence_backend),
             demo_env_ids=normalized_demo_ids,
             authorized_env_ids=normalized_authorized_ids,
             declared_environment_kind=decision.declared_kind,
+            persistence_environment_kind=decision.matched_kind,
             environment_kind=environment_kind,
             configuration_status="ready" if ready else "unconfigured",
             missing_requirements=tuple(sorted(set(missing))),
@@ -136,6 +155,47 @@ class Settings(BaseModel):
     def cloudbase_secret(self) -> str | None:
         return self.cloudbase_api_key.get_secret_value() if self.cloudbase_api_key else None
 
+    @property
+    def cloudbase_persistence_ready(self) -> bool:
+        return (
+            self.persistence_backend == "cloudbase"
+            and self.persistence_environment_kind is not EnvironmentKind.UNCONFIGURED
+            and self.cloudbase_env_id is not None
+            and self.cloudbase_secret is not None
+        )
+
+    @property
+    def student_login_ready(self) -> bool:
+        persistence_ready = self.persistence_backend == "memory" or self.cloudbase_persistence_ready
+        return (
+            self.persistence_environment_kind is not EnvironmentKind.UNCONFIGURED
+            and self.wechat_appid is not None
+            and self.wechat_secret is not None
+            and self.session_secret is not None
+            and persistence_ready
+        )
+
 
 def _secret(value: str | None) -> SecretStr | None:
     return SecretStr(value) if value else None
+
+
+def _configured_value(value: str) -> str | None:
+    """Blank values and unrendered deployment references are not credentials."""
+
+    normalized = value.strip()
+    if (
+        not normalized
+        or "${" in normalized
+        or (normalized.startswith("<") and normalized.endswith(">"))
+        or "://<" in normalized
+    ):
+        return None
+    return normalized
+
+
+def _environment_ids(explicit: Iterable[str] | None, registered: str | None) -> tuple[str, ...]:
+    # Explicit registries (including empty ones) override deployment variables.
+    # Never register the target CLOUDBASE_ENV_ID automatically from DEMO_MODE.
+    values = explicit if explicit is not None else (registered,) if registered else ()
+    return tuple(sorted({normalized for item in values if (normalized := _configured_value(item))}))

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -114,6 +114,7 @@ class AssessmentResultProjection(BaseModel):
     created_at: datetime
     updated_at: datetime
     object_version: int
+    ai_assist: dict[str, Any] | None = None
 
 
 class AssessmentResultListResponse(BaseModel):

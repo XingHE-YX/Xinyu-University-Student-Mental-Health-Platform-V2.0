@@ -242,9 +242,15 @@ onMounted(() => void load());
   gap: var(--xinyu-space-8);
   padding-top: var(--xinyu-space-2);
 }
-@media (max-width: 1279px) {
-  .task-detail {
-    display: none;
+@media (max-width: 1399px) {
+  .task-detail__columns {
+    grid-template-columns: 1fr;
+  }
+  .task-detail__columns :deep(.action-panel) {
+    padding-top: var(--xinyu-space-6);
+    padding-left: 0;
+    border-top: 1px solid var(--xinyu-color-divider);
+    border-left: 0;
   }
 }
 </style>

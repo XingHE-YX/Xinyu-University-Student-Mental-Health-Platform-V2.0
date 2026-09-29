@@ -368,6 +368,7 @@ GET 支持资源只返回当前环境、当前 resource_set_version、enabled=tr
 | visibility_state | string | 是 | checking、published、protected、pending_confirmation、unpublished、safety_priority、deleted |
 | review_state | string | 是 | not_started、automated_checked、human_required、decided |
 | safety_state | string | 是 | not_triggered、needs_support_review、handled |
+| ai_assist_snapshot_id | string | 否 | 受限 AI 审核建议快照；不决定最终公开状态 |
 | community_consent_version | string | 是 | 发布时有效的社区同意版本 |
 | original_retention_deadline | datetime | 否 | 原始正文清理截止时间 |
 | deleted_at | datetime | 否 | 删除时间 |
@@ -376,6 +377,8 @@ GET 支持资源只返回当前环境、当前 resource_set_version、enabled=tr
 | version | integer | 是 | 乐观锁版本 |
 
 原始正文必须加密、禁止发送给 AI 和普通后台接口；最终决定后按 original_retention_deadline 清理。公开列表只读取 body_sanitized。四种最终人工动作固定为公开、保护展示、暂不公开、转安全复核。
+
+树洞 AI 只接收请求处理期间生成的临时脱敏文本，不读取 `body_original_ciphertext`；AI 建议写入 `ai_assist_snapshots` 并可将 `review_state` 标记为 `automated_checked`，但不能直接修改最终 `visibility_state` 或 `safety_state`。
 
 ### 3.14 treehole_responses：树洞回应
 
@@ -389,6 +392,7 @@ GET 支持资源只返回当前环境、当前 resource_set_version、enabled=tr
 | body_original_ciphertext | encrypted_string | 否 | 检查期间临时原文 |
 | body_sanitized | string | 否 | 允许展示的回应文本 |
 | state | string | 是 | checking、published、unpublished、deleted |
+| ai_assist_snapshot_id | string | 否 | 受限 AI 审核建议快照；回应仍需规则/人工决定 |
 | community_consent_version | string | 是 | 回应时有效的社区同意版本 |
 | deleted_at | datetime | 否 | 删除时间 |
 | created_at | datetime | 是 | 创建时间 |
@@ -411,6 +415,10 @@ GET 支持资源只返回当前环境、当前 resource_set_version、enabled=tr
 | safe_summary | string | 是 | W-02 可见的非敏感摘要 |
 | object_version | integer | 是 | 当前来源对象版本 |
 | last_action | string | 否 | 最近一次动作枚举 |
+| facts | array[object] | 否 | 工作台详情所需的最小事实标签和值，不含身份或完整敏感正文 |
+| records | array[object] | 否 | 已发生的事实性处理记录 |
+| redacted_content | string | 否 | 允许工作人员查看的脱敏内容 |
+| is_deleted | boolean | 否 | 演示重置和逻辑删除标记 |
 | created_at | datetime | 是 | 创建时间 |
 | updated_at | datetime | 是 | 更新时间 |
 | version | integer | 是 | 任务索引版本 |
@@ -529,6 +537,7 @@ source_result_id 与 source_session_id 必须二选一且互斥：uncertain 必�
 | outcome | string | 是 | success、denied、conflict、failure |
 | reason_code | string | 否 | 稳定原因码 |
 | occurred_at | datetime | 是 | 发生时间 |
+| details | object | 是 | 只含服务端白名单允许的最小事实，不含原始正文、答案或身份字段 |
 | created_at | datetime | 是 | 写入时间 |
 | updated_at | datetime | 是 | 固定不更新 |
 | version | integer | 是 | 固定为 1 |
@@ -544,8 +553,10 @@ source_result_id 与 source_session_id 必须二选一且互斥：uncertain 必�
 | actor_id | string | 是 | 操作者 ID |
 | route_key | string | 是 | 规范化接口路径和方法 |
 | idempotency_key | string | 是 | 客户端提供的幂等键 |
+| record_id | string | 是 | 服务端生成的幂等预留记录 ID |
 | request_hash | hash_string | 是 | 请求体摘要 |
 | outcome | string | 是 | processing、success、failure |
+| response_status | integer | 否 | 终态安全响应的 HTTP 状态码 |
 | response_digest | hash_string | 否 | 成功响应摘要 |
 | expires_at | datetime | 是 | 幂等记录有效期 |
 | created_at | datetime | 是 | 创建时间 |

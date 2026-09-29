@@ -47,11 +47,25 @@ const stateLabels: Record<TaskSummary["state"], string> = {
 }
 .task-card__meta,
 .task-card__footer {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(100px, auto) minmax(0, 1fr);
   gap: var(--xinyu-space-3);
+  align-items: start;
   color: var(--xinyu-color-text-secondary);
   font-size: 13px;
+}
+.task-card__meta span,
+.task-card__footer span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.task-card__meta span:last-child {
+  text-align: right;
+}
+.task-card__footer {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
 }
 .task-card__summary {
   margin: 0;
@@ -59,6 +73,7 @@ const stateLabels: Record<TaskSummary["state"], string> = {
   line-height: 22px;
 }
 button {
+  justify-self: end;
   min-height: 44px;
   padding: 0 var(--xinyu-space-3);
   border: 1px solid var(--xinyu-color-primary);
@@ -66,5 +81,13 @@ button {
   background: transparent;
   color: var(--xinyu-color-primary-pressed);
   cursor: pointer;
+}
+@media (max-width: 760px) {
+  .task-card__meta {
+    grid-template-columns: 1fr;
+  }
+  .task-card__meta span:last-child {
+    text-align: left;
+  }
 }
 </style>

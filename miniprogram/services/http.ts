@@ -1,5 +1,6 @@
 import type { ApiEnvelope, ApiError, EnvironmentKind } from '../types/api'
 import { sessionStore } from '../stores/session'
+import { moodDateKey } from './mood'
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
@@ -8,6 +9,7 @@ interface RequestOptions {
 }
 
 const now = (): string => new Date().toISOString()
+let demoMood: Record<string, unknown> | null = null
 let demoCommunityConsent = false
 let demoAccountStatus: 'active' | 'recovery' = 'active'
 
@@ -45,7 +47,7 @@ const demoResponse = <T>(path: string, options: RequestOptions): ApiEnvelope<T> 
   if (path === '/today') {
     return envelope({
       quote: { text: '慢一点，也是在向前走。', attribution: '——心语 V2', available: true },
-      mood: null,
+      mood: demoMood?.record_date === moodDateKey() ? demoMood : null,
       recentObservation: null,
     } as T)
   }
@@ -53,7 +55,10 @@ const demoResponse = <T>(path: string, options: RequestOptions): ApiEnvelope<T> 
   if (path === '/consents/community' && method === 'POST') { demoCommunityConsent = options.data?.action === 'accepted'; return envelope({ displayName: '匿名同学', accountStatus: demoAccountStatus, recoveryUntil: null, basicConsent: true, communityConsent: demoCommunityConsent, identityVerified: true } as T) }
   if (path === '/identity/verifications' && method === 'POST') return envelope({ verification_id: 'demo-verification', status: 'verified' } as T)
   if (path === '/moods/today' && method === 'PUT') {
-    return envelope({ record_id: 'demo-mood', mood_code: String(options.data?.mood_code ?? ''), saved_at: now() } as T)
+    if (!demoMood || demoMood.record_date !== options.data?.record_date) {
+      demoMood = { record_id: 'demo-mood', record_date: options.data?.record_date, mood_code: String(options.data?.mood_code ?? ''), saved_at: now() }
+    }
+    return envelope(demoMood as T)
   }
   if (path === '/assessment-modules') {
     return envelope([
@@ -73,7 +78,8 @@ const demoResponse = <T>(path: string, options: RequestOptions): ApiEnvelope<T> 
     return envelope({ id: 'demo-result', module, title: module === 'gad7' ? '焦虑自测' : '抑郁情绪自测', completedAt: now(), kind: score >= 10 ? 'higher_score' : 'ordinary', score, interpretation: score >= 10 ? '这次结果提示你可以多留意最近的感受，并考虑找可信任的人聊聊。' : '这次结果提供了一个当下的观察切面，可以结合自己的感受理解它。', nextStep: '如果这些感受持续影响生活，可以考虑联系校内支持。', safetyState } as T)
   }
   if (path === '/assessment-sessions' && method === 'POST') {
-    const module = String(options.data?.module_code ?? 'phq9') as 'phq9' | 'gad7' | 'sleep'
+    const code = String(options.data?.module_code ?? 'phq9')
+    const module = (code === 'sleep_observation' ? 'sleep' : code) as 'phq9' | 'gad7' | 'sleep'
     const count = module === 'phq9' ? 9 : module === 'gad7' ? 7 : 8
     const title = module === 'phq9' ? '抑郁情绪自测' : module === 'gad7' ? '焦虑自测' : '睡眠观察'
     const questions = Array.from({ length: count }, (_, index) => ({
@@ -85,9 +91,9 @@ const demoResponse = <T>(path: string, options: RequestOptions): ApiEnvelope<T> 
   }
   if (path === '/support-resources') {
     return envelope([
-      { id: 'trusted', group: 'trusted_person', title: '现在可以联系谁', description: '如果你愿意，可以先联系一位信任的人，告诉对方你现在需要陪伴。', updatedAt: '演示配置' },
-      { id: 'campus', group: 'campus', title: '校内心理支持', description: '请通过学校公开渠道联系心理中心，获取预约与陪伴支持。', updatedAt: '演示配置' },
-      { id: 'emergency', group: 'emergency', title: '当地紧急支持', description: '如果你现在无法保证安全，请联系当地紧急服务或前往最近的急诊。', updatedAt: '演示配置' },
+      { id: 'trusted', group: 'trusted_person', title: '心理健康活动中心（演示占位）', description: '用于展示校内心理支持入口的产品流程，不代表学校已接入或作出服务承诺。', availabilityText: '待学校授权，暂无真实联系方式', sourceText: '心语 V2 答辩演示占位', updatedAt: '演示配置' },
+      { id: 'campus', group: 'campus', title: '校内心理支持（演示占位）', description: '用于展示预约、咨询与活动信息入口；取得学校授权后再配置经核验的真实内容。', availabilityText: '待学校授权，暂无真实联系方式', sourceText: '心语 V2 答辩演示占位', updatedAt: '演示配置' },
+      { id: 'emergency', group: 'emergency', title: '紧急支持说明（演示占位）', description: '用于展示安全支持流程；正式使用前须由学校确认适用范围、处置流程与真实联系方式。', availabilityText: '待学校授权，暂无真实联系方式', sourceText: '心语 V2 答辩演示占位', updatedAt: '演示配置' },
     ] as T)
   }
   if (path === '/treehole/posts' && method === 'GET') {
@@ -99,14 +105,15 @@ const demoResponse = <T>(path: string, options: RequestOptions): ApiEnvelope<T> 
   if (path.startsWith('/treehole/posts/') && path.endsWith('/responses') && method === 'POST') return envelope({ ok: true } as T)
   if (path.startsWith('/treehole/posts/') && method === 'GET') return envelope({ id: path.split('/')[3], displayName: '一片云', body: '最近有点累，想找个地方把心事放下。', excerpt: '最近有点累，想找个地方把心事放下。', status: 'published', createdAt: now(), responseCount: 1, mine: false, responses: [{ id: 'response-1', displayName: '晚风', body: '谢谢你愿意写下来，愿你今天有一点喘息的空间。', createdAt: now(), status: 'published' }] } as T)
   if (path === '/treehole/posts' && method === 'POST') return envelope({ id: 'demo-post', displayName: '一片云', body: null, excerpt: String(options.data?.body ?? '').slice(0, 80), status: 'checking', createdAt: now(), responseCount: 0, mine: true } as T)
-  if (path === '/me') {
+  if (path === '/me' || path === '/app/bootstrap') {
     return envelope({ ...sessionStore.getUser(), displayName: sessionStore.getUser().displayName ?? '匿名同学', accountStatus: demoAccountStatus, communityConsent: demoCommunityConsent, identityVerified: Boolean(sessionStore.getUser().identityVerified) } as T)
   }
+  if (path === '/account/status') return envelope({ object_version: 1, status: demoAccountStatus === 'recovery' ? 'recovery_pending' : 'active' } as T)
   if (path === '/account/stop' && method === 'POST') { demoAccountStatus = 'recovery'; return envelope({ ok: true } as T) }
   if (path === '/account/recover' && method === 'POST') { demoAccountStatus = 'active'; return envelope({ ok: true } as T) }
-  if (path === '/moods' && method === 'GET') return envelope([] as T)
+  if (path === '/moods' && method === 'GET') return envelope({ items: demoMood ? [demoMood] : [], next_cursor: null } as T)
   if (path === '/assessment-results' && method === 'GET') return envelope([] as T)
-  if (path.startsWith('/moods/') && method === 'DELETE') return envelope({ ok: true } as T)
+  if (path.startsWith('/moods/') && method === 'DELETE') { if (path === `/moods/${demoMood?.record_id}`) demoMood = null; return envelope({ ok: true } as T) }
   if (path.startsWith('/assessment-results/') && method === 'DELETE') return envelope({ ok: true } as T)
   if (path === '/me/treehole/posts') return envelope([] as T)
   return envelope<T>(null, apiError('UNAVAILABLE', '当前环境尚未配置学生端服务，请稍后重试。', true))

@@ -1,0 +1,50 @@
+[
+  {
+    "field": "软件开发硬件环境",
+    "value": "Apple M5，16GB内存，512GB SSD",
+    "characters": 25,
+    "limit": 50
+  },
+  {
+    "field": "软件运行硬件环境",
+    "value": "服务端：Apple M5、16GB内存；客户端：智能手机或电脑",
+    "characters": 31,
+    "limit": 50
+  },
+  {
+    "field": "开发该软件的操作系统",
+    "value": "macOS 26",
+    "characters": 8,
+    "limit": 50
+  },
+  {
+    "field": "软件开发环境/工具",
+    "value": "微信开发者工具、Vite 8.2.2、Vue 3.5.42、Node.js 26.8.1",
+    "characters": 44,
+    "limit": 50
+  },
+  {
+    "field": "软件运行平台/操作系统",
+    "value": "服务端macOS 26；学生端微信小程序；管理端桌面浏览器",
+    "characters": 29,
+    "limit": 50
+  },
+  {
+    "field": "软件运行支撑环境/支持软件",
+    "value": "Python 3.11.11、FastAPI 0.128.8、Uvicorn 0.39.0",
+    "characters": 45,
+    "limit": null
+  },
+  {
+    "field": "编程语言",
+    "value": "Python 3.11.11、TypeScript 7.0.2；WXML、WXSS、HTML、CSS",
+    "characters": 50,
+    "limit": 120
+  },
+  {
+    "field": "源程序量（行）",
+    "value": "16753行",
+    "characters": 6,
+    "limit": null
+  }
+]

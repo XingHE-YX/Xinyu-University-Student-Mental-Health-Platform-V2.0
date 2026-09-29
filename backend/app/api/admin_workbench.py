@@ -150,13 +150,11 @@ async def decide_task(
 ) -> ApiEnvelope[TaskMutationResult]:
     subject = _admin(request, authorization)
     service = _service(request)
-    task = service.tasks.get(task_id)
-    if task is None or task.get("is_deleted", False):
-        raise ApiException(404, "NOT_FOUND")
-    model = _decision_model(task["task_kind"], body)
+    task = service.get_task(task_id, admin_id=subject.subject_id)
+    model = _decision_model(task.task_kind, body)
     action_code = getattr(model, "action_code", None)
     if (
-        task["task_kind"] == "followup"
+        task.task_kind == "followup"
         and action_code == "contact_made"
         and service.settings.environment_kind.value == "demo"
     ):

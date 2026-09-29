@@ -124,6 +124,7 @@ async function signOut(): Promise<void> {
 
 .admin-shell__main {
   min-width: 0;
+  overflow: hidden;
   padding: var(--xinyu-space-10);
 }
 
@@ -153,5 +154,34 @@ h1 {
   border-radius: var(--xinyu-radius-sm);
   color: var(--xinyu-color-text-secondary);
   font-size: 14px;
+}
+@media (max-width: 1100px) {
+  .admin-shell {
+    grid-template-columns: 184px minmax(0, 1fr);
+  }
+  .admin-shell__sidebar,
+  .admin-shell__main {
+    padding: var(--xinyu-space-6);
+  }
+  .admin-shell__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .admin-shell__session {
+    align-self: flex-start;
+  }
+}
+@media (max-width: 720px) {
+  .admin-shell {
+    display: block;
+  }
+  .admin-shell__sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--xinyu-color-divider);
+  }
+  .admin-shell__nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: var(--xinyu-space-4);
+  }
 }
 </style>

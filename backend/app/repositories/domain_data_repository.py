@@ -589,6 +589,30 @@ class InMemoryDomainDataRepository:
             self._work_tasks[task.document_id] = task
             return task
 
+    def get_work_task(self, task_id: str) -> WorkTaskDocument:
+        with self._lock:
+            try:
+                return self._work_tasks[task_id]
+            except KeyError as error:
+                raise RepositoryNotFound("work task not found") from error
+
+    def list_work_tasks(self) -> tuple[WorkTaskDocument, ...]:
+        with self._lock:
+            tasks = list(self._work_tasks.values())
+            tasks.sort(key=lambda task: (task.created_at, task.document_id), reverse=True)
+            return tuple(tasks)
+
+    def save_work_task(self, task: WorkTaskDocument, *, expected_version: int) -> WorkTaskDocument:
+        with self._lock:
+            current = self.get_work_task(task.document_id)
+            if current.version != expected_version:
+                raise RepositoryVersionConflict(current.version)
+            updated = task.model_copy(
+                update={"updated_at": datetime.now(UTC), "version": current.version + 1}
+            )
+            self._work_tasks[task.document_id] = updated
+            return updated
+
     def create_treehole_post(self, post: TreeholePostDocument) -> TreeholePostDocument:
         with self._lock:
             self._treehole_posts[post.document_id] = post

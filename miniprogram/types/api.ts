@@ -48,6 +48,14 @@ export interface TodayProjection {
   quote: QuoteProjection
   mood: MoodRecord | null
   recentObservation: string | null
+  observations: TodayObservation[]
+}
+
+export interface TodayObservation {
+  key: 'phq9' | 'gad7' | 'sleep'
+  title: string
+  summary: string
+  safetyEntryRequired: boolean
 }
 
 export interface AssessmentModule {
@@ -63,6 +71,7 @@ export interface AssessmentQuestion {
   id: string
   prompt: string
   options: string[]
+  optionKeys?: string[]
 }
 
 export interface AssessmentSession {
@@ -108,6 +117,8 @@ export interface SupportResource {
   description: string
   phone?: string
   url?: string
+  availabilityText?: string
+  sourceText?: string
   updatedAt: string
 }
 

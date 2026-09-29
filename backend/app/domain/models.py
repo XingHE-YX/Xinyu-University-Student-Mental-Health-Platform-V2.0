@@ -315,6 +315,7 @@ class TreeholePostDocument(DocumentModel):
     ]
     review_state: Literal["not_started", "automated_checked", "human_required", "decided"]
     safety_state: Literal["not_triggered", "needs_support_review", "handled"]
+    ai_assist_snapshot_id: str | None = None
     community_consent_version: NonEmptyString
     original_retention_deadline: datetime | None = None
     deleted_at: datetime | None = None
@@ -328,6 +329,7 @@ class TreeholeResponseDocument(DocumentModel):
     body_original_ciphertext: str | None = None
     body_sanitized: str | None = None
     state: Literal["checking", "published", "unpublished", "deleted"]
+    ai_assist_snapshot_id: str | None = None
     community_consent_version: NonEmptyString
     deleted_at: datetime | None = None
 
@@ -344,6 +346,10 @@ class WorkTaskDocument(DocumentModel):
     safe_summary: NonEmptyString
     object_version: VersionInt
     last_action: str | None = None
+    facts: list[dict[str, str]] = Field(default_factory=list)
+    records: list[dict[str, str]] = Field(default_factory=list)
+    redacted_content: str | None = None
+    is_deleted: bool = False
 
 
 class ContentReviewTaskDocument(DocumentModel):

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from datetime import UTC, datetime
 from typing import Literal
 
 from app.audit.writer import AuditWriter
 from app.config.settings import Settings
-from app.domain.models import TreeholePostDocument, TreeholeResponseDocument
+from app.domain.models import TreeholePostDocument, TreeholeResponseDocument, WorkTaskDocument
 from app.repositories.domain_data_repository import InMemoryDomainDataRepository
 from app.repositories.protocols import (
     RepositoryError,
@@ -23,6 +24,7 @@ from app.schemas.treehole import (
     TreeholeResponseProjection,
 )
 from app.security.tokens import AuthenticatedSubject, TokenManager
+from app.services.ai_assist_service import AiAssistResult, AiAssistService
 from app.services.consent_service import ConsentService
 from app.services.idempotency_service import (
     IdempotencyReservation,
@@ -43,6 +45,7 @@ class TreeholeService:
         idempotency_service: IdempotencyService,
         audit_writer: AuditWriter,
         consent_service: ConsentService,
+        ai_assist_service: AiAssistService | None = None,
     ) -> None:
         self.settings = settings
         self.repository = repository
@@ -51,6 +54,98 @@ class TreeholeService:
         self.idempotency = idempotency_service
         self.audit = audit_writer
         self.consent = consent_service
+        self.ai_assist = ai_assist_service
+
+    async def attach_post_ai_review(
+        self,
+        access_token: str,
+        *,
+        post_id: str,
+        body: str,
+    ) -> TreeholeMutationResponse:
+        subject = self._student(access_token)
+        post = self.repository.get_treehole_post(post_id)
+        self._check_owner(post.author_user_id, subject.subject_id)
+        if (
+            self.ai_assist is None
+            or post.ai_assist_snapshot_id is not None
+            or post.safety_state != "not_triggered"
+        ):
+            return self._mutation(post, subject.subject_id)
+        sanitized, flags = _sanitize_for_ai(body)
+        assist = await self.ai_assist.treehole_review_assist(
+            resource_id=post.document_id,
+            owner_user_id=post.author_user_id,
+            input_data={
+                "task_type": "treehole_review_assist",
+                "content_type": "post",
+                "topic": "匿名表达",
+                "sanitized_text": sanitized,
+                "rule_flags": flags,
+                "protect_supported": True,
+            },
+        )
+        if assist.snapshot_id is None:
+            return self._mutation(post, subject.subject_id)
+        latest = self.repository.get_treehole_post(post_id)
+        if latest.ai_assist_snapshot_id is None:
+            with self.repository.transaction():
+                latest = self.repository.save_treehole_post(
+                    latest.model_copy(
+                        update={
+                            "ai_assist_snapshot_id": assist.snapshot_id,
+                            "review_state": (
+                                "automated_checked"
+                                if assist.status == "adopted"
+                                else "human_required"
+                            ),
+                        }
+                    ),
+                    expected_version=latest.version,
+                )
+                self._save_ai_review_to_task(
+                    task_id=f"content_review_{latest.document_id}", assist=assist
+                )
+        return self._mutation(latest, subject.subject_id)
+
+    async def attach_response_ai_review(
+        self,
+        access_token: str,
+        *,
+        response_id: str,
+        body: str,
+    ) -> TreeholeResponseProjection:
+        subject = self._student(access_token)
+        response = self.repository.get_treehole_response(response_id)
+        self._check_owner(response.author_user_id, subject.subject_id)
+        if self.ai_assist is None or response.ai_assist_snapshot_id is not None:
+            return _response_projection(response, viewer_id=subject.subject_id, public=False)
+        sanitized, flags = _sanitize_for_ai(body)
+        assist = await self.ai_assist.treehole_review_assist(
+            resource_id=response.document_id,
+            owner_user_id=response.author_user_id,
+            input_data={
+                "task_type": "treehole_review_assist",
+                "content_type": "response",
+                "topic": "匿名回应",
+                "sanitized_text": sanitized,
+                "rule_flags": flags,
+                "protect_supported": False,
+            },
+        )
+        if assist.snapshot_id is None:
+            return _response_projection(response, viewer_id=subject.subject_id, public=False)
+        latest = self.repository.get_treehole_response(response_id)
+        if latest.ai_assist_snapshot_id is None:
+            with self.repository.transaction():
+                latest = self.repository.save_treehole_response(
+                    latest.model_copy(update={"ai_assist_snapshot_id": assist.snapshot_id}),
+                    expected_version=latest.version,
+                )
+                self._save_ai_review_to_task(
+                    task_id=f"content_review_{latest.document_id}", assist=assist
+                )
+        return _response_projection(latest, viewer_id=subject.subject_id, public=False)
 
     def list_public(
         self,
@@ -148,6 +243,7 @@ class TreeholeService:
             if anonymous.user_id != user.document_id or anonymous.status != "active":
                 raise ApiException(403, "IDENTITY_REQUIRED")
             now = datetime.now(UTC)
+            sanitized, _ = _sanitize_for_ai(body)
             safety = _contains_safety_signal(body)
             state: Literal[
                 "checking",
@@ -167,7 +263,7 @@ class TreeholeService:
                 anonymous_identity_id=anonymous.document_id,
                 display_name_snapshot=anonymous.display_name,
                 body_original_ciphertext=_protected_body(body),
-                body_sanitized=None,
+                body_sanitized=sanitized,
                 body_hash=hashlib.sha256(body.encode("utf-8")).hexdigest(),
                 visibility_state=state,
                 review_state=review_state,
@@ -181,14 +277,37 @@ class TreeholeService:
             )
             with self.repository.transaction():
                 saved = self.repository.create_treehole_post(post)
+                task_id = f"content_review_{saved.document_id}"
                 self.repository.append_extra_document(
                     "content_review_tasks",
                     {
-                        "_id": f"content_review_{saved.document_id}",
+                        "_id": task_id,
                         "post_id": saved.document_id,
                         "state": "needs_action",
                         "safety_priority": safety,
                     },
+                )
+                self.repository.create_work_task(
+                    WorkTaskDocument(
+                        _id=task_id,
+                        task_kind="content_review",
+                        source_type="post",
+                        source_id=saved.document_id,
+                        available_capability="content_review",
+                        state="needs_action",
+                        assigned_admin_id=None,
+                        safe_summary="树洞帖子待审核",
+                        object_version=1,
+                        last_action=None,
+                        facts=[
+                            {"label": "来源", "value": "匿名树洞"},
+                            {"label": "内容类型", "value": "帖子"},
+                        ],
+                        redacted_content=sanitized,
+                        created_at=now,
+                        updated_at=now,
+                        version=1,
+                    )
                 )
             response = self._mutation(saved, subject.subject_id)
             self.idempotency.complete(
@@ -331,6 +450,7 @@ class TreeholeService:
                 raise ApiException(403, "IDENTITY_REQUIRED")
             anonymous = self.repository.get_anonymous_identity(user.anonymous_identity_id)
             now = datetime.now(UTC)
+            sanitized, _ = _sanitize_for_ai(body)
             response = TreeholeResponseDocument(
                 _id=self.repository.next_treehole_response_id(),
                 post_id=post.document_id,
@@ -338,7 +458,7 @@ class TreeholeService:
                 anonymous_identity_id=anonymous.document_id,
                 display_name_snapshot=anonymous.display_name,
                 body_original_ciphertext=_protected_body(body),
-                body_sanitized=None,
+                body_sanitized=sanitized,
                 state="checking",
                 community_consent_version=user.community_consent_version or "unknown",
                 deleted_at=None,
@@ -346,7 +466,41 @@ class TreeholeService:
                 updated_at=now,
                 version=1,
             )
-            saved = self.repository.create_treehole_response(response)
+            with self.repository.transaction():
+                saved = self.repository.create_treehole_response(response)
+                task_id = f"content_review_{saved.document_id}"
+                self.repository.append_extra_document(
+                    "content_review_tasks",
+                    {
+                        "_id": task_id,
+                        "response_id": saved.document_id,
+                        "post_id": post.document_id,
+                        "state": "needs_action",
+                        "safety_priority": False,
+                    },
+                )
+                self.repository.create_work_task(
+                    WorkTaskDocument(
+                        _id=task_id,
+                        task_kind="content_review",
+                        source_type="response",
+                        source_id=saved.document_id,
+                        available_capability="content_review",
+                        state="needs_action",
+                        assigned_admin_id=None,
+                        safe_summary="树洞回应待审核",
+                        object_version=1,
+                        last_action=None,
+                        facts=[
+                            {"label": "来源", "value": "匿名树洞"},
+                            {"label": "内容类型", "value": "回应"},
+                        ],
+                        redacted_content=sanitized,
+                        created_at=now,
+                        updated_at=now,
+                        version=1,
+                    )
+                )
             projection = _response_projection(saved, viewer_id=subject.subject_id, public=False)
             self.idempotency.complete(
                 reservation, status_code=200, response_digest=projection.model_dump_json()
@@ -533,6 +687,38 @@ class TreeholeService:
         if owner_id != subject_id:
             raise ApiException(404, "NOT_FOUND")
 
+    def _save_ai_review_to_task(self, *, task_id: str, assist: AiAssistResult) -> None:
+        try:
+            task = self.repository.get_work_task(task_id)
+        except RepositoryNotFound:
+            return
+        output = getattr(assist, "output", None)
+        route = getattr(assist, "recommended_route", None) or "manual_review"
+        note = output.get("review_note") if isinstance(output, dict) else None
+        route_labels = {
+            "allow": "建议公开",
+            "protect": "建议保护展示",
+            "manual_review": "建议人工复核",
+            "safety_review": "建议安全复核",
+        }
+        records = [
+            record
+            for record in task.records
+            if record.get("label") not in {"DeepSeek 建议", "辅助审核说明"}
+        ]
+        records.append({"label": "DeepSeek 建议", "value": route_labels.get(route, "建议人工复核")})
+        if isinstance(note, str) and note.strip():
+            records.append({"label": "辅助审核说明", "value": note.strip()})
+        self.repository.save_work_task(
+            task.model_copy(
+                update={
+                    "records": records,
+                    "object_version": task.version + 1,
+                }
+            ),
+            expected_version=task.version,
+        )
+
     def _audit(
         self, request_id: str, actor_id: str, action: str, resource_id: str, status: str
     ) -> None:
@@ -557,6 +743,17 @@ class TreeholeService:
 
 def _protected_body(body: str) -> str:
     return "enc:v1:" + hashlib.sha256(body.encode("utf-8")).hexdigest()
+
+
+_PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?\d[\d\s-]{6,}\d)(?!\d)")
+_EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+def _sanitize_for_ai(body: str) -> tuple[str, list[str]]:
+    sanitized = _PHONE_PATTERN.sub("［已隐藏］", body)
+    sanitized = _EMAIL_PATTERN.sub("［已隐藏］", sanitized)
+    flags = ["contact_redacted"] if sanitized != body else []
+    return sanitized.strip(), flags
 
 
 def _contains_safety_signal(body: str) -> bool:

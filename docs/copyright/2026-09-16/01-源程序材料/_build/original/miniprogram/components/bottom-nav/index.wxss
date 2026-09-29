@@ -1,0 +1,3 @@
+.bottom-nav { position:fixed; z-index:10; left:0; right:0; bottom:0; display:flex; min-height:64px; padding-bottom:env(safe-area-inset-bottom); background:var(--xinyu-color-surface); border-top:1px solid var(--xinyu-color-divider); }
+.bottom-nav__item { flex:1; min-height:64px; display:flex; align-items:center; justify-content:center; color:var(--xinyu-color-text-secondary); font-size:14px; }
+.bottom-nav__item--active { color:var(--xinyu-color-primary); font-weight:600; }

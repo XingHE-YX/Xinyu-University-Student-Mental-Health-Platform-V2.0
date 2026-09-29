@@ -1,0 +1,141 @@
+<view class="page-container page-container--padded page-container--main">
+  <view class="page-heading">
+    <text class="page-heading__date">{{todayDate}}</text>
+    <text class="page-heading__title">今日</text>
+    <text class="page-heading__greeting">{{greeting}}</text>
+  </view>
+
+  <view wx:if="{{loading && !loaded}}" class="reading-block">
+    <text class="reading-block__body">正在准备今天的内容…</text>
+  </view>
+
+  <block wx:else>
+    <view class="reading-block reading-block--quote">
+      <text class="reading-block__label">给今天的一句话</text>
+      <text wx:if="{{quote && quote.available}}" class="reading-block__title"
+        >{{quote.text}}</text
+      >
+      <text wx:if="{{quote && quote.available}}" class="reading-block__body"
+        >{{quote.attribution}}</text
+      >
+      <text wx:else class="reading-block__body">先照顾好自己的节奏。</text>
+    </view>
+
+    <view class="content-section">
+      <text class="content-section__title">此时此刻</text>
+      <view class="reading-block reading-block--mood">
+        <view wx:if="{{error && !loaded}}" class="inline-error"
+          ><text>暂时没有读取到今天的记录。</text
+          ><button class="inline-error__action" bindtap="load">重新试试</button></view
+        >
+        <view wx:elif="{{mood}}">
+          <text class="reading-block__title">今天的心情：{{mood.mood}}</text>
+          <text class="reading-block__body">已记录 · 记录于 {{mood.recordedAt}}</text>
+          <view class="reading-block__action" bindtap="openMoodSheet"
+            ><text>再看一眼</text><text class="reading-block__chevron">›</text></view
+          >
+        </view>
+        <block wx:else>
+          <text class="reading-block__body reading-block__body--strong"
+            >还没有记录此刻</text
+          >
+          <view class="reading-block__action" bindtap="openMoodSheet"
+            ><text>记录此刻</text><text class="reading-block__chevron">›</text></view
+          >
+        </block>
+      </view>
+    </view>
+
+    <view class="content-section">
+      <view class="section-heading"
+        ><text class="content-section__title">最近的自我观察</text
+        ><button class="section-heading__action" bindtap="goAssessment"
+          >自测 ›</button
+        ></view
+      >
+      <text wx:if="{{!loaded}}" class="reading-block__body">记录暂时无法读取。</text>
+      <view class="plain-list">
+        <view
+          wx:for="{{observations}}"
+          wx:key="key"
+          class="plain-list__item"
+          data-key="{{item.key}}"
+          bindtap="openObservation"
+        >
+          <view
+            ><text class="plain-list__title">{{item.title}}</text
+            ><text class="plain-list__meta">{{item.summary}}</text></view
+          >
+          <text class="plain-list__chevron">›</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="content-section">
+      <text class="content-section__title">树洞与支持</text>
+      <view class="plain-list">
+        <view class="plain-list__item" bindtap="goTreehole"
+          ><text class="plain-list__title">去树洞读一会儿</text
+          ><text class="plain-list__chevron">›</text></view
+        >
+        <view class="plain-list__item" bindtap="goSupport"
+          ><text class="plain-list__title">查看支持资源</text
+          ><text class="plain-list__chevron">›</text></view
+        >
+      </view>
+    </view>
+  </block>
+
+  <view wx:if="{{error && loaded}}" class="inline-error"
+    ><text>暂时无法更新，当前显示的是上次读取的记录。</text
+    ><button class="inline-error__action" bindtap="load">重新试试</button></view
+  >
+
+  <view wx:if="{{showMoodSheet}}" class="mood-sheet">
+    <view
+      class="mood-sheet__mask"
+      bindtap="closeMoodSheet"
+      catchtouchmove="preventScroll"
+    ></view>
+    <view class="mood-sheet__panel">
+      <block wx:if="{{mood}}">
+        <text class="mood-sheet__eyebrow">已记下此刻</text>
+        <text class="mood-sheet__title">{{mood.mood}}</text>
+        <button class="mood-sheet__primary" bindtap="closeMoodSheet">再看一眼</button>
+      </block>
+      <block wx:else>
+        <text class="mood-sheet__eyebrow">此时此刻</text>
+        <text class="mood-sheet__title">你的心情更接近哪一种？</text>
+        <view class="mood-grid">
+          <view
+            wx:for="{{moods}}"
+            wx:key="code"
+            class="mood-option {{selectedMood === item.code ? 'mood-option--selected' : ''}}"
+            data-mood="{{item.code}}"
+            bindtap="selectMood"
+          >
+            <text class="mood-option__mark"
+              >{{selectedMood === item.code ? '●' : '○'}}</text
+            >
+            <text>{{item.label}}</text>
+          </view>
+        </view>
+        <text class="mood-sheet__hint">今天只记录一次，之后不会提供修改入口。</text>
+        <text wx:if="{{moodError}}" class="mood-sheet__error">{{moodError}}</text>
+        <button
+          class="mood-sheet__primary"
+          disabled="{{!selectedMood || saving}}"
+          bindtap="saveMood"
+          >{{saving ? '正在保存…' : moodError ? '重新试试' :
+          '保存今天的心情'}}</button
+        >
+        <button
+          class="mood-sheet__secondary"
+          disabled="{{saving}}"
+          bindtap="closeMoodSheet"
+          >稍后再说</button
+        >
+      </block>
+    </view>
+  </view>
+</view>

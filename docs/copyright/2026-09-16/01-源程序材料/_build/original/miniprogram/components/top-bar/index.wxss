@@ -1,0 +1,4 @@
+.top-bar { display:flex; align-items:center; min-height:44px; margin-bottom:16px; }
+.top-bar__back { width:44px; height:44px; margin:0 8px 0 -8px; padding:0; border:0; background:transparent; color:var(--xinyu-color-text); font-size:32px; line-height:40px; }
+.top-bar__back::after { border:0; }
+.top-bar__title { font-size:20px; line-height:30px; font-weight:600; color:var(--xinyu-color-text); }

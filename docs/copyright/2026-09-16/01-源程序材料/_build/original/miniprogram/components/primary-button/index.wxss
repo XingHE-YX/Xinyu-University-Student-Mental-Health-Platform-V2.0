@@ -1,0 +1,4 @@
+.primary-button { height:48px; margin-top:16px; padding:0 20px; border:0; border-radius:8px; background:var(--xinyu-color-primary); color:var(--xinyu-color-surface); font-size:16px; line-height:48px; }
+.primary-button::after { border:0; }
+.primary-button[disabled] { opacity:.55; }
+.primary-button--secondary { background:var(--xinyu-color-primary-soft); color:var(--xinyu-color-primary-pressed); }

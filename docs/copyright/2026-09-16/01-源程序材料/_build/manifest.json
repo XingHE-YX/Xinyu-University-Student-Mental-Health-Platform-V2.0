@@ -1,0 +1,3547 @@
+{
+  "software_name": "心语大学生心理健康平台",
+  "registration_version": "V1.0",
+  "name_and_version_status": "provisional pending applicant confirmation; distinct from repository and package versions",
+  "source_root": "/Users/xingheluqi/XinYu-V2",
+  "snapshot_time": "2026-09-16T14:24:55.100Z",
+  "git_commit": "ef64bb7caa8089446625b5915d1c26aeb1b965aa",
+  "source_state": "current working tree, including uncommitted edits",
+  "source_files": 255,
+  "original_physical_lines": 16753,
+  "original_nonblank_lines": 15182,
+  "formatted_physical_lines": 19990,
+  "formatted_nonblank_lines": 18419,
+  "formatted_nonblank_noncomment_lines": 18295,
+  "typescript_ast_equivalence_files": 62,
+  "full_listing_pages": 365,
+  "submitted_pages": 60,
+  "submitted_counted_code_lines": 3030,
+  "final_module": "backend/app/services/admin_workbench_service.py",
+  "final_module_last_line": 479,
+  "final_module_last_text": "        )",
+  "word_text_roundtrip_verified": true,
+  "pages": [
+    {
+      "submission_page": 1,
+      "part": "前部",
+      "full_page": 1,
+      "code_lines": 51,
+      "nonblank_source_rows": 54,
+      "ranges": [
+        {
+          "file": "miniprogram/app.ts",
+          "start_line": 1,
+          "end_line": 21
+        },
+        {
+          "file": "admin/src/main.ts",
+          "start_line": 1,
+          "end_line": 8
+        },
+        {
+          "file": "admin/src/App.vue",
+          "start_line": 1,
+          "end_line": 17
+        },
+        {
+          "file": "backend/app/main.py",
+          "start_line": 1,
+          "end_line": 16
+        }
+      ]
+    },
+    {
+      "submission_page": 2,
+      "part": "前部",
+      "full_page": 2,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "backend/app/main.py",
+          "start_line": 17,
+          "end_line": 71
+        }
+      ]
+    },
+    {
+      "submission_page": 3,
+      "part": "前部",
+      "full_page": 3,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "backend/app/main.py",
+          "start_line": 72,
+          "end_line": 122
+        }
+      ]
+    },
+    {
+      "submission_page": 4,
+      "part": "前部",
+      "full_page": 4,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "backend/app/main.py",
+          "start_line": 123,
+          "end_line": 173
+        }
+      ]
+    },
+    {
+      "submission_page": 5,
+      "part": "前部",
+      "full_page": 5,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "backend/app/main.py",
+          "start_line": 174,
+          "end_line": 216
+        },
+        {
+          "file": "miniprogram/pages/onboarding/index.ts",
+          "start_line": 1,
+          "end_line": 15
+        }
+      ]
+    },
+    {
+      "submission_page": 6,
+      "part": "前部",
+      "full_page": 6,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/onboarding/index.ts",
+          "start_line": 16,
+          "end_line": 31
+        },
+        {
+          "file": "miniprogram/pages/identity-verification/index.ts",
+          "start_line": 1,
+          "end_line": 34
+        },
+        {
+          "file": "miniprogram/pages/today/index.ts",
+          "start_line": 1,
+          "end_line": 2
+        }
+      ]
+    },
+    {
+      "submission_page": 7,
+      "part": "前部",
+      "full_page": 7,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/today/index.ts",
+          "start_line": 3,
+          "end_line": 54
+        }
+      ]
+    },
+    {
+      "submission_page": 8,
+      "part": "前部",
+      "full_page": 8,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/today/index.ts",
+          "start_line": 55,
+          "end_line": 105
+        }
+      ]
+    },
+    {
+      "submission_page": 9,
+      "part": "前部",
+      "full_page": 9,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/today/index.ts",
+          "start_line": 106,
+          "end_line": 136
+        },
+        {
+          "file": "miniprogram/pages/assessment-center/index.ts",
+          "start_line": 1,
+          "end_line": 21
+        }
+      ]
+    },
+    {
+      "submission_page": 10,
+      "part": "前部",
+      "full_page": 10,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/assessment-center/index.ts",
+          "start_line": 22,
+          "end_line": 50
+        },
+        {
+          "file": "miniprogram/pages/assessment-answer/index.ts",
+          "start_line": 1,
+          "end_line": 23
+        }
+      ]
+    },
+    {
+      "submission_page": 11,
+      "part": "前部",
+      "full_page": 11,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/assessment-answer/index.ts",
+          "start_line": 24,
+          "end_line": 74
+        }
+      ]
+    },
+    {
+      "submission_page": 12,
+      "part": "前部",
+      "full_page": 12,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/assessment-answer/index.ts",
+          "start_line": 75,
+          "end_line": 125
+        }
+      ]
+    },
+    {
+      "submission_page": 13,
+      "part": "前部",
+      "full_page": 13,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/assessment-answer/index.ts",
+          "start_line": 126,
+          "end_line": 132
+        },
+        {
+          "file": "miniprogram/pages/assessment-result/index.ts",
+          "start_line": 1,
+          "end_line": 25
+        },
+        {
+          "file": "miniprogram/pages/safety-confirmation/index.ts",
+          "start_line": 1,
+          "end_line": 21
+        }
+      ]
+    },
+    {
+      "submission_page": 14,
+      "part": "前部",
+      "full_page": 14,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/safety-confirmation/index.ts",
+          "start_line": 22,
+          "end_line": 37
+        },
+        {
+          "file": "miniprogram/pages/support-resources/index.ts",
+          "start_line": 1,
+          "end_line": 36
+        }
+      ]
+    },
+    {
+      "submission_page": 15,
+      "part": "前部",
+      "full_page": 15,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/support-resources/index.ts",
+          "start_line": 37,
+          "end_line": 52
+        },
+        {
+          "file": "miniprogram/pages/history/index.ts",
+          "start_line": 1,
+          "end_line": 32
+        },
+        {
+          "file": "miniprogram/pages/treehole/index.ts",
+          "start_line": 1,
+          "end_line": 4
+        }
+      ]
+    },
+    {
+      "submission_page": 16,
+      "part": "前部",
+      "full_page": 16,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/treehole/index.ts",
+          "start_line": 5,
+          "end_line": 47
+        },
+        {
+          "file": "miniprogram/pages/treehole-publish/index.ts",
+          "start_line": 1,
+          "end_line": 10
+        }
+      ]
+    },
+    {
+      "submission_page": 17,
+      "part": "前部",
+      "full_page": 17,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/treehole-publish/index.ts",
+          "start_line": 11,
+          "end_line": 39
+        },
+        {
+          "file": "miniprogram/pages/treehole-status/index.ts",
+          "start_line": 1,
+          "end_line": 22
+        }
+      ]
+    },
+    {
+      "submission_page": 18,
+      "part": "前部",
+      "full_page": 18,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/treehole-status/index.ts",
+          "start_line": 23,
+          "end_line": 24
+        },
+        {
+          "file": "miniprogram/pages/treehole-detail/index.ts",
+          "start_line": 1,
+          "end_line": 50
+        }
+      ]
+    },
+    {
+      "submission_page": 19,
+      "part": "前部",
+      "full_page": 19,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/treehole-detail/index.ts",
+          "start_line": 51,
+          "end_line": 59
+        },
+        {
+          "file": "miniprogram/pages/my/index.ts",
+          "start_line": 1,
+          "end_line": 26
+        },
+        {
+          "file": "miniprogram/pages/anonymous-identity/index.ts",
+          "start_line": 1,
+          "end_line": 17
+        }
+      ]
+    },
+    {
+      "submission_page": 20,
+      "part": "前部",
+      "full_page": 20,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/anonymous-identity/index.ts",
+          "start_line": 18,
+          "end_line": 19
+        },
+        {
+          "file": "miniprogram/pages/my-content/index.ts",
+          "start_line": 1,
+          "end_line": 26
+        },
+        {
+          "file": "miniprogram/pages/privacy/index.ts",
+          "start_line": 1,
+          "end_line": 23
+        }
+      ]
+    },
+    {
+      "submission_page": 21,
+      "part": "前部",
+      "full_page": 21,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/privacy/index.ts",
+          "start_line": 24,
+          "end_line": 36
+        },
+        {
+          "file": "miniprogram/pages/account-stop/index.ts",
+          "start_line": 1,
+          "end_line": 24
+        },
+        {
+          "file": "miniprogram/pages/account-recover/index.ts",
+          "start_line": 1,
+          "end_line": 14
+        }
+      ]
+    },
+    {
+      "submission_page": 22,
+      "part": "前部",
+      "full_page": 22,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/pages/account-recover/index.ts",
+          "start_line": 15,
+          "end_line": 17
+        },
+        {
+          "file": "miniprogram/pages/delete-confirmation/index.ts",
+          "start_line": 1,
+          "end_line": 33
+        },
+        {
+          "file": "miniprogram/app.json",
+          "start_line": 1,
+          "end_line": 15
+        }
+      ]
+    },
+    {
+      "submission_page": 23,
+      "part": "前部",
+      "full_page": 23,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/app.json",
+          "start_line": 16,
+          "end_line": 64
+        },
+        {
+          "file": "miniprogram/app.wxss",
+          "start_line": 1,
+          "end_line": 2
+        }
+      ]
+    },
+    {
+      "submission_page": 24,
+      "part": "前部",
+      "full_page": 24,
+      "code_lines": 51,
+      "nonblank_source_rows": 53,
+      "ranges": [
+        {
+          "file": "miniprogram/app.wxss",
+          "start_line": 3,
+          "end_line": 59
+        }
+      ]
+    },
+    {
+      "submission_page": 25,
+      "part": "前部",
+      "full_page": 25,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/app.wxss",
+          "start_line": 60,
+          "end_line": 113
+        }
+      ]
+    },
+    {
+      "submission_page": 26,
+      "part": "前部",
+      "full_page": 26,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/app.wxss",
+          "start_line": 114,
+          "end_line": 165
+        }
+      ]
+    },
+    {
+      "submission_page": 27,
+      "part": "前部",
+      "full_page": 27,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/app.wxss",
+          "start_line": 166,
+          "end_line": 216
+        }
+      ]
+    },
+    {
+      "submission_page": 28,
+      "part": "前部",
+      "full_page": 28,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/app.wxss",
+          "start_line": 217,
+          "end_line": 272
+        }
+      ]
+    },
+    {
+      "submission_page": 29,
+      "part": "前部",
+      "full_page": 29,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/app.wxss",
+          "start_line": 273,
+          "end_line": 323
+        }
+      ]
+    },
+    {
+      "submission_page": 30,
+      "part": "前部",
+      "full_page": 30,
+      "code_lines": 51,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "miniprogram/app.wxss",
+          "start_line": 324,
+          "end_line": 374
+        }
+      ]
+    },
+    {
+      "submission_page": 31,
+      "part": "后部",
+      "full_page": 336,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/safety_service.py",
+          "start_line": 44,
+          "end_line": 97
+        }
+      ]
+    },
+    {
+      "submission_page": 32,
+      "part": "后部",
+      "full_page": 337,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/safety_service.py",
+          "start_line": 98,
+          "end_line": 149
+        }
+      ]
+    },
+    {
+      "submission_page": 33,
+      "part": "后部",
+      "full_page": 338,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/safety_service.py",
+          "start_line": 150,
+          "end_line": 201
+        }
+      ]
+    },
+    {
+      "submission_page": 34,
+      "part": "后部",
+      "full_page": 339,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/safety_service.py",
+          "start_line": 202,
+          "end_line": 253
+        }
+      ]
+    },
+    {
+      "submission_page": 35,
+      "part": "后部",
+      "full_page": 340,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/safety_service.py",
+          "start_line": 254,
+          "end_line": 305
+        }
+      ]
+    },
+    {
+      "submission_page": 36,
+      "part": "后部",
+      "full_page": 341,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/safety_service.py",
+          "start_line": 306,
+          "end_line": 356
+        }
+      ]
+    },
+    {
+      "submission_page": 37,
+      "part": "后部",
+      "full_page": 342,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/safety_service.py",
+          "start_line": 357,
+          "end_line": 408
+        }
+      ]
+    },
+    {
+      "submission_page": 38,
+      "part": "后部",
+      "full_page": 343,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/safety_service.py",
+          "start_line": 409,
+          "end_line": 460
+        }
+      ]
+    },
+    {
+      "submission_page": 39,
+      "part": "后部",
+      "full_page": 344,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/safety_service.py",
+          "start_line": 461,
+          "end_line": 516
+        }
+      ]
+    },
+    {
+      "submission_page": 40,
+      "part": "后部",
+      "full_page": 345,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 1,
+          "end_line": 55
+        }
+      ]
+    },
+    {
+      "submission_page": 41,
+      "part": "后部",
+      "full_page": 346,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 56,
+          "end_line": 107
+        }
+      ]
+    },
+    {
+      "submission_page": 42,
+      "part": "后部",
+      "full_page": 347,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 108,
+          "end_line": 158
+        }
+      ]
+    },
+    {
+      "submission_page": 43,
+      "part": "后部",
+      "full_page": 348,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 159,
+          "end_line": 208
+        }
+      ]
+    },
+    {
+      "submission_page": 44,
+      "part": "后部",
+      "full_page": 349,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 209,
+          "end_line": 260
+        }
+      ]
+    },
+    {
+      "submission_page": 45,
+      "part": "后部",
+      "full_page": 350,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 261,
+          "end_line": 311
+        }
+      ]
+    },
+    {
+      "submission_page": 46,
+      "part": "后部",
+      "full_page": 351,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 312,
+          "end_line": 361
+        }
+      ]
+    },
+    {
+      "submission_page": 47,
+      "part": "后部",
+      "full_page": 352,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 362,
+          "end_line": 412
+        }
+      ]
+    },
+    {
+      "submission_page": 48,
+      "part": "后部",
+      "full_page": 353,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 413,
+          "end_line": 463
+        }
+      ]
+    },
+    {
+      "submission_page": 49,
+      "part": "后部",
+      "full_page": 354,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 464,
+          "end_line": 515
+        }
+      ]
+    },
+    {
+      "submission_page": 50,
+      "part": "后部",
+      "full_page": 355,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 516,
+          "end_line": 574
+        }
+      ]
+    },
+    {
+      "submission_page": 51,
+      "part": "后部",
+      "full_page": 356,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 575,
+          "end_line": 634
+        }
+      ]
+    },
+    {
+      "submission_page": 52,
+      "part": "后部",
+      "full_page": 357,
+      "code_lines": 50,
+      "nonblank_source_rows": 55,
+      "ranges": [
+        {
+          "file": "backend/app/services/treehole_service.py",
+          "start_line": 635,
+          "end_line": 643
+        },
+        {
+          "file": "backend/app/services/admin_workbench_service.py",
+          "start_line": 1,
+          "end_line": 54
+        }
+      ]
+    },
+    {
+      "submission_page": 53,
+      "part": "后部",
+      "full_page": 358,
+      "code_lines": 50,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "backend/app/services/admin_workbench_service.py",
+          "start_line": 55,
+          "end_line": 109
+        }
+      ]
+    },
+    {
+      "submission_page": 54,
+      "part": "后部",
+      "full_page": 359,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/admin_workbench_service.py",
+          "start_line": 110,
+          "end_line": 161
+        }
+      ]
+    },
+    {
+      "submission_page": 55,
+      "part": "后部",
+      "full_page": 360,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/admin_workbench_service.py",
+          "start_line": 162,
+          "end_line": 212
+        }
+      ]
+    },
+    {
+      "submission_page": 56,
+      "part": "后部",
+      "full_page": 361,
+      "code_lines": 50,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "backend/app/services/admin_workbench_service.py",
+          "start_line": 213,
+          "end_line": 266
+        }
+      ]
+    },
+    {
+      "submission_page": 57,
+      "part": "后部",
+      "full_page": 362,
+      "code_lines": 50,
+      "nonblank_source_rows": 51,
+      "ranges": [
+        {
+          "file": "backend/app/services/admin_workbench_service.py",
+          "start_line": 267,
+          "end_line": 320
+        }
+      ]
+    },
+    {
+      "submission_page": 58,
+      "part": "后部",
+      "full_page": 363,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/admin_workbench_service.py",
+          "start_line": 321,
+          "end_line": 370
+        }
+      ]
+    },
+    {
+      "submission_page": 59,
+      "part": "后部",
+      "full_page": 364,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/admin_workbench_service.py",
+          "start_line": 371,
+          "end_line": 424
+        }
+      ]
+    },
+    {
+      "submission_page": 60,
+      "part": "后部",
+      "full_page": 365,
+      "code_lines": 50,
+      "nonblank_source_rows": 50,
+      "ranges": [
+        {
+          "file": "backend/app/services/admin_workbench_service.py",
+          "start_line": 425,
+          "end_line": 479
+        }
+      ]
+    }
+  ],
+  "files": [
+    {
+      "path": "miniprogram/app.ts",
+      "original_sha256": "52a7ad5a67dff70a8556339e7a25a5cdafc0fdc98b1492b03313dff806a3bebf",
+      "formatted_sha256": "aed2d663068b744913ef1e980d42fd097c109fc59b37f63b563348c1499b4e4f",
+      "original_lines": 21,
+      "original_nonblank": 19,
+      "formatted_lines": 21,
+      "formatted_nonblank": 19,
+      "counted_code_lines": 17
+    },
+    {
+      "path": "admin/src/main.ts",
+      "original_sha256": "b62ec603a513c1d9d9db16766592cacf457a64bc1261f1239b3452c061338cc0",
+      "formatted_sha256": "10bb68d33d9cfc144757f8fb8ad1bef50c5336c54256df076f6ff76c8fd08910",
+      "original_lines": 8,
+      "original_nonblank": 7,
+      "formatted_lines": 8,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "admin/src/App.vue",
+      "original_sha256": "fa63ad68edd4ac4b07e4221f5ac611f28a4874c5761ee3b0c8e0ca33b56459da",
+      "formatted_sha256": "4f747fdaac5cb135eceb8a88d57369d6d568c5594cd209a3b9f4a5679d3feec2",
+      "original_lines": 17,
+      "original_nonblank": 15,
+      "formatted_lines": 17,
+      "formatted_nonblank": 15,
+      "counted_code_lines": 15
+    },
+    {
+      "path": "backend/app/main.py",
+      "original_sha256": "a72cebd97a411668893bd94f1f53dec9962a36f01e166113c314ff57c28bc8ef",
+      "formatted_sha256": "a72cebd97a411668893bd94f1f53dec9962a36f01e166113c314ff57c28bc8ef",
+      "original_lines": 216,
+      "original_nonblank": 203,
+      "formatted_lines": 216,
+      "formatted_nonblank": 203,
+      "counted_code_lines": 202
+    },
+    {
+      "path": "miniprogram/pages/onboarding/index.ts",
+      "original_sha256": "a34bb165ddcd5077783db5e73cb561dc77d7a897ed460821005f9b174d4d02d7",
+      "formatted_sha256": "9d8932351eff9107ad8d70d30b57533efd4b4e680b4b3a339bfcbef10df55c5e",
+      "original_lines": 14,
+      "original_nonblank": 13,
+      "formatted_lines": 31,
+      "formatted_nonblank": 30,
+      "counted_code_lines": 30
+    },
+    {
+      "path": "miniprogram/pages/identity-verification/index.ts",
+      "original_sha256": "14fea321437504785fa667436812c1a0dfd163916643f140f56ae16c9ed551cc",
+      "formatted_sha256": "c5e200864798174a285178b142f3834be19d987de77a608dac1a2d4d5e8a879d",
+      "original_lines": 16,
+      "original_nonblank": 15,
+      "formatted_lines": 34,
+      "formatted_nonblank": 33,
+      "counted_code_lines": 33
+    },
+    {
+      "path": "miniprogram/pages/today/index.ts",
+      "original_sha256": "5062f0c122a6d7bb005b400ca78d5779d3ef5c2b8141930f3ee7a7f0c77c76e7",
+      "formatted_sha256": "1ca2592246d85d0b2c2776ea1fd6f00a04740c760cc043054c061c99e060afd6",
+      "original_lines": 49,
+      "original_nonblank": 48,
+      "formatted_lines": 136,
+      "formatted_nonblank": 135,
+      "counted_code_lines": 135
+    },
+    {
+      "path": "miniprogram/pages/assessment-center/index.ts",
+      "original_sha256": "1162117fd6bb809661e8c12fbe1fb7b7b3c23e8f9d2bbafa6409778959cacac3",
+      "formatted_sha256": "331c9a8bff1ae7979913743554d73af75e2911000fc525edf1428baf557fa256",
+      "original_lines": 11,
+      "original_nonblank": 10,
+      "formatted_lines": 50,
+      "formatted_nonblank": 49,
+      "counted_code_lines": 49
+    },
+    {
+      "path": "miniprogram/pages/assessment-answer/index.ts",
+      "original_sha256": "3a700ebb920e6659b380677d1e9aa9f43e355c0827d623d43f709cb3ad137caf",
+      "formatted_sha256": "a41b7f54f14a62dc4afbc81b4e19a16c9eee318755aed4227fe6da7899c59ea3",
+      "original_lines": 15,
+      "original_nonblank": 14,
+      "formatted_lines": 132,
+      "formatted_nonblank": 131,
+      "counted_code_lines": 131
+    },
+    {
+      "path": "miniprogram/pages/assessment-result/index.ts",
+      "original_sha256": "28db7163f19472fbcb145b67a1258dfeae25c654f36addd9d8d043c2e8e47c2f",
+      "formatted_sha256": "84f2d0f4d9fdb52fd3294dc787bf037abe66bc8f566cdd7c58074fdce398334f",
+      "original_lines": 9,
+      "original_nonblank": 8,
+      "formatted_lines": 25,
+      "formatted_nonblank": 24,
+      "counted_code_lines": 24
+    },
+    {
+      "path": "miniprogram/pages/safety-confirmation/index.ts",
+      "original_sha256": "acbeeafb1190e3b3d601c1010f9a9e71aebbf70eaf7a877cb201a7dfd57d4cfd",
+      "formatted_sha256": "5a022e9acb1a963a460f94cc711cf317854e52edef8b4d568eec025cfbe5829f",
+      "original_lines": 8,
+      "original_nonblank": 7,
+      "formatted_lines": 37,
+      "formatted_nonblank": 36,
+      "counted_code_lines": 36
+    },
+    {
+      "path": "miniprogram/pages/support-resources/index.ts",
+      "original_sha256": "5760ac534a82b83fd3630287d113ac782c27c293b047b25c30210b77c5d13637",
+      "formatted_sha256": "1e334a6fb23e972220f3a45a5645b5c3634d972bf6ae09fd145efedf6e64aacc",
+      "original_lines": 11,
+      "original_nonblank": 10,
+      "formatted_lines": 52,
+      "formatted_nonblank": 51,
+      "counted_code_lines": 51
+    },
+    {
+      "path": "miniprogram/pages/history/index.ts",
+      "original_sha256": "1075a26247ca72f23bed25c69a655c9f345651caa2852a2f9f5d3ae1faed84b2",
+      "formatted_sha256": "8d7d63b7230a1e4b66e0885cc1e66271edd44771da7af07ef964c135fb453df4",
+      "original_lines": 10,
+      "original_nonblank": 9,
+      "formatted_lines": 32,
+      "formatted_nonblank": 31,
+      "counted_code_lines": 31
+    },
+    {
+      "path": "miniprogram/pages/treehole/index.ts",
+      "original_sha256": "88902bc11d1505adb3789895345e340edcc770ad540bf36e335b0390d7790fa0",
+      "formatted_sha256": "e03c0368857108e2092391be414d4e115997caf20168d9e9e6424fb7c2efd140",
+      "original_lines": 12,
+      "original_nonblank": 11,
+      "formatted_lines": 47,
+      "formatted_nonblank": 46,
+      "counted_code_lines": 46
+    },
+    {
+      "path": "miniprogram/pages/treehole-publish/index.ts",
+      "original_sha256": "465339aaf45b241038c182e5dac52295895d3a28c9bb2edcf9d482201b2a20c2",
+      "formatted_sha256": "7b835a665cbcdcdea654e621008dca2347caee8f87cb351c6414a475ba89d168",
+      "original_lines": 8,
+      "original_nonblank": 7,
+      "formatted_lines": 39,
+      "formatted_nonblank": 38,
+      "counted_code_lines": 38
+    },
+    {
+      "path": "miniprogram/pages/treehole-status/index.ts",
+      "original_sha256": "c321cb9e2deec4cec6a16959813cde42b58bea084d0b70163f26f7ca36b0a46d",
+      "formatted_sha256": "d62ff8a10ac361e9179b2a2fdf466e4eefbf485f523b42da13b184d1567dad6c",
+      "original_lines": 5,
+      "original_nonblank": 5,
+      "formatted_lines": 24,
+      "formatted_nonblank": 24,
+      "counted_code_lines": 24
+    },
+    {
+      "path": "miniprogram/pages/treehole-detail/index.ts",
+      "original_sha256": "3847077f565cce8970b2a9509c25875ef467aeac25d0e23785de4cb83a768367",
+      "formatted_sha256": "38236ee06c0595de62c33c7e963f280d6bb5df2bf3eca8b758e6b1ca24fa2262",
+      "original_lines": 12,
+      "original_nonblank": 11,
+      "formatted_lines": 59,
+      "formatted_nonblank": 58,
+      "counted_code_lines": 58
+    },
+    {
+      "path": "miniprogram/pages/my/index.ts",
+      "original_sha256": "9df5202f2771b660b1efe60262cf55a472ab2fe57cca108ddce4871d5120610c",
+      "formatted_sha256": "a1788d2f704f299786e6c537e01c24476f84b1ab34f7fade6e9aadd7ca1f5ef4",
+      "original_lines": 9,
+      "original_nonblank": 8,
+      "formatted_lines": 26,
+      "formatted_nonblank": 25,
+      "counted_code_lines": 25
+    },
+    {
+      "path": "miniprogram/pages/anonymous-identity/index.ts",
+      "original_sha256": "e06a978daef8c184c37b064f9385eb769d846f854ee75b0e47daac3448dacc94",
+      "formatted_sha256": "b256cc14206aee3bbacfe8f11be8bb62fddd90a52fcc2525b44c21f26057da87",
+      "original_lines": 2,
+      "original_nonblank": 2,
+      "formatted_lines": 19,
+      "formatted_nonblank": 19,
+      "counted_code_lines": 19
+    },
+    {
+      "path": "miniprogram/pages/my-content/index.ts",
+      "original_sha256": "1351621aa5e4aec8497a19651f4783c1904ec364627dbdc4a1e781e5922ebf98",
+      "formatted_sha256": "3926a76f1bbf15f1647707514b8a77e14b4b6359fe08d9a3d73cbece4474a671",
+      "original_lines": 3,
+      "original_nonblank": 3,
+      "formatted_lines": 26,
+      "formatted_nonblank": 26,
+      "counted_code_lines": 26
+    },
+    {
+      "path": "miniprogram/pages/privacy/index.ts",
+      "original_sha256": "45394cceaa5a35adb715a9d0c7bc8d7c22d50c5d1d7fc7360ede942bc5408b36",
+      "formatted_sha256": "79eefe911f7bc1fabd00db3e23214d0abe480ff61d18c7136728999eb455ae22",
+      "original_lines": 3,
+      "original_nonblank": 3,
+      "formatted_lines": 36,
+      "formatted_nonblank": 36,
+      "counted_code_lines": 36
+    },
+    {
+      "path": "miniprogram/pages/account-stop/index.ts",
+      "original_sha256": "7946266e1b4a673a62362641122a1b50c152a9f137189f8cb96881b71349a900",
+      "formatted_sha256": "c76ba63817754bbab00674ae5eb20927374b33271986473f1727d235c79fbb00",
+      "original_lines": 2,
+      "original_nonblank": 2,
+      "formatted_lines": 24,
+      "formatted_nonblank": 24,
+      "counted_code_lines": 24
+    },
+    {
+      "path": "miniprogram/pages/account-recover/index.ts",
+      "original_sha256": "dd94ccb02966612edd118265334f400d58619662f17eaf3c2d36cb37b8b515ca",
+      "formatted_sha256": "28beb35babc1e98efd4b88aa749659a5b65bc6da6c9c356b3e92757efd4c93ec",
+      "original_lines": 2,
+      "original_nonblank": 2,
+      "formatted_lines": 17,
+      "formatted_nonblank": 17,
+      "counted_code_lines": 17
+    },
+    {
+      "path": "miniprogram/pages/delete-confirmation/index.ts",
+      "original_sha256": "9a8601fe3bd47f420ed73ffe5d59dbe776386bc050574c33c53bdf57aae0424a",
+      "formatted_sha256": "442492b572447ea493c0cf132abc08d95487eff57d1d165df8af70bd74be146d",
+      "original_lines": 3,
+      "original_nonblank": 3,
+      "formatted_lines": 33,
+      "formatted_nonblank": 33,
+      "counted_code_lines": 33
+    },
+    {
+      "path": "miniprogram/app.json",
+      "original_sha256": "00d56b43d33efbd2085dfc4139721f28b3dc148b39870ff09c3d777f80c37ad6",
+      "formatted_sha256": "a14ca8ba6f3426bea5cda93b9fa9537b8aee4623b2bb4a13d33dc34053c69aaa",
+      "original_lines": 44,
+      "original_nonblank": 44,
+      "formatted_lines": 64,
+      "formatted_nonblank": 64,
+      "counted_code_lines": 64
+    },
+    {
+      "path": "miniprogram/app.wxss",
+      "original_sha256": "42155dbdffd5cfe03afc2b3b1b0d64e79ba0aa3de447a975e6e37c5d4c84c379",
+      "formatted_sha256": "c237c7fd94db83a64ef3038c77644f6f060ae2490896daf9aa1cd97b5b972cc8",
+      "original_lines": 132,
+      "original_nonblank": 119,
+      "formatted_lines": 395,
+      "formatted_nonblank": 382,
+      "counted_code_lines": 380
+    },
+    {
+      "path": "miniprogram/components/assessment-progress/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/assessment-progress/index.ts",
+      "original_sha256": "b742985bbfd4a050293d31246d37a3482189078bee4560511089dea43008e03f",
+      "formatted_sha256": "0365af27bb56a34f7b2e3ddb1e2364b24740323f116a81fc0ae79c76bfa3b6a8",
+      "original_lines": 14,
+      "original_nonblank": 14,
+      "formatted_lines": 18,
+      "formatted_nonblank": 18,
+      "counted_code_lines": 18
+    },
+    {
+      "path": "miniprogram/components/assessment-progress/index.wxml",
+      "original_sha256": "dde496cd0ba0f733b4b2ecd7d302ce2a63767bbe7b4bfa115dc8cc70f0753e9c",
+      "formatted_sha256": "b8d5cff79331d69de1843f2cd7bb689d8ca52ba10fad79c6cd4d3d57e910ea67",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 9,
+      "formatted_nonblank": 9,
+      "counted_code_lines": 9
+    },
+    {
+      "path": "miniprogram/components/assessment-progress/index.wxss",
+      "original_sha256": "4d3504c66de2986d33e51a9f0f293727d04eb06ee83e8d0ec90d22a46f950487",
+      "formatted_sha256": "e71b1980171d41e140b357f3731698678fd621996c58d89eafdc8782f4c7169f",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 14,
+      "formatted_nonblank": 14,
+      "counted_code_lines": 14
+    },
+    {
+      "path": "miniprogram/components/bottom-nav/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/bottom-nav/index.ts",
+      "original_sha256": "d6417d78c7fc30edabdc2bd88ac747110f42c3ece4455ce59d9c41a7b184b87a",
+      "formatted_sha256": "d458db7284b24a6a0478a14e3fe4b08250b256964477de20e738a5aaef5761dd",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 25,
+      "formatted_nonblank": 25,
+      "counted_code_lines": 25
+    },
+    {
+      "path": "miniprogram/components/bottom-nav/index.wxml",
+      "original_sha256": "f50c967105748da7827b23d32e3dd28892b68de01681b521033220eff54becf3",
+      "formatted_sha256": "c5c89f90ec3f8a8670b6298048866a999d371b21b40e0a017e30849b6c3b178b",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 10,
+      "formatted_nonblank": 10,
+      "counted_code_lines": 10
+    },
+    {
+      "path": "miniprogram/components/bottom-nav/index.wxss",
+      "original_sha256": "2b8dedbdec191815a3a9996c430546050d86ec1c55eba5660bb588840f810328",
+      "formatted_sha256": "cc9205f89af8508930b178288e28509882f156b7a48889da2afe70ef48c45cc7",
+      "original_lines": 3,
+      "original_nonblank": 3,
+      "formatted_lines": 25,
+      "formatted_nonblank": 25,
+      "counted_code_lines": 25
+    },
+    {
+      "path": "miniprogram/components/confirm-sheet/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/confirm-sheet/index.ts",
+      "original_sha256": "cefe5ad159b25e62476db36ee0f95c6424956afb068ed71430d4d6c2df7bcb77",
+      "formatted_sha256": "488e4fe0e89d8027a6602d2f1bd782b10e44770c074dfe81073611c5de4077b1",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 16,
+      "formatted_nonblank": 16,
+      "counted_code_lines": 16
+    },
+    {
+      "path": "miniprogram/components/confirm-sheet/index.wxml",
+      "original_sha256": "bf4e71826f10a5872b25489f3135b816aed0e24463e6672ca4d0c3003f633705",
+      "formatted_sha256": "46329bad052e7d61ee3a27c036e01823fcf98f3397ed2b866ef1c259b87a7904",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 13,
+      "formatted_nonblank": 13,
+      "counted_code_lines": 13
+    },
+    {
+      "path": "miniprogram/components/confirm-sheet/index.wxss",
+      "original_sha256": "383a54e79e0e9d6541fe8add769dc504147458f2583b147a4025453426c8dfb2",
+      "formatted_sha256": "db846e91c904e1718f435bb0f76a42c94e01d89f66798b217437704850d46c2c",
+      "original_lines": 10,
+      "original_nonblank": 10,
+      "formatted_lines": 56,
+      "formatted_nonblank": 56,
+      "counted_code_lines": 56
+    },
+    {
+      "path": "miniprogram/components/content-status/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/content-status/index.ts",
+      "original_sha256": "2d528c07d94379c583fabfacc518a7dc03bb555c9953751852e602e0d84317ea",
+      "formatted_sha256": "f7fd56e781c0378ab016da1ce10fd97c6537ef0577a63d59d5b8c788f99c1136",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/content-status/index.wxml",
+      "original_sha256": "40f236001e2ad5c479589fc5d961446c9bc64d35df5472bf12fd89c2b06ae845",
+      "formatted_sha256": "5bcb6cac3030ee69dc7609e13c616d58be2fea7323c60cab3e686f457c284481",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 4,
+      "formatted_nonblank": 4,
+      "counted_code_lines": 4
+    },
+    {
+      "path": "miniprogram/components/content-status/index.wxss",
+      "original_sha256": "1a89a2028ebd05173a3c821f7f38639fa92e896f558d4b4729592ed065935ccd",
+      "formatted_sha256": "0f232293fde5e5f3fa8fde9ca4132e1f4db97d076ab6d05ced1a8ca5dd4ae273",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 17,
+      "formatted_nonblank": 17,
+      "counted_code_lines": 17
+    },
+    {
+      "path": "miniprogram/components/daily-quote/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/daily-quote/index.ts",
+      "original_sha256": "0942e83ddc7b8ba330ef5f3a09288c19e281e1a31bdfe05b4714c9eebc740d70",
+      "formatted_sha256": "11c95ee2948988436b100aa5f9ca9eea8c115b88c4c934af6a2ffdc79f721c05",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/components/daily-quote/index.wxml",
+      "original_sha256": "1abc24b0046ab3a619d2cb76cb9717273b62b9713cea983e64e6647d880246d0",
+      "formatted_sha256": "c7145f5557977e8fdc4f72dad3985ee6c834c567bf354ddad70ed13b64eaefcb",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 5,
+      "formatted_nonblank": 5,
+      "counted_code_lines": 5
+    },
+    {
+      "path": "miniprogram/components/daily-quote/index.wxss",
+      "original_sha256": "08373679c491c14bb289c4ecf0add2ec83c6c4d389a62b9e17d5c53ba9b2d0a8",
+      "formatted_sha256": "d5605e0a67dc8d142748cc629ae96c96f798b46416f87955498fb4abcb2993c5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 14,
+      "formatted_nonblank": 14,
+      "counted_code_lines": 14
+    },
+    {
+      "path": "miniprogram/components/empty-state/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/empty-state/index.ts",
+      "original_sha256": "c6a70df2f275a78772f8fb95cee638a08a05f42cb81ba80cd49e757a6086d6a1",
+      "formatted_sha256": "67820dd213e3a6705110f590efb491d702e052928fbc26c1067e73241f4293e5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 11,
+      "formatted_nonblank": 11,
+      "counted_code_lines": 11
+    },
+    {
+      "path": "miniprogram/components/empty-state/index.wxml",
+      "original_sha256": "a9efe025ee5d3717e869a58ec85287475c81b4d7c37e01613687663f24997a81",
+      "formatted_sha256": "972c8dabd86833ce9d95041792bfb02c7074f3018570ce7c914060a0fcc57d71",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/components/empty-state/index.wxss",
+      "original_sha256": "5cdb7d587c7585f2572d0b82165ec25a0bc62e1c465e6a3383a2d65ba6267dd9",
+      "formatted_sha256": "3aa6c34c2328791a069cfea4398e20eaa98214ca97ff186abec46518f493b640",
+      "original_lines": 4,
+      "original_nonblank": 4,
+      "formatted_lines": 22,
+      "formatted_nonblank": 22,
+      "counted_code_lines": 22
+    },
+    {
+      "path": "miniprogram/components/history-item/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/history-item/index.ts",
+      "original_sha256": "18d78295f585fedf8fcb2141a96d726c437ed92fd44e63fb4d137ec8efe2b3dd",
+      "formatted_sha256": "5f2224461fd677d4ab4cd22a5d5638de289d74eae7d27cd9064ce818d3945a27",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 13,
+      "formatted_nonblank": 13,
+      "counted_code_lines": 13
+    },
+    {
+      "path": "miniprogram/components/history-item/index.wxml",
+      "original_sha256": "05727242a4cbd0ba7f5a111d489a691ed137d78c4861235ab26e6847cc78d4a8",
+      "formatted_sha256": "39aa246629aa7ff3441c71127e099cea1cc2209a67b3bc26f6cfa38ed3225fcd",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/components/history-item/index.wxss",
+      "original_sha256": "6c4c485fb9308e0cd1fb8579fb34fc46b72ab86c8c855ea88aefaa2f89ff4cf1",
+      "formatted_sha256": "a01d1b7f3863c6f6ded598eee06014b7e15a8a46e36e93c296cbdf9747797aa3",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/components/mood-picker/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/mood-picker/index.ts",
+      "original_sha256": "09f304320f364578857b6b6e10aaeee420a4f7757542f4007e227317a8182b71",
+      "formatted_sha256": "cfb7da2a5f59d9ccd404ca4e9aa395778709260b7cd5876dec51fa4f19a44602",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 10,
+      "formatted_nonblank": 10,
+      "counted_code_lines": 10
+    },
+    {
+      "path": "miniprogram/components/mood-picker/index.wxml",
+      "original_sha256": "8f888309074b5f779cb3c0fb2a93d05f8d442e4be45cec1ee6adc9b7956e089a",
+      "formatted_sha256": "05e2487daa63b56bbe2143d75821ac08267323348f2b2039dd09e9223ba0e316",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 10,
+      "formatted_nonblank": 10,
+      "counted_code_lines": 10
+    },
+    {
+      "path": "miniprogram/components/mood-picker/index.wxss",
+      "original_sha256": "76cc504fd4f52f66b074d32f17d07ef666ab201b6dc7e52f2bc4d9f6bb7df820",
+      "formatted_sha256": "669cdd525b6e618fb6b6b6c60329c7f0253b9c9869353e51648a75e6fa8df24e",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 8,
+      "formatted_nonblank": 8,
+      "counted_code_lines": 8
+    },
+    {
+      "path": "miniprogram/components/page-container/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/page-container/index.ts",
+      "original_sha256": "afbe95f3d213aa44846285612bd99c4258a4e7f9921c31c05810be04ff6dde78",
+      "formatted_sha256": "45b3fb5798f944162b604e4ad36fb10eb90aa462f353fe85693cbee0b7b01006",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/page-container/index.wxml",
+      "original_sha256": "af1b419df63827cda70058701d8aa0a202cdfd8c8e7fccc26aebc8c922234df2",
+      "formatted_sha256": "1d302c1829c352e10d80f18f5a0d7b7b0b6e170004cfd0eac01f4a9647f04153",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 3,
+      "formatted_nonblank": 3,
+      "counted_code_lines": 3
+    },
+    {
+      "path": "miniprogram/components/page-container/index.wxss",
+      "original_sha256": "b4522608fcd6ee5a3a2a1dccc7646806fd4fa642c54a21e0289708aa3b8d563f",
+      "formatted_sha256": "09fdf2eb4e45dce142e1dd6cf412fc0622620912fea5d9e9787d6b23a96cbd97",
+      "original_lines": 4,
+      "original_nonblank": 4,
+      "formatted_lines": 21,
+      "formatted_nonblank": 21,
+      "counted_code_lines": 21
+    },
+    {
+      "path": "miniprogram/components/primary-button/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/primary-button/index.ts",
+      "original_sha256": "8815e4a558ca5bf0f7ffca48ef2583ca5936718fdcd24d55c612ca3c1b0587ca",
+      "formatted_sha256": "fe86606d9480b7c8eb8983b236ee52cadde1d0ecc152b743912d80b184771e4e",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 13,
+      "formatted_nonblank": 13,
+      "counted_code_lines": 13
+    },
+    {
+      "path": "miniprogram/components/primary-button/index.wxml",
+      "original_sha256": "30a1696655fae2870c8134067f3d3d943acbca50434c5cf30ae1ae1ca3e8cb2a",
+      "formatted_sha256": "6b9785581821e298e7448001a0200b8bd4494d02d817b39cdff7b8a400a7024a",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/components/primary-button/index.wxss",
+      "original_sha256": "2a828b57018c4340c0a57313512fe05df61ff1e51e881e0dbf60504e8b0a9c61",
+      "formatted_sha256": "5cf654843c67ad00c57b4811729c2ab603f708a41ff4a3d78e51526ed4f518e8",
+      "original_lines": 4,
+      "original_nonblank": 4,
+      "formatted_lines": 21,
+      "formatted_nonblank": 21,
+      "counted_code_lines": 21
+    },
+    {
+      "path": "miniprogram/components/question-option/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/question-option/index.ts",
+      "original_sha256": "9a112698cd2ee3ee7cff7e8fd07036ffada5dcfdef859e2eaa9335019d84da89",
+      "formatted_sha256": "1182beffd3085711f1b3c49cb8bee378ae4a5c9bba133b9ffb3f520060069c1c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 8,
+      "formatted_nonblank": 8,
+      "counted_code_lines": 8
+    },
+    {
+      "path": "miniprogram/components/question-option/index.wxml",
+      "original_sha256": "5e8ff49b1e8de564e418e13346716260336d1c08a90a73339a82f3307f71e650",
+      "formatted_sha256": "c89951ff2cad38303d97e4ec1faf6d793642191ec05a7b742cc0c8bd45225ae4",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 3,
+      "formatted_nonblank": 3,
+      "counted_code_lines": 3
+    },
+    {
+      "path": "miniprogram/components/question-option/index.wxss",
+      "original_sha256": "f9a84299b78f99a14b28bd3d1015fb2bea521c81e91fdeeb052cfa74554f711d",
+      "formatted_sha256": "61025467b496797440afb8dbc829860070757122a2916bd98625185ac705dbb0",
+      "original_lines": 2,
+      "original_nonblank": 2,
+      "formatted_lines": 15,
+      "formatted_nonblank": 15,
+      "counted_code_lines": 15
+    },
+    {
+      "path": "miniprogram/components/result-summary/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/result-summary/index.ts",
+      "original_sha256": "b52b5a37072b0655f5718b6fc0b212eee3ded034767be14076d201c55e7585a8",
+      "formatted_sha256": "c78b5535897683d38ff63210f01345978cc93a2479c9d285529c993bab4373b9",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 8,
+      "formatted_nonblank": 8,
+      "counted_code_lines": 8
+    },
+    {
+      "path": "miniprogram/components/result-summary/index.wxml",
+      "original_sha256": "e666f0b1f9d0380394aa40e63cc58a9d60114ba3b7fcbe89f288e524374cc24e",
+      "formatted_sha256": "5c279dde44fbfee080b02359c5e09e98519bf6ebf531d0f8b3e9d07a2a70fff5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 5,
+      "formatted_nonblank": 5,
+      "counted_code_lines": 5
+    },
+    {
+      "path": "miniprogram/components/result-summary/index.wxss",
+      "original_sha256": "a0deac908e588594242844811c0a3a799429164d7d16058ff9a8466c4c8eed4f",
+      "formatted_sha256": "3976848d6b00d23e1c07245eb00e53e93f5a288b2bd5a9573c73ffa2b64b9ec3",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 8,
+      "formatted_nonblank": 8,
+      "counted_code_lines": 8
+    },
+    {
+      "path": "miniprogram/components/state-message/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/state-message/index.ts",
+      "original_sha256": "87289b215ebe3000333845f53f53726ab8d03bab3a81b7ef4ba3fd5ba84feedc",
+      "formatted_sha256": "23c3c6f7cbd0cbe4b7bb0155df1787bc5a41cc252f8cfaad0a738c3045e576a2",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 12,
+      "formatted_nonblank": 12,
+      "counted_code_lines": 12
+    },
+    {
+      "path": "miniprogram/components/state-message/index.wxml",
+      "original_sha256": "550d1db25d92389aed4331be9147fcfb608e9c5cbece25150b432062de81f40b",
+      "formatted_sha256": "6759e284c170da34076093a185610cd30d1354a78945476eba78ed489033cec1",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/components/state-message/index.wxss",
+      "original_sha256": "d1fb024daa2d15d1d5a855fa8c1236557f9272661ec09422a61e394edf9d9041",
+      "formatted_sha256": "8f8f4384e7eaf6c710a77a3ee8325dcb204c001fdaf34c16816660842ea46121",
+      "original_lines": 5,
+      "original_nonblank": 5,
+      "formatted_lines": 29,
+      "formatted_nonblank": 29,
+      "counted_code_lines": 29
+    },
+    {
+      "path": "miniprogram/components/support-resource-list/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/support-resource-list/index.ts",
+      "original_sha256": "d2b84de33ede959252fc44d2cb958a991672ae97cc8f11aee6f58ba61d140068",
+      "formatted_sha256": "841685272916694169631c7eaeb3351871b322a27c04e22c7d503bb75bab12f1",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 10,
+      "formatted_nonblank": 10,
+      "counted_code_lines": 10
+    },
+    {
+      "path": "miniprogram/components/support-resource-list/index.wxml",
+      "original_sha256": "1cc2369bda0c763ce298b3d171a4c72cafc9fc0c315cb904fc3c103315b70045",
+      "formatted_sha256": "a0e18799689968d36a760efcbc1bb1d3e6923009558509aea4dc53235c8262df",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 13,
+      "formatted_nonblank": 13,
+      "counted_code_lines": 13
+    },
+    {
+      "path": "miniprogram/components/support-resource-list/index.wxss",
+      "original_sha256": "b7cce3f0f22ebd011901be466a1b7da1af26b86a5b0cb96f9efbef30a10d6a31",
+      "formatted_sha256": "2e8a05581abea62c48a797a86271c7129f1f136b1eb637cb827c6177d5aeebad",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 15,
+      "formatted_nonblank": 15,
+      "counted_code_lines": 15
+    },
+    {
+      "path": "miniprogram/components/today-entry/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/today-entry/index.ts",
+      "original_sha256": "574e598a9369a178fbea1ac407a8fb1548f7309a821f086c287e71df9656c1c7",
+      "formatted_sha256": "2229888b497a482d79eed15fe96f1f76f6864b6a8bd85825a829bdf0354e5059",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 8,
+      "formatted_nonblank": 8,
+      "counted_code_lines": 8
+    },
+    {
+      "path": "miniprogram/components/today-entry/index.wxml",
+      "original_sha256": "a855b15fcb4e374705e3374b8d74818e510b4cce1f985400594b7d000a619d69",
+      "formatted_sha256": "13a6ebc46116c23ec002c4342b52dcdc57291841d54e9758d96d52a7c0f72692",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 4,
+      "formatted_nonblank": 4,
+      "counted_code_lines": 4
+    },
+    {
+      "path": "miniprogram/components/today-entry/index.wxss",
+      "original_sha256": "dd37889efda720482590c0dfb5127cb465ec09a32a698e0d7f773381a69d57f1",
+      "formatted_sha256": "cb8a433832c5360240696c0613ea1ce8e222e9c6b8078788a5e1b55750672bee",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 12,
+      "formatted_nonblank": 12,
+      "counted_code_lines": 12
+    },
+    {
+      "path": "miniprogram/components/top-bar/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/top-bar/index.ts",
+      "original_sha256": "49274a1923b03cdebe646a179da693afc1638b441e786770f5826c6cda30cac8",
+      "formatted_sha256": "2df65bb9d7fa5741c7e3ef8c5dcc2e1d661e99c52af37f41992815bfaf40e793",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 11,
+      "formatted_nonblank": 11,
+      "counted_code_lines": 11
+    },
+    {
+      "path": "miniprogram/components/top-bar/index.wxml",
+      "original_sha256": "f60db645999965a5c5ce804588947a92cf76dc318c839945164afa68e0ce3ebb",
+      "formatted_sha256": "568b35f1cdc46cd228b28870b533d874cafe0c3c7185c2c2925df276b187e377",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 5,
+      "formatted_nonblank": 5,
+      "counted_code_lines": 5
+    },
+    {
+      "path": "miniprogram/components/top-bar/index.wxss",
+      "original_sha256": "e1d3d92985053a41333785ad31966ca0cc9ae0aa856ea3d57aec04dabe3ab04c",
+      "formatted_sha256": "f54c2a1778d4bec8ad29ed69f9fc406432013de304e5946faec778d6f70e9eac",
+      "original_lines": 4,
+      "original_nonblank": 4,
+      "formatted_lines": 26,
+      "formatted_nonblank": 26,
+      "counted_code_lines": 26
+    },
+    {
+      "path": "miniprogram/components/treehole-post/index.json",
+      "original_sha256": "6bcc2e9e536384851fcfbdd823aee8ae4331243636adc4a656a64a44d9cf9318",
+      "formatted_sha256": "e7b657f5a4b032a68e9e084639b3a5564ce552896d269c3f8c4463bf7a7fa3b5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/components/treehole-post/index.ts",
+      "original_sha256": "3d130e5e3d13a193a83d60bd34cbaac3ea4ea74bfae23301c4e3c0a3f43a15be",
+      "formatted_sha256": "499b7c6dd33cb6601d2562dfa48ddee00dd3f34ce9e5ab076bad233c1b4f61fc",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 13,
+      "formatted_nonblank": 13,
+      "counted_code_lines": 13
+    },
+    {
+      "path": "miniprogram/components/treehole-post/index.wxml",
+      "original_sha256": "85226002151a8d3fd278f8b4011dd8afb2d28f8d18f6f4a78862f33899f3a30d",
+      "formatted_sha256": "683eba0269c2908da2cd8ed7f7beaf5bccaf7a9a16d6736d8b691acf5a451f51",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/components/treehole-post/index.wxss",
+      "original_sha256": "d7b655f6b5431f68f8877e633c6d4f7988a8da4c26fb1c0d004c4ccd7cf2d9d4",
+      "formatted_sha256": "83731e6d1386414544924f97decf4f83559315cff3c139897e8684d885b81a42",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 10,
+      "formatted_nonblank": 10,
+      "counted_code_lines": 10
+    },
+    {
+      "path": "miniprogram/config/local-preview.ts",
+      "original_sha256": "e0014b709f8baa6a1abf9116ae85778d48d66cf0b3a8fc26fb902021008f5e16",
+      "formatted_sha256": "8d20ffc03e2b88d6429537e120153c62469d7f0eb068ed8edda4b8ac3a49d7ee",
+      "original_lines": 7,
+      "original_nonblank": 7,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/config/runtime.ts",
+      "original_sha256": "0305ea4ba793d664a72e138c2bab2f6bcf493ad7da5f9f9f13c45152ce5c9b0a",
+      "formatted_sha256": "de875a1e44c72d14db400d540c00b87b2f2fcd4352b30d93b6da9cf634301cba",
+      "original_lines": 47,
+      "original_nonblank": 40,
+      "formatted_lines": 64,
+      "formatted_nonblank": 57,
+      "counted_code_lines": 55
+    },
+    {
+      "path": "miniprogram/pages/account-recover/index.json",
+      "original_sha256": "4a920fe4f2f8e939da403c489ff8cd0ba34db74db1786c6dea0db1693d09063d",
+      "formatted_sha256": "5dc3b17c5f1b71dbd48ea4bef612ffb846bae0afdebac723e64840aa32c1b50c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/account-recover/index.wxml",
+      "original_sha256": "cbebb4cadeb599a21332d3472c4c6879af47f3fd95d7fea6cd5b8cf9556a4062",
+      "formatted_sha256": "a6423496a8994799612fc01d9d04c52dc1ca7bfe64ebcd8a37ba340173ce2d77",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 17,
+      "formatted_nonblank": 17,
+      "counted_code_lines": 17
+    },
+    {
+      "path": "miniprogram/pages/account-stop/index.json",
+      "original_sha256": "4a920fe4f2f8e939da403c489ff8cd0ba34db74db1786c6dea0db1693d09063d",
+      "formatted_sha256": "5dc3b17c5f1b71dbd48ea4bef612ffb846bae0afdebac723e64840aa32c1b50c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/account-stop/index.wxml",
+      "original_sha256": "dfac3e4138b83dbcabed1052a686e920c8e6bb8ba97ee90209e51f6293358031",
+      "formatted_sha256": "94b096d6a3b54c590c13d8d460c03252015e304df184d23601204fcbd2f5fc28",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 22,
+      "formatted_nonblank": 22,
+      "counted_code_lines": 22
+    },
+    {
+      "path": "miniprogram/pages/anonymous-identity/index.json",
+      "original_sha256": "07c90ef40170c2e9baa520c59f652d2466d71f2eb8c978334a7862947fd1e857",
+      "formatted_sha256": "d2b2d15f87c143d19a51929d15054c840685c66c277dea2382ec981922f656f6",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/pages/anonymous-identity/index.wxml",
+      "original_sha256": "839a076f5df2242baa81bfcc572a9ae018a9fa069beec2409a4978a9b02f2806",
+      "formatted_sha256": "5c7771a0f756efe9d1c0c07af2ef54173a1a0e627fc5f4951465286de57335c2",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 18,
+      "formatted_nonblank": 18,
+      "counted_code_lines": 18
+    },
+    {
+      "path": "miniprogram/pages/assessment-answer/index.json",
+      "original_sha256": "89217382887de539a4c0080f04b10a5130922f769aa5c4b95c1ac1f0622b3810",
+      "formatted_sha256": "e12906d528b867ce42a910b031f4eea298e4b9d22884914e70773b67d78b925e",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 9,
+      "formatted_nonblank": 9,
+      "counted_code_lines": 9
+    },
+    {
+      "path": "miniprogram/pages/assessment-answer/index.wxml",
+      "original_sha256": "66ecdec727e81a7f19dff15702ece3ac2978edd704c0a3e9368c3c13d84689a0",
+      "formatted_sha256": "838fcc39585bca948c2ff1c705328e65a5d30d1a91d284875623d4a9eabb4016",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 48,
+      "formatted_nonblank": 48,
+      "counted_code_lines": 48
+    },
+    {
+      "path": "miniprogram/pages/assessment-answer/index.wxss",
+      "original_sha256": "62a16269a8f3cc56ebd43c77cfeb66064e3b7c74271e8526c73dd8e1207f8a32",
+      "formatted_sha256": "b0a0ea60e3e33eb89cffefd7ffe4dc66b203818d047d1e22250ea1fa5ecee4ca",
+      "original_lines": 7,
+      "original_nonblank": 7,
+      "formatted_lines": 41,
+      "formatted_nonblank": 41,
+      "counted_code_lines": 41
+    },
+    {
+      "path": "miniprogram/pages/assessment-center/index.json",
+      "original_sha256": "87dd1e52b66fe51b98cb28805881669966615b909bc3df577dd58aded9977921",
+      "formatted_sha256": "98610d4226e245cc03cf33e796ab445b761ea5317ffab143cbe0c5d8cb1f7b88",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/pages/assessment-center/index.wxml",
+      "original_sha256": "b953ec539c985fb09bf388d5a0eb58e66820c172a2fdb97661bf97df26619e79",
+      "formatted_sha256": "932029fc6dd4776dc7f633118c3e74e9ef606d3e966b06138155b264cf8f33c4",
+      "original_lines": 32,
+      "original_nonblank": 30,
+      "formatted_lines": 64,
+      "formatted_nonblank": 62,
+      "counted_code_lines": 62
+    },
+    {
+      "path": "miniprogram/pages/assessment-center/index.wxss",
+      "original_sha256": "ba1c70295cba629623cb8cfc75cb6767442c62c17042cfc786384b66fe4bd4b9",
+      "formatted_sha256": "1d1f4ae52fb6973f5ebd6537884e3cd326958c43407550a5bf4d969e6b78e2ca",
+      "original_lines": 5,
+      "original_nonblank": 5,
+      "formatted_lines": 18,
+      "formatted_nonblank": 18,
+      "counted_code_lines": 18
+    },
+    {
+      "path": "miniprogram/pages/assessment-result/index.json",
+      "original_sha256": "4a920fe4f2f8e939da403c489ff8cd0ba34db74db1786c6dea0db1693d09063d",
+      "formatted_sha256": "5dc3b17c5f1b71dbd48ea4bef612ffb846bae0afdebac723e64840aa32c1b50c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/assessment-result/index.wxml",
+      "original_sha256": "bb6f6db9e2363625d9f9ccaea942fa6cc22a9b978289d2abc6a937e7e0871c9a",
+      "formatted_sha256": "d01190879fcbd95cdc2508f60b308d0168cd7192f63bbc7f28e6d3e325be761c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 74,
+      "formatted_nonblank": 74,
+      "counted_code_lines": 74
+    },
+    {
+      "path": "miniprogram/pages/assessment-result/index.wxss",
+      "original_sha256": "e4c57c732ca6e75e34262d7483684483c93b571f0d6f827bc352f780d19440a6",
+      "formatted_sha256": "c38be03178692a03cfafbdd18ed8ff40ae1978432049dca43dc33561dd6d4860",
+      "original_lines": 9,
+      "original_nonblank": 9,
+      "formatted_lines": 45,
+      "formatted_nonblank": 45,
+      "counted_code_lines": 45
+    },
+    {
+      "path": "miniprogram/pages/delete-confirmation/index.json",
+      "original_sha256": "4a920fe4f2f8e939da403c489ff8cd0ba34db74db1786c6dea0db1693d09063d",
+      "formatted_sha256": "5dc3b17c5f1b71dbd48ea4bef612ffb846bae0afdebac723e64840aa32c1b50c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/delete-confirmation/index.wxml",
+      "original_sha256": "1990358de57f5c89dfc5b0ff7a74a56df4a9a0df778db1edcebec1ce1e1f00d9",
+      "formatted_sha256": "3468b114b86b10b807f5d7ef9a8a2557ac270624a9f12f69c1c49d703a2b44e0",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 21,
+      "formatted_nonblank": 21,
+      "counted_code_lines": 21
+    },
+    {
+      "path": "miniprogram/pages/history/index.json",
+      "original_sha256": "419e4452522df2bff1efcd79131a38af80312da6da4f1c6618cd2570aab1077b",
+      "formatted_sha256": "74d25ab57fb6eb24db216010e34f315ef1570b40adb6e4fad9e55342dd7e1d60",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/history/index.wxml",
+      "original_sha256": "781bfd9b5e8d1b33723aaa7afea6413d201f06d4044319c56f501a5c56af1061",
+      "formatted_sha256": "93f8bf6d2ddbf297e5423d10974617fe31a0e460438509f04d05f9c4fa096c40",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 38,
+      "formatted_nonblank": 38,
+      "counted_code_lines": 38
+    },
+    {
+      "path": "miniprogram/pages/history/index.wxss",
+      "original_sha256": "d4257449a8b70502d0941ebd711204e1aa1d2f9a88325f4f8d9bd9ec4eaef5e2",
+      "formatted_sha256": "c33c57be0a5c02f4963dcf8219d4d8f51398d20088c9dbe0867fa554c88bde6c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 3,
+      "formatted_nonblank": 3,
+      "counted_code_lines": 3
+    },
+    {
+      "path": "miniprogram/pages/identity-verification/index.json",
+      "original_sha256": "4a920fe4f2f8e939da403c489ff8cd0ba34db74db1786c6dea0db1693d09063d",
+      "formatted_sha256": "5dc3b17c5f1b71dbd48ea4bef612ffb846bae0afdebac723e64840aa32c1b50c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/identity-verification/index.wxml",
+      "original_sha256": "854d682df6d40a8c50b11618e521f0756f5c247a570c25a6c133692d3885c766",
+      "formatted_sha256": "79f9d2974834a0256d016d4de4c5a1be743b56c76aa887054e076e57eebaf358",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 30,
+      "formatted_nonblank": 30,
+      "counted_code_lines": 30
+    },
+    {
+      "path": "miniprogram/pages/my-content/index.json",
+      "original_sha256": "419e4452522df2bff1efcd79131a38af80312da6da4f1c6618cd2570aab1077b",
+      "formatted_sha256": "74d25ab57fb6eb24db216010e34f315ef1570b40adb6e4fad9e55342dd7e1d60",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/my-content/index.wxml",
+      "original_sha256": "122dce7e362973d4dc99b193f442c77b742a71514a17c952f4de7933e82ce0e9",
+      "formatted_sha256": "985558fc4e5906bfdc707ae7346ebab3338c2df5cc259074e836117efe32f798",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 31,
+      "formatted_nonblank": 31,
+      "counted_code_lines": 31
+    },
+    {
+      "path": "miniprogram/pages/my/index.json",
+      "original_sha256": "87dd1e52b66fe51b98cb28805881669966615b909bc3df577dd58aded9977921",
+      "formatted_sha256": "98610d4226e245cc03cf33e796ab445b761ea5317ffab143cbe0c5d8cb1f7b88",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/pages/my/index.wxml",
+      "original_sha256": "6b3dfffeadcff301c22eb8123349f82c346c32629b72c54c0d549b58233c922d",
+      "formatted_sha256": "ca597fc3aabae3847a27861092014da03da43f90ae4279e8795ff76f7176cdc4",
+      "original_lines": 28,
+      "original_nonblank": 26,
+      "formatted_lines": 78,
+      "formatted_nonblank": 76,
+      "counted_code_lines": 76
+    },
+    {
+      "path": "miniprogram/pages/my/index.wxss",
+      "original_sha256": "6a72e7386c5cd7ee6bc217b8d257c2bc9851f6ec790774abef88a0636e7b36ec",
+      "formatted_sha256": "f45bd0e37492216bff5558d8bcbb54f32e83fb70577c518fc461005820c2b545",
+      "original_lines": 5,
+      "original_nonblank": 5,
+      "formatted_lines": 29,
+      "formatted_nonblank": 29,
+      "counted_code_lines": 29
+    },
+    {
+      "path": "miniprogram/pages/onboarding/index.json",
+      "original_sha256": "4a920fe4f2f8e939da403c489ff8cd0ba34db74db1786c6dea0db1693d09063d",
+      "formatted_sha256": "5dc3b17c5f1b71dbd48ea4bef612ffb846bae0afdebac723e64840aa32c1b50c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/onboarding/index.wxml",
+      "original_sha256": "9415c4add6503019bed2f9724c1a272cf5568abac8d4056374e623f0a3e2136d",
+      "formatted_sha256": "632aa6a4a180668f05b512d2c3fd03c937ad8ef817b994e350709fb2a2699509",
+      "original_lines": 4,
+      "original_nonblank": 4,
+      "formatted_lines": 28,
+      "formatted_nonblank": 28,
+      "counted_code_lines": 28
+    },
+    {
+      "path": "miniprogram/pages/privacy/index.json",
+      "original_sha256": "07c90ef40170c2e9baa520c59f652d2466d71f2eb8c978334a7862947fd1e857",
+      "formatted_sha256": "d2b2d15f87c143d19a51929d15054c840685c66c277dea2382ec981922f656f6",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/pages/privacy/index.wxml",
+      "original_sha256": "ff47ca0e7ee3daedec02d9090136f0f8e7fdc433e027b24537253a08fe695d80",
+      "formatted_sha256": "9457c030828e0c37c4c33f7cf0dc165144f2aab0d9402cf2abc0856335297129",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 23,
+      "formatted_nonblank": 23,
+      "counted_code_lines": 23
+    },
+    {
+      "path": "miniprogram/pages/privacy/index.wxss",
+      "original_sha256": "be5c1e240a51004724ea2ef8f8732afc430f39e9d58491865ac1b60f9919c4e0",
+      "formatted_sha256": "2d4b111a83bca1471053c816bf677106169d8013e43729ac75750dd9deffd22c",
+      "original_lines": 2,
+      "original_nonblank": 2,
+      "formatted_lines": 12,
+      "formatted_nonblank": 12,
+      "counted_code_lines": 12
+    },
+    {
+      "path": "miniprogram/pages/safety-confirmation/index.json",
+      "original_sha256": "07c90ef40170c2e9baa520c59f652d2466d71f2eb8c978334a7862947fd1e857",
+      "formatted_sha256": "d2b2d15f87c143d19a51929d15054c840685c66c277dea2382ec981922f656f6",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/pages/safety-confirmation/index.wxml",
+      "original_sha256": "dec1299d9a038e3a724adfb610d7d908780b3e284f80b0a1959b011f8078fc06",
+      "formatted_sha256": "b63daad1191417ec9408b85a9d645e5ef423ec65f48dc08e6524c5079f10c3f7",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 24,
+      "formatted_nonblank": 24,
+      "counted_code_lines": 24
+    },
+    {
+      "path": "miniprogram/pages/safety-confirmation/index.wxss",
+      "original_sha256": "b75dcca769491dda4beb419223f81a15c1459e310a4f35151a014dd4097e3ef1",
+      "formatted_sha256": "8633b6101705cc06cf640ff7595cb15631ec06a7d8fac749a651142e655e4c67",
+      "original_lines": 4,
+      "original_nonblank": 4,
+      "formatted_lines": 24,
+      "formatted_nonblank": 24,
+      "counted_code_lines": 24
+    },
+    {
+      "path": "miniprogram/pages/support-resources/index.json",
+      "original_sha256": "1cbac8430e13ca7aece471f5f819724d35fc7528ede3a1a0c7204c6bb9674af6",
+      "formatted_sha256": "c3f160eecdc916232b692df294dda65f8c73e6bd8408ba222dd48ba01fd9dd1f",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/support-resources/index.wxml",
+      "original_sha256": "13a109039952522d5cbb61124782a4e63ebb26a9b04950d237133bb872bef26d",
+      "formatted_sha256": "85ca17142b0fd9e530ceea56acf74a343b83506b0f6b59be9cf6ad5339a6d4fc",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 39,
+      "formatted_nonblank": 39,
+      "counted_code_lines": 39
+    },
+    {
+      "path": "miniprogram/pages/support-resources/index.wxss",
+      "original_sha256": "1f7d4f82312153570bfe464bbb5ed9d6a4e7bbe76bcd6d96132131ab688cc16e",
+      "formatted_sha256": "ae9c247e4b70f21d2c3673bd416f446c4d988c74b0a9ab2c1c4cf6b03a5182ab",
+      "original_lines": 2,
+      "original_nonblank": 2,
+      "formatted_lines": 13,
+      "formatted_nonblank": 13,
+      "counted_code_lines": 13
+    },
+    {
+      "path": "miniprogram/pages/today/index.json",
+      "original_sha256": "87dd1e52b66fe51b98cb28805881669966615b909bc3df577dd58aded9977921",
+      "formatted_sha256": "98610d4226e245cc03cf33e796ab445b761ea5317ffab143cbe0c5d8cb1f7b88",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 1
+    },
+    {
+      "path": "miniprogram/pages/today/index.wxml",
+      "original_sha256": "e13bc95e652ceba6cfb0ae4cfabbfc0e162e05e4d85b885153dc0372cc54d4af",
+      "formatted_sha256": "ad98453ce8185c07005bf914454644e9d2c7cd6b3f9fb7846d471b62b730b892",
+      "original_lines": 82,
+      "original_nonblank": 75,
+      "formatted_lines": 141,
+      "formatted_nonblank": 134,
+      "counted_code_lines": 134
+    },
+    {
+      "path": "miniprogram/pages/today/index.wxss",
+      "original_sha256": "eec504619fdb75c470b900790bf0123306775a3849114dce95ddd7b24548593c",
+      "formatted_sha256": "336e309e240da8ae3293e816aff8e3b8bec4fd9b8fd9cfefe29ca3ee6def3701",
+      "original_lines": 19,
+      "original_nonblank": 19,
+      "formatted_lines": 131,
+      "formatted_nonblank": 131,
+      "counted_code_lines": 131
+    },
+    {
+      "path": "miniprogram/pages/treehole-detail/index.json",
+      "original_sha256": "1cbac8430e13ca7aece471f5f819724d35fc7528ede3a1a0c7204c6bb9674af6",
+      "formatted_sha256": "c3f160eecdc916232b692df294dda65f8c73e6bd8408ba222dd48ba01fd9dd1f",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/treehole-detail/index.wxml",
+      "original_sha256": "b778d93979b8927c7c9e307edb1816eeaf4885acd729d4d809f96cc4a958ad6a",
+      "formatted_sha256": "c97e21b026b673f644bbba36e584769980057fe19b2523b1d0b49ab008048718",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 44,
+      "formatted_nonblank": 44,
+      "counted_code_lines": 44
+    },
+    {
+      "path": "miniprogram/pages/treehole-detail/index.wxss",
+      "original_sha256": "b343239c2933c5428aff85f53291e05bcf56d7233d5af2328005c85d39794b1f",
+      "formatted_sha256": "b82514fe4beae0719361f653bcf1d9ae8a9bb834946b9db74441d0115e635977",
+      "original_lines": 5,
+      "original_nonblank": 5,
+      "formatted_lines": 24,
+      "formatted_nonblank": 24,
+      "counted_code_lines": 24
+    },
+    {
+      "path": "miniprogram/pages/treehole-publish/index.json",
+      "original_sha256": "4a920fe4f2f8e939da403c489ff8cd0ba34db74db1786c6dea0db1693d09063d",
+      "formatted_sha256": "5dc3b17c5f1b71dbd48ea4bef612ffb846bae0afdebac723e64840aa32c1b50c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/treehole-publish/index.wxml",
+      "original_sha256": "c023bee868ba1723157c49b33483dd0d440378745772bc00149e2b7f672c9474",
+      "formatted_sha256": "f4b8f03d3d187cb353bc2aa1a68c2b69b7d3f6cf311242710196cad11d403d4d",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 34,
+      "formatted_nonblank": 34,
+      "counted_code_lines": 34
+    },
+    {
+      "path": "miniprogram/pages/treehole-publish/index.wxss",
+      "original_sha256": "fbf6cb5fd4cbc39bf12e872bb5739e118ce4adf615af33c9594a1fb643278b11",
+      "formatted_sha256": "9c5a187ce387af8f592ea96c415635b69f726b20e229d4b2715fd065e9c108a8",
+      "original_lines": 2,
+      "original_nonblank": 2,
+      "formatted_lines": 7,
+      "formatted_nonblank": 7,
+      "counted_code_lines": 7
+    },
+    {
+      "path": "miniprogram/pages/treehole-status/index.json",
+      "original_sha256": "84858aec60f39c715222c2882748e8f0defc7ed66be05e7e10a137c25862d169",
+      "formatted_sha256": "30654d84e5c8a13c2f8d234c2aeca20d1fa1c4c336fc95e3c67b0d8c368a6391",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/pages/treehole-status/index.wxml",
+      "original_sha256": "9e3bf71fe38f00bd94ca19752d031b2d00cf88129cef31c0f06df6088b854764",
+      "formatted_sha256": "2d68956f88379b3a19060fdc1c1d9a39e8521270d043d35197123863b3df8829",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 13,
+      "formatted_nonblank": 13,
+      "counted_code_lines": 13
+    },
+    {
+      "path": "miniprogram/pages/treehole-status/index.wxss",
+      "original_sha256": "e5d124e23613000a83045c1e9f3e1a1c6f492c997c41f55626d63681b8e8833f",
+      "formatted_sha256": "cdf0adb97a50a66f8030cc5e2464cdd0f609148f1f37f73fac250929b732738c",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 5,
+      "formatted_nonblank": 5,
+      "counted_code_lines": 5
+    },
+    {
+      "path": "miniprogram/pages/treehole/index.json",
+      "original_sha256": "8a0880d3bd957b3c03bc528a486034f1d3383930452cf5148f00ed5db2356cc1",
+      "formatted_sha256": "a154436e196323d5d865ccb86a2fa7b72b3ea6cc33f8bb4fb52613495dec810d",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 6,
+      "formatted_nonblank": 6,
+      "counted_code_lines": 6
+    },
+    {
+      "path": "miniprogram/pages/treehole/index.wxml",
+      "original_sha256": "944b77b317600a0a7795037d1acab6cc4c7e3139619a6782b406115415d673b6",
+      "formatted_sha256": "843002771f81c8e852cbd5f45ea7298feaa000fb488d5ef4796b0c684b69d205",
+      "original_lines": 32,
+      "original_nonblank": 29,
+      "formatted_lines": 69,
+      "formatted_nonblank": 66,
+      "counted_code_lines": 66
+    },
+    {
+      "path": "miniprogram/pages/treehole/index.wxss",
+      "original_sha256": "b8454889cb9ba0d354c5ff9247ee2c38c8a157bc756b14113b708855d7c888c3",
+      "formatted_sha256": "bca10e186c08d7c401f785701e3efc698f4b86598c1c229e4a9b532590494d1a",
+      "original_lines": 18,
+      "original_nonblank": 18,
+      "formatted_lines": 111,
+      "formatted_nonblank": 111,
+      "counted_code_lines": 111
+    },
+    {
+      "path": "miniprogram/services/assessment.ts",
+      "original_sha256": "cd30b009be7eb636e0f66fbf603690006bed26e2bcbbd43090ae03068443e380",
+      "formatted_sha256": "74a479697fc926c54a61608430348a899f0a826191e28e3cebb7539cce579103",
+      "original_lines": 143,
+      "original_nonblank": 128,
+      "formatted_lines": 295,
+      "formatted_nonblank": 280,
+      "counted_code_lines": 280
+    },
+    {
+      "path": "miniprogram/services/auth.ts",
+      "original_sha256": "cd4f5375ead27f55e2d7c5f912dfa3ccc9a0ba600f4e27ef0b7d4e1cea294b58",
+      "formatted_sha256": "1a005f58909d6cba82c702e3c98dbfc642edd11361bf523dfb0bad663d20038d",
+      "original_lines": 80,
+      "original_nonblank": 73,
+      "formatted_lines": 188,
+      "formatted_nonblank": 181,
+      "counted_code_lines": 181
+    },
+    {
+      "path": "miniprogram/services/display-time.ts",
+      "original_sha256": "149574a20eafe914d91200bb788815af2b7954b9069f31eb00b4682f72e5e9d5",
+      "formatted_sha256": "356a330b68cb41dbbf9a9b2b8575f4b9b5f05d3190ebdd77b34b6b0b22473f0b",
+      "original_lines": 9,
+      "original_nonblank": 9,
+      "formatted_lines": 9,
+      "formatted_nonblank": 9,
+      "counted_code_lines": 9
+    },
+    {
+      "path": "miniprogram/services/http.ts",
+      "original_sha256": "4354e725cbd7628418b6bdef3096d29fca4d84d2f28084ae934e10efe7fa449f",
+      "formatted_sha256": "bf715ea9165f7ee809a20881250bb2cd629eb364339ff898f8c0fddf0d3ca4a7",
+      "original_lines": 148,
+      "original_nonblank": 140,
+      "formatted_lines": 373,
+      "formatted_nonblank": 365,
+      "counted_code_lines": 365
+    },
+    {
+      "path": "miniprogram/services/me.ts",
+      "original_sha256": "1eb41230b4182a902cb96d0eed7a49f0b4feedc457e9ce7ed320f6c5d4f1fe37",
+      "formatted_sha256": "7823ce5be52bf2c8d19199c7dc12f3c8f696694103dc5ee6c3fa02cbc67990fa",
+      "original_lines": 22,
+      "original_nonblank": 19,
+      "formatted_lines": 62,
+      "formatted_nonblank": 59,
+      "counted_code_lines": 59
+    },
+    {
+      "path": "miniprogram/services/mood.ts",
+      "original_sha256": "4534b06bf77441792a1e38a6d0b2dbb8980764e06ac479edb23167294bc13112",
+      "formatted_sha256": "8e3c8e3d124571ec91fad551d4bf45e4abc1d8d8183e54ad3900f613218ce76e",
+      "original_lines": 28,
+      "original_nonblank": 24,
+      "formatted_lines": 30,
+      "formatted_nonblank": 26,
+      "counted_code_lines": 25
+    },
+    {
+      "path": "miniprogram/services/normalizers.ts",
+      "original_sha256": "e794f903a90b5499886ab986edf258768d65707b6272a2e294ed034fc701c2f0",
+      "formatted_sha256": "76e0a515ca68635c8086275dad31466cff7823fdca11abf9397f321d218f4fcf",
+      "original_lines": 87,
+      "original_nonblank": 77,
+      "formatted_lines": 145,
+      "formatted_nonblank": 135,
+      "counted_code_lines": 135
+    },
+    {
+      "path": "miniprogram/services/today.ts",
+      "original_sha256": "b7b8ef9f5cff54a7f268214c23189668c2b48bfd98cee8bf74dd2462c88d48e4",
+      "formatted_sha256": "24e2b41a6278ef5eebd42f6ec3ac51c2d77a60cd06b9d6fefdd0eb9a9231ac25",
+      "original_lines": 22,
+      "original_nonblank": 20,
+      "formatted_lines": 56,
+      "formatted_nonblank": 54,
+      "counted_code_lines": 54
+    },
+    {
+      "path": "miniprogram/services/treehole.ts",
+      "original_sha256": "1be945aed7a32a11d8b158db2b1efa70caf93157179af44582cd39560c9b166c",
+      "formatted_sha256": "0c36f35f68361a4f0fa6184fde2306ef2704ff3ffef5b27b8a2eec13d4403e05",
+      "original_lines": 40,
+      "original_nonblank": 34,
+      "formatted_lines": 61,
+      "formatted_nonblank": 55,
+      "counted_code_lines": 55
+    },
+    {
+      "path": "miniprogram/sitemap.json",
+      "original_sha256": "d68644e4b82ee0e4e2e7af64b172571e48a8338e08788c21d337d0756930de42",
+      "formatted_sha256": "d68644e4b82ee0e4e2e7af64b172571e48a8338e08788c21d337d0756930de42",
+      "original_lines": 9,
+      "original_nonblank": 9,
+      "formatted_lines": 9,
+      "formatted_nonblank": 9,
+      "counted_code_lines": 9
+    },
+    {
+      "path": "miniprogram/stores/assessment.ts",
+      "original_sha256": "759a25a8f8453253a89f8d5bad8b2dbb811849b45d4f81c0f56b21583ab83045",
+      "formatted_sha256": "f3613c37f00683133fde88b5a4fb1493a7406c2dd9bee1275f5a3c8d21ab3187",
+      "original_lines": 23,
+      "original_nonblank": 20,
+      "formatted_lines": 44,
+      "formatted_nonblank": 41,
+      "counted_code_lines": 41
+    },
+    {
+      "path": "miniprogram/stores/session.ts",
+      "original_sha256": "f52840902758bd2b28171a650141ae63369758bcbb61a1bab30c5b2e8b28738a",
+      "formatted_sha256": "74a5de28165a09b415121fcd470e0edb4bd83f70b42e71d8e3e469113ab68596",
+      "original_lines": 39,
+      "original_nonblank": 38,
+      "formatted_lines": 39,
+      "formatted_nonblank": 38,
+      "counted_code_lines": 38
+    },
+    {
+      "path": "miniprogram/types/api.ts",
+      "original_sha256": "26eb192cd79a4a5b2f9309a75715891f39a3df0ee77e99ba3534f1c328167ddc",
+      "formatted_sha256": "def02ed2af896e058ba01fae9839c2d9c44f25bf240d936041eb5a81229c6493",
+      "original_lines": 168,
+      "original_nonblank": 148,
+      "formatted_lines": 168,
+      "formatted_nonblank": 148,
+      "counted_code_lines": 148
+    },
+    {
+      "path": "admin/src/components/AdminShell.vue",
+      "original_sha256": "79d96f09f15441b094b8c8cb55bda122a2a0ab5d3aeeb30229662a8753c8055e",
+      "formatted_sha256": "33efa5cdb3703e51903d23ea5bfaf956a77f7df0c5bd9af223947ff24a9eb579",
+      "original_lines": 157,
+      "original_nonblank": 139,
+      "formatted_lines": 153,
+      "formatted_nonblank": 135,
+      "counted_code_lines": 135
+    },
+    {
+      "path": "admin/src/components/AuditTable.vue",
+      "original_sha256": "0fddd33a8e689645ca31f9b5df12384158cdee692d412f63498ab96f3a4bcd44",
+      "formatted_sha256": "bc2e4a2ae079934dc0a1178179446e25e3b9f500b18d0519092419a5ed674ca0",
+      "original_lines": 75,
+      "original_nonblank": 75,
+      "formatted_lines": 73,
+      "formatted_nonblank": 73,
+      "counted_code_lines": 73
+    },
+    {
+      "path": "admin/src/components/ConcurrencyState.vue",
+      "original_sha256": "b0fc752196b6279bb2df8c92e52c0e65fb34c5538fcb0e61021cc5a5eb96512f",
+      "formatted_sha256": "b0fc752196b6279bb2df8c92e52c0e65fb34c5538fcb0e61021cc5a5eb96512f",
+      "original_lines": 19,
+      "original_nonblank": 19,
+      "formatted_lines": 19,
+      "formatted_nonblank": 19,
+      "counted_code_lines": 19
+    },
+    {
+      "path": "admin/src/components/DemoResetDialog.vue",
+      "original_sha256": "19cf0c153623e51405cced5bcc143cc24f4684c3cf6cc9a6b0bba168d98778aa",
+      "formatted_sha256": "114343f00994ee2ae1ffeaef36e81bf5ea3146e38241e9b4c514184442b87100",
+      "original_lines": 111,
+      "original_nonblank": 111,
+      "formatted_lines": 111,
+      "formatted_nonblank": 111,
+      "counted_code_lines": 111
+    },
+    {
+      "path": "admin/src/components/DesktopWidthNotice.vue",
+      "original_sha256": "5be2161aac8faa1e99f040c6f60663ecd3b6c8f1c1bf45693f8bbcdbf1e74a4b",
+      "formatted_sha256": "b28568a8c0b767081f75805f6e49544508849f51c5c96980566b511ad151329f",
+      "original_lines": 55,
+      "original_nonblank": 47,
+      "formatted_lines": 54,
+      "formatted_nonblank": 46,
+      "counted_code_lines": 46
+    },
+    {
+      "path": "admin/src/components/PermissionState.vue",
+      "original_sha256": "5a02eb1a593a7561c2effa47cb5feb2803d4af3f93df8dac952b35e5e1c70c0d",
+      "formatted_sha256": "5a02eb1a593a7561c2effa47cb5feb2803d4af3f93df8dac952b35e5e1c70c0d",
+      "original_lines": 18,
+      "original_nonblank": 18,
+      "formatted_lines": 18,
+      "formatted_nonblank": 18,
+      "counted_code_lines": 18
+    },
+    {
+      "path": "admin/src/components/SessionExpiredState.vue",
+      "original_sha256": "517f13c2fe583c7bbd63e9b7a4db0b06291f8aabf24cf094e47f31b592440e6d",
+      "formatted_sha256": "517f13c2fe583c7bbd63e9b7a4db0b06291f8aabf24cf094e47f31b592440e6d",
+      "original_lines": 28,
+      "original_nonblank": 28,
+      "formatted_lines": 28,
+      "formatted_nonblank": 28,
+      "counted_code_lines": 28
+    },
+    {
+      "path": "admin/src/components/SubmitFailureState.vue",
+      "original_sha256": "883831695bab3cd3b48b99c10cc230c0ed5279816c627d59de97447e1c88fa05",
+      "formatted_sha256": "883831695bab3cd3b48b99c10cc230c0ed5279816c627d59de97447e1c88fa05",
+      "original_lines": 18,
+      "original_nonblank": 18,
+      "formatted_lines": 18,
+      "formatted_nonblank": 18,
+      "counted_code_lines": 18
+    },
+    {
+      "path": "admin/src/components/TaskActionPanel.vue",
+      "original_sha256": "64d31452123338e4b11bcfc349f072ab3ccc3b08c39df670e2c09b9904c49781",
+      "formatted_sha256": "f25ad8626fa8768c6be969d9c49b87c79d4370e12b73b6a021145407331c3257",
+      "original_lines": 294,
+      "original_nonblank": 294,
+      "formatted_lines": 276,
+      "formatted_nonblank": 276,
+      "counted_code_lines": 276
+    },
+    {
+      "path": "admin/src/components/TaskCard.vue",
+      "original_sha256": "ab1846f76a9fb51e45c5bdfeda7a80eae771abd7c9b7ce2044211abda742d343",
+      "formatted_sha256": "a1992aa1f412354289baa702b35e9e41240a54462e9edf0d48b3d6df9b7bc81c",
+      "original_lines": 70,
+      "original_nonblank": 70,
+      "formatted_lines": 70,
+      "formatted_nonblank": 70,
+      "counted_code_lines": 70
+    },
+    {
+      "path": "admin/src/components/TaskFactsPanel.vue",
+      "original_sha256": "cfcbf81fa2610723cba4b24ff74f973605fe7472207a83c9126f8cc2b34c8b5b",
+      "formatted_sha256": "d91f6ff1d8e59775ea6809416fc313781cbad253932a13c51d98cd0b63882459",
+      "original_lines": 85,
+      "original_nonblank": 85,
+      "formatted_lines": 82,
+      "formatted_nonblank": 82,
+      "counted_code_lines": 82
+    },
+    {
+      "path": "admin/src/components/TaskSection.vue",
+      "original_sha256": "25ba2896f0bfe4e9c0320482350c7a9cb17c43978c8ce871fe14dfa3e948d112",
+      "formatted_sha256": "c6b75c9909738b3b5f55955c8e2b17f95b5f3de1cfe410c541e78a2ee5f61731",
+      "original_lines": 108,
+      "original_nonblank": 108,
+      "formatted_lines": 108,
+      "formatted_nonblank": 108,
+      "counted_code_lines": 108
+    },
+    {
+      "path": "admin/src/components/TaskStateBar.vue",
+      "original_sha256": "bef62eb0ba05388d1cceebbfadb50ca24c63dd5d2a62dfe540cfac74f6decdd7",
+      "formatted_sha256": "e8d925592a0dd95766e4587f7434e45d5883f916ff06ebff7ce3e60bfc2e3d1b",
+      "original_lines": 38,
+      "original_nonblank": 38,
+      "formatted_lines": 38,
+      "formatted_nonblank": 38,
+      "counted_code_lines": 38
+    },
+    {
+      "path": "admin/src/config/runtime.ts",
+      "original_sha256": "a0c96d024c556848259ddb614e8bd3e835cf9360d1713aea71cca3cd399a9acb",
+      "formatted_sha256": "1a616706128a2b0e69579f481d0e0b194dc8784471b8ce33f11971f8e1de79c6",
+      "original_lines": 21,
+      "original_nonblank": 18,
+      "formatted_lines": 19,
+      "formatted_nonblank": 16,
+      "counted_code_lines": 15
+    },
+    {
+      "path": "admin/src/router/index.ts",
+      "original_sha256": "22d5d3436f46859ef2d2047a662c9eb6df664fa3dd5a8725e8a8b3832dc76395",
+      "formatted_sha256": "290737306b1b30f3480deea1cce92edd49552959624034a2187fec6110f5b6e5",
+      "original_lines": 29,
+      "original_nonblank": 26,
+      "formatted_lines": 29,
+      "formatted_nonblank": 26,
+      "counted_code_lines": 26
+    },
+    {
+      "path": "admin/src/schemas/api.ts",
+      "original_sha256": "8066a55c1caca6cbcdcf55f360fb987935a331d834e7d1938fe358c78ea74ab5",
+      "formatted_sha256": "f1e0185b3eb1791182c38ce885de97032cda89f09bd8da89243815db3536c150",
+      "original_lines": 88,
+      "original_nonblank": 78,
+      "formatted_lines": 88,
+      "formatted_nonblank": 78,
+      "counted_code_lines": 78
+    },
+    {
+      "path": "admin/src/services/adminAuth.ts",
+      "original_sha256": "c4df9ff066791fdd02f0a2149570edd6f39f775a8b0078ba75b39eba088c4af0",
+      "formatted_sha256": "5b0500a077fc5fa80f2bf6b22c115129cae2c29d0cfb5930dec98923435bb23d",
+      "original_lines": 97,
+      "original_nonblank": 88,
+      "formatted_lines": 93,
+      "formatted_nonblank": 84,
+      "counted_code_lines": 84
+    },
+    {
+      "path": "admin/src/services/apiClient.ts",
+      "original_sha256": "82f992064ff161d707e34af3e672dc422c29f90adcc812fb1a4d61c56214ce3f",
+      "formatted_sha256": "c577178cde484d6960459bd87bdd60e99c956b460bcc55da035ccb1b65f62f5c",
+      "original_lines": 102,
+      "original_nonblank": 95,
+      "formatted_lines": 96,
+      "formatted_nonblank": 89,
+      "counted_code_lines": 89
+    },
+    {
+      "path": "admin/src/services/audit.ts",
+      "original_sha256": "094d02812de56d84129a52f9afab5328feb6950c7d83044a7334d4f969a60b36",
+      "formatted_sha256": "39cea5c4c56df48327ed29a3edcb32b52fcac2c3918547827682dcf10c2cc149",
+      "original_lines": 322,
+      "original_nonblank": 313,
+      "formatted_lines": 319,
+      "formatted_nonblank": 310,
+      "counted_code_lines": 310
+    },
+    {
+      "path": "admin/src/services/taskDetail.ts",
+      "original_sha256": "fd27464ab3559103baf84a9a7b8834ea8cac7160d7836e5f2088d4da22ea52ed",
+      "formatted_sha256": "53cc82cf01b458d0fb08900258940f278543b47cf2ffaaaef82a677ae5e60246",
+      "original_lines": 103,
+      "original_nonblank": 95,
+      "formatted_lines": 99,
+      "formatted_nonblank": 91,
+      "counted_code_lines": 91
+    },
+    {
+      "path": "admin/src/services/workbench.ts",
+      "original_sha256": "9933dd056617f87ef269c6fe05fe74b408e746f06becbfa298d8861306fa71b3",
+      "formatted_sha256": "0073cfedb983b067ffdd1dbe2aaf1a68e06d896f5f1fc86ec7e202b3c2c6c367",
+      "original_lines": 58,
+      "original_nonblank": 55,
+      "formatted_lines": 58,
+      "formatted_nonblank": 55,
+      "counted_code_lines": 55
+    },
+    {
+      "path": "admin/src/stores/adminSession.ts",
+      "original_sha256": "916bfaf0b0dbfd92e0c02f7ea26ee5f03225a97f435e618ac7e0456229b5751e",
+      "formatted_sha256": "40ff9c94bc3eaded8bd6dc819d8d4cc88088531f4651b852da16b44994ae0626",
+      "original_lines": 69,
+      "original_nonblank": 63,
+      "formatted_lines": 68,
+      "formatted_nonblank": 62,
+      "counted_code_lines": 62
+    },
+    {
+      "path": "admin/src/styles/base.css",
+      "original_sha256": "d481a04278c13d5877643f1b08fa3fbae3c586730dd3176229508cfc30a4b6ef",
+      "formatted_sha256": "d481a04278c13d5877643f1b08fa3fbae3c586730dd3176229508cfc30a4b6ef",
+      "original_lines": 33,
+      "original_nonblank": 28,
+      "formatted_lines": 33,
+      "formatted_nonblank": 28,
+      "counted_code_lines": 28
+    },
+    {
+      "path": "admin/src/styles/tokens.css",
+      "original_sha256": "2e39617a6947e4b0b52f2e7816ec98a595a70912254ec996b3ee06d128627a85",
+      "formatted_sha256": "42866947e16b6053b8fd3fa8cf8b560cae7bb944989efe82d795bb2334890723",
+      "original_lines": 30,
+      "original_nonblank": 30,
+      "formatted_lines": 30,
+      "formatted_nonblank": 30,
+      "counted_code_lines": 30
+    },
+    {
+      "path": "admin/src/views/AdminLoginView.vue",
+      "original_sha256": "2cbadbac42ed3dccfebc3add6cb9cfa9e1ea6eaf6b1731d064df31b09ea99af8",
+      "formatted_sha256": "a45ec538f91d8a25b66c1176b589414632d7b26560f347adcc6983c7a5362960",
+      "original_lines": 170,
+      "original_nonblank": 152,
+      "formatted_lines": 168,
+      "formatted_nonblank": 150,
+      "counted_code_lines": 150
+    },
+    {
+      "path": "admin/src/views/AuditDemoView.vue",
+      "original_sha256": "0bcc530ab0faf97e973dda7275800b78e255cab568cd0565fb6107b68f373de5",
+      "formatted_sha256": "a86a98c89327b51fa82859f099b32e4eef234a64a0895787aa511e5aa7c24943",
+      "original_lines": 356,
+      "original_nonblank": 355,
+      "formatted_lines": 352,
+      "formatted_nonblank": 351,
+      "counted_code_lines": 351
+    },
+    {
+      "path": "admin/src/views/TaskDetailView.vue",
+      "original_sha256": "fb60579a0568770d6ae96f12fcd2caa81a0ea2ac611f1cb29b7fb7c1d8289902",
+      "formatted_sha256": "eb4eb78b0396388f785a4239342558a300b0fb8cad18112ba641ea6a7c4c7446",
+      "original_lines": 250,
+      "original_nonblank": 243,
+      "formatted_lines": 237,
+      "formatted_nonblank": 230,
+      "counted_code_lines": 230
+    },
+    {
+      "path": "admin/src/views/WorkbenchView.vue",
+      "original_sha256": "6181847bfbcecc7ae5c22b745bb2e81ec3d9c462fa946f35d85ab508f494794c",
+      "formatted_sha256": "5fffa3ef1dc0ca4a594077b6a9fea573a0cffde0603a20da0e58abb4311b05dd",
+      "original_lines": 195,
+      "original_nonblank": 195,
+      "formatted_lines": 191,
+      "formatted_nonblank": 191,
+      "counted_code_lines": 191
+    },
+    {
+      "path": "backend/app/__init__.py",
+      "original_sha256": "9c14454845e0fc78a8b38670c13feeb3b5d4e4c5ae3504dcd481f74de4e74153",
+      "formatted_sha256": "9c14454845e0fc78a8b38670c13feeb3b5d4e4c5ae3504dcd481f74de4e74153",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/api/__init__.py",
+      "original_sha256": "6855cd092f045a94589a63ff8d088ff0a7074b7efce6a29ec855c975499e2a7b",
+      "formatted_sha256": "6855cd092f045a94589a63ff8d088ff0a7074b7efce6a29ec855c975499e2a7b",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/api/admin_auth.py",
+      "original_sha256": "05ff64ecaa43019d657c67699667b14f74c0186cc24d4d9a9c03d35d96886624",
+      "formatted_sha256": "05ff64ecaa43019d657c67699667b14f74c0186cc24d4d9a9c03d35d96886624",
+      "original_lines": 55,
+      "original_nonblank": 43,
+      "formatted_lines": 55,
+      "formatted_nonblank": 43,
+      "counted_code_lines": 42
+    },
+    {
+      "path": "backend/app/api/admin_identity.py",
+      "original_sha256": "824817f245e348377731a5ac5f438d543b6f0262609183ba07ea1185490e6750",
+      "formatted_sha256": "824817f245e348377731a5ac5f438d543b6f0262609183ba07ea1185490e6750",
+      "original_lines": 57,
+      "original_nonblank": 47,
+      "formatted_lines": 57,
+      "formatted_nonblank": 47,
+      "counted_code_lines": 47
+    },
+    {
+      "path": "backend/app/api/admin_workbench.py",
+      "original_sha256": "aa62ab6b186bc3de9ea9eb6b137df5d2925f72406bcd9d94b438c2e40f77a0cd",
+      "formatted_sha256": "aa62ab6b186bc3de9ea9eb6b137df5d2925f72406bcd9d94b438c2e40f77a0cd",
+      "original_lines": 252,
+      "original_nonblank": 226,
+      "formatted_lines": 252,
+      "formatted_nonblank": 226,
+      "counted_code_lines": 225
+    },
+    {
+      "path": "backend/app/api/assessment.py",
+      "original_sha256": "223d159ac61301547efde48614b900197fc1746ddb72855cd0424a287aad5ea8",
+      "formatted_sha256": "223d159ac61301547efde48614b900197fc1746ddb72855cd0424a287aad5ea8",
+      "original_lines": 178,
+      "original_nonblank": 156,
+      "formatted_lines": 178,
+      "formatted_nonblank": 156,
+      "counted_code_lines": 155
+    },
+    {
+      "path": "backend/app/api/auth.py",
+      "original_sha256": "37c7f7d67bdd92f741113ec9e5de85dbff979d2ec2a1127116b2b40bc029eec4",
+      "formatted_sha256": "37c7f7d67bdd92f741113ec9e5de85dbff979d2ec2a1127116b2b40bc029eec4",
+      "original_lines": 69,
+      "original_nonblank": 57,
+      "formatted_lines": 69,
+      "formatted_nonblank": 57,
+      "counted_code_lines": 56
+    },
+    {
+      "path": "backend/app/api/dependencies.py",
+      "original_sha256": "b00398d271e7736153b038bde6f5dd6fdfe78ddf448d05f32a45e7b35b31cb29",
+      "formatted_sha256": "b00398d271e7736153b038bde6f5dd6fdfe78ddf448d05f32a45e7b35b31cb29",
+      "original_lines": 149,
+      "original_nonblank": 116,
+      "formatted_lines": 149,
+      "formatted_nonblank": 116,
+      "counted_code_lines": 115
+    },
+    {
+      "path": "backend/app/api/student_core.py",
+      "original_sha256": "3ac792591aac1ea06cfff15adf69c527b223481e52235fec7b429e239eaed3fc",
+      "formatted_sha256": "3ac792591aac1ea06cfff15adf69c527b223481e52235fec7b429e239eaed3fc",
+      "original_lines": 255,
+      "original_nonblank": 220,
+      "formatted_lines": 255,
+      "formatted_nonblank": 220,
+      "counted_code_lines": 220
+    },
+    {
+      "path": "backend/app/api/treehole.py",
+      "original_sha256": "e875e9abe1a9922fa3eee8af52d6ea46b859e2a0e328affa544bd4fcfb8145cb",
+      "formatted_sha256": "e875e9abe1a9922fa3eee8af52d6ea46b859e2a0e328affa544bd4fcfb8145cb",
+      "original_lines": 143,
+      "original_nonblank": 123,
+      "formatted_lines": 143,
+      "formatted_nonblank": 123,
+      "counted_code_lines": 123
+    },
+    {
+      "path": "backend/app/audit/__init__.py",
+      "original_sha256": "4f02cf0ebb1d2ef69b39e337e015c844bda7b60996fcc0b8b96261d6b596c9d5",
+      "formatted_sha256": "4f02cf0ebb1d2ef69b39e337e015c844bda7b60996fcc0b8b96261d6b596c9d5",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/audit/writer.py",
+      "original_sha256": "a45211a42d8680df4ff00d2f2d5f7b36e4d5ef426a406262e579aae686a98ec3",
+      "formatted_sha256": "a45211a42d8680df4ff00d2f2d5f7b36e4d5ef426a406262e579aae686a98ec3",
+      "original_lines": 95,
+      "original_nonblank": 85,
+      "formatted_lines": 95,
+      "formatted_nonblank": 85,
+      "counted_code_lines": 82
+    },
+    {
+      "path": "backend/app/config/__init__.py",
+      "original_sha256": "bb37d21e56d6963316a9bbf0f564d7537750f7bcdf7cd54b3db172bde9d8abe3",
+      "formatted_sha256": "bb37d21e56d6963316a9bbf0f564d7537750f7bcdf7cd54b3db172bde9d8abe3",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/config/ai_prompt.py",
+      "original_sha256": "c469f514123df6b075c5e6ff9fef40027d374cdec1b6417f99e7dd11568d2540",
+      "formatted_sha256": "c469f514123df6b075c5e6ff9fef40027d374cdec1b6417f99e7dd11568d2540",
+      "original_lines": 65,
+      "original_nonblank": 55,
+      "formatted_lines": 65,
+      "formatted_nonblank": 55,
+      "counted_code_lines": 54
+    },
+    {
+      "path": "backend/app/config/deployment.py",
+      "original_sha256": "787ea0c584b022a7a4c457ed20d7cbe6d3d4fe1c8590c6a5287b0dd97825d133",
+      "formatted_sha256": "787ea0c584b022a7a4c457ed20d7cbe6d3d4fe1c8590c6a5287b0dd97825d133",
+      "original_lines": 64,
+      "original_nonblank": 48,
+      "formatted_lines": 64,
+      "formatted_nonblank": 48,
+      "counted_code_lines": 38
+    },
+    {
+      "path": "backend/app/config/environments.py",
+      "original_sha256": "9b0eee434198b168106ec7f12ec3ab5753a6194040bd7bcb73bf200cb5655ea8",
+      "formatted_sha256": "9b0eee434198b168106ec7f12ec3ab5753a6194040bd7bcb73bf200cb5655ea8",
+      "original_lines": 90,
+      "original_nonblank": 71,
+      "formatted_lines": 90,
+      "formatted_nonblank": 71,
+      "counted_code_lines": 62
+    },
+    {
+      "path": "backend/app/config/settings.py",
+      "original_sha256": "0a4af325368ad13d21876554de676b43d12f40aa4ef7a12a2a7186e8ba3b9d24",
+      "formatted_sha256": "0a4af325368ad13d21876554de676b43d12f40aa4ef7a12a2a7186e8ba3b9d24",
+      "original_lines": 141,
+      "original_nonblank": 120,
+      "formatted_lines": 141,
+      "formatted_nonblank": 120,
+      "counted_code_lines": 113
+    },
+    {
+      "path": "backend/app/domain/__init__.py",
+      "original_sha256": "991a9e654f1130a35dbc02595e5b958353396ec69592f6938ab1a28c562fefaa",
+      "formatted_sha256": "991a9e654f1130a35dbc02595e5b958353396ec69592f6938ab1a28c562fefaa",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/domain/ai_policy.py",
+      "original_sha256": "6cec53c7397bbfb2641f01ba0881201158484ca89155e4983ce3bdc78fc46cb7",
+      "formatted_sha256": "6cec53c7397bbfb2641f01ba0881201158484ca89155e4983ce3bdc78fc46cb7",
+      "original_lines": 261,
+      "original_nonblank": 233,
+      "formatted_lines": 261,
+      "formatted_nonblank": 233,
+      "counted_code_lines": 231
+    },
+    {
+      "path": "backend/app/domain/assessment_rules.py",
+      "original_sha256": "3a2432eab0de810a840448d04aec4cc5cc4b36e4e2c1981ce796ac5a8d891cba",
+      "formatted_sha256": "3a2432eab0de810a840448d04aec4cc5cc4b36e4e2c1981ce796ac5a8d891cba",
+      "original_lines": 665,
+      "original_nonblank": 612,
+      "formatted_lines": 665,
+      "formatted_nonblank": 612,
+      "counted_code_lines": 610
+    },
+    {
+      "path": "backend/app/domain/models.py",
+      "original_sha256": "443d198e1e06e521f24f5e8c4ee0faf0e5d290bed2bf4b35d4809bf70594dad1",
+      "formatted_sha256": "443d198e1e06e521f24f5e8c4ee0faf0e5d290bed2bf4b35d4809bf70594dad1",
+      "original_lines": 498,
+      "original_nonblank": 419,
+      "formatted_lines": 498,
+      "formatted_nonblank": 419,
+      "counted_code_lines": 418
+    },
+    {
+      "path": "backend/app/domain/safety_rules.py",
+      "original_sha256": "dca6332686f82fa495018e2951b4af37ebcfac01fa275d53e1ae24150ef2ded2",
+      "formatted_sha256": "dca6332686f82fa495018e2951b4af37ebcfac01fa275d53e1ae24150ef2ded2",
+      "original_lines": 62,
+      "original_nonblank": 52,
+      "formatted_lines": 62,
+      "formatted_nonblank": 52,
+      "counted_code_lines": 51
+    },
+    {
+      "path": "backend/app/integrations/__init__.py",
+      "original_sha256": "f8fc6d03321dc9c52c9efdb975b7f5f6243d0f089f788a359d79a66e3fcade3a",
+      "formatted_sha256": "f8fc6d03321dc9c52c9efdb975b7f5f6243d0f089f788a359d79a66e3fcade3a",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/integrations/deepseek_client.py",
+      "original_sha256": "8a79d43b84c3465a83de654d338690fb01638240c87d18d71ed1a6384c256628",
+      "formatted_sha256": "8a79d43b84c3465a83de654d338690fb01638240c87d18d71ed1a6384c256628",
+      "original_lines": 97,
+      "original_nonblank": 85,
+      "formatted_lines": 97,
+      "formatted_nonblank": 85,
+      "counted_code_lines": 80
+    },
+    {
+      "path": "backend/app/integrations/school_identity.py",
+      "original_sha256": "4dc29a50062cd9ad75818975e7e28c708751701bd79b3d6260435da04eb2d215",
+      "formatted_sha256": "4dc29a50062cd9ad75818975e7e28c708751701bd79b3d6260435da04eb2d215",
+      "original_lines": 97,
+      "original_nonblank": 85,
+      "formatted_lines": 97,
+      "formatted_nonblank": 85,
+      "counted_code_lines": 84
+    },
+    {
+      "path": "backend/app/integrations/wechat_auth.py",
+      "original_sha256": "e33d7451bd0a90fc8b665391faa92e7400e77237bfb009d783d00a92aab2fc6e",
+      "formatted_sha256": "e33d7451bd0a90fc8b665391faa92e7400e77237bfb009d783d00a92aab2fc6e",
+      "original_lines": 60,
+      "original_nonblank": 52,
+      "formatted_lines": 60,
+      "formatted_nonblank": 52,
+      "counted_code_lines": 51
+    },
+    {
+      "path": "backend/app/repositories/__init__.py",
+      "original_sha256": "0f270b5c6fb0b16da8fd3465d0b6778d354bd07035d6292e9633269ed12ca1f0",
+      "formatted_sha256": "0f270b5c6fb0b16da8fd3465d0b6778d354bd07035d6292e9633269ed12ca1f0",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/repositories/audit_repository.py",
+      "original_sha256": "4767c3e4483ede297ca3eeece828d87c273e2d3715d9e3a72bfd05f3c44ed262",
+      "formatted_sha256": "4767c3e4483ede297ca3eeece828d87c273e2d3715d9e3a72bfd05f3c44ed262",
+      "original_lines": 46,
+      "original_nonblank": 36,
+      "formatted_lines": 46,
+      "formatted_nonblank": 36,
+      "counted_code_lines": 35
+    },
+    {
+      "path": "backend/app/repositories/cloudbase_gateway.py",
+      "original_sha256": "9b9216651786062edbc634c146ec804a3c1c2f8ac19048a53b9f5a3a6936781d",
+      "formatted_sha256": "9b9216651786062edbc634c146ec804a3c1c2f8ac19048a53b9f5a3a6936781d",
+      "original_lines": 269,
+      "original_nonblank": 238,
+      "formatted_lines": 269,
+      "formatted_nonblank": 238,
+      "counted_code_lines": 232
+    },
+    {
+      "path": "backend/app/repositories/collection_registry.py",
+      "original_sha256": "7d94104422e90340c1e24e0c7da6f14bc5b77a3d8fa8188f5d105b14a88131e6",
+      "formatted_sha256": "7d94104422e90340c1e24e0c7da6f14bc5b77a3d8fa8188f5d105b14a88131e6",
+      "original_lines": 511,
+      "original_nonblank": 487,
+      "formatted_lines": 511,
+      "formatted_nonblank": 487,
+      "counted_code_lines": 486
+    },
+    {
+      "path": "backend/app/repositories/domain_data_repository.py",
+      "original_sha256": "709492245702406bacf3d28734a6e7b50f426f328e0c2566588db9f28bad9a13",
+      "formatted_sha256": "709492245702406bacf3d28734a6e7b50f426f328e0c2566588db9f28bad9a13",
+      "original_lines": 805,
+      "original_nonblank": 733,
+      "formatted_lines": 805,
+      "formatted_nonblank": 733,
+      "counted_code_lines": 731
+    },
+    {
+      "path": "backend/app/repositories/idempotency_repository.py",
+      "original_sha256": "ab4580d64b19e2c8edff99200d468c46ad44483f57c23af3d8629bcba46c70aa",
+      "formatted_sha256": "ab4580d64b19e2c8edff99200d468c46ad44483f57c23af3d8629bcba46c70aa",
+      "original_lines": 110,
+      "original_nonblank": 96,
+      "formatted_lines": 110,
+      "formatted_nonblank": 96,
+      "counted_code_lines": 95
+    },
+    {
+      "path": "backend/app/repositories/in_memory.py",
+      "original_sha256": "b198c651b6fb141d37bbcdd7d7d6c54da4e35a4dfd14f2c4856229dee6d5588f",
+      "formatted_sha256": "b198c651b6fb141d37bbcdd7d7d6c54da4e35a4dfd14f2c4856229dee6d5588f",
+      "original_lines": 108,
+      "original_nonblank": 98,
+      "formatted_lines": 108,
+      "formatted_nonblank": 98,
+      "counted_code_lines": 97
+    },
+    {
+      "path": "backend/app/repositories/protocols.py",
+      "original_sha256": "2a3ba18a3fa51bcb0b6b692afe69dc8ec44dd11987fae5d78c2d05071c0ec4b2",
+      "formatted_sha256": "2a3ba18a3fa51bcb0b6b692afe69dc8ec44dd11987fae5d78c2d05071c0ec4b2",
+      "original_lines": 61,
+      "original_nonblank": 44,
+      "formatted_lines": 61,
+      "formatted_nonblank": 44,
+      "counted_code_lines": 39
+    },
+    {
+      "path": "backend/app/repositories/session_repository.py",
+      "original_sha256": "43718330a886d15b0fffc383ec2bec5c00208a410de006c94256148016a3d931",
+      "formatted_sha256": "43718330a886d15b0fffc383ec2bec5c00208a410de006c94256148016a3d931",
+      "original_lines": 72,
+      "original_nonblank": 60,
+      "formatted_lines": 72,
+      "formatted_nonblank": 60,
+      "counted_code_lines": 59
+    },
+    {
+      "path": "backend/app/schemas/__init__.py",
+      "original_sha256": "19292800c82264b79028e010c1a0434af2f055a94453026a054ea03cb7dfc7fa",
+      "formatted_sha256": "19292800c82264b79028e010c1a0434af2f055a94453026a054ea03cb7dfc7fa",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/schemas/admin_workbench.py",
+      "original_sha256": "e52c177de54f83f5c6cd423ca8301eed57ff8b7472167827314174730fb5e431",
+      "formatted_sha256": "e52c177de54f83f5c6cd423ca8301eed57ff8b7472167827314174730fb5e431",
+      "original_lines": 140,
+      "original_nonblank": 96,
+      "formatted_lines": 140,
+      "formatted_nonblank": 96,
+      "counted_code_lines": 95
+    },
+    {
+      "path": "backend/app/schemas/assessment.py",
+      "original_sha256": "fada7bafa312466c9e189bfe9763419e01cf50be55e269f0ee26c40e319a1aa4",
+      "formatted_sha256": "fada7bafa312466c9e189bfe9763419e01cf50be55e269f0ee26c40e319a1aa4",
+      "original_lines": 179,
+      "original_nonblank": 119,
+      "formatted_lines": 179,
+      "formatted_nonblank": 119,
+      "counted_code_lines": 118
+    },
+    {
+      "path": "backend/app/schemas/auth.py",
+      "original_sha256": "283236076df67364bf476403533f726472b558d102b66aa72161a137c9613e25",
+      "formatted_sha256": "283236076df67364bf476403533f726472b558d102b66aa72161a137c9613e25",
+      "original_lines": 58,
+      "original_nonblank": 37,
+      "formatted_lines": 58,
+      "formatted_nonblank": 37,
+      "counted_code_lines": 36
+    },
+    {
+      "path": "backend/app/schemas/envelope.py",
+      "original_sha256": "4455a6378732860c591960acfd2ef8a1a2064cdc5aa5062685d40b0b527cbb3d",
+      "formatted_sha256": "4455a6378732860c591960acfd2ef8a1a2064cdc5aa5062685d40b0b527cbb3d",
+      "original_lines": 25,
+      "original_nonblank": 16,
+      "formatted_lines": 25,
+      "formatted_nonblank": 16,
+      "counted_code_lines": 15
+    },
+    {
+      "path": "backend/app/schemas/errors.py",
+      "original_sha256": "7e28bcd52eb2d277cc9483f9fa1f90283c9c30149b527781b4f94e2c725a1cdb",
+      "formatted_sha256": "7e28bcd52eb2d277cc9483f9fa1f90283c9c30149b527781b4f94e2c725a1cdb",
+      "original_lines": 89,
+      "original_nonblank": 72,
+      "formatted_lines": 89,
+      "formatted_nonblank": 72,
+      "counted_code_lines": 70
+    },
+    {
+      "path": "backend/app/schemas/identity_access.py",
+      "original_sha256": "fb77bf31207ea215c242e9becac902038e344ae7b1e417e39e984f358ed6f607",
+      "formatted_sha256": "fb77bf31207ea215c242e9becac902038e344ae7b1e417e39e984f358ed6f607",
+      "original_lines": 38,
+      "original_nonblank": 26,
+      "formatted_lines": 38,
+      "formatted_nonblank": 26,
+      "counted_code_lines": 26
+    },
+    {
+      "path": "backend/app/schemas/student_core.py",
+      "original_sha256": "71615d150dd049d17d3ded668bddc36cabdd4f0a84dc281be1c6e93c84013143",
+      "formatted_sha256": "71615d150dd049d17d3ded668bddc36cabdd4f0a84dc281be1c6e93c84013143",
+      "original_lines": 93,
+      "original_nonblank": 61,
+      "formatted_lines": 93,
+      "formatted_nonblank": 61,
+      "counted_code_lines": 61
+    },
+    {
+      "path": "backend/app/schemas/treehole.py",
+      "original_sha256": "dcf0b69a7e75d7222ac99f80d449b1b3b2dcb6c33ca0dcc60f35773aed3f5e44",
+      "formatted_sha256": "dcf0b69a7e75d7222ac99f80d449b1b3b2dcb6c33ca0dcc60f35773aed3f5e44",
+      "original_lines": 92,
+      "original_nonblank": 65,
+      "formatted_lines": 92,
+      "formatted_nonblank": 65,
+      "counted_code_lines": 65
+    },
+    {
+      "path": "backend/app/security/__init__.py",
+      "original_sha256": "6bd4dd57b3c62dbdc036fca7818b76873000f3b984d1adeab3bc1d9db71858b6",
+      "formatted_sha256": "6bd4dd57b3c62dbdc036fca7818b76873000f3b984d1adeab3bc1d9db71858b6",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/security/passwords.py",
+      "original_sha256": "639023bd05aa52f1c84f2c43e9230d4af26f6b5dc616234fdb0f7d488bafed0c",
+      "formatted_sha256": "639023bd05aa52f1c84f2c43e9230d4af26f6b5dc616234fdb0f7d488bafed0c",
+      "original_lines": 47,
+      "original_nonblank": 37,
+      "formatted_lines": 47,
+      "formatted_nonblank": 37,
+      "counted_code_lines": 36
+    },
+    {
+      "path": "backend/app/security/tokens.py",
+      "original_sha256": "11a3ff8f0cb4d48b4a54534e73fb3ef0c87d7fef4a0885f5ccdb1f30ec74c686",
+      "formatted_sha256": "11a3ff8f0cb4d48b4a54534e73fb3ef0c87d7fef4a0885f5ccdb1f30ec74c686",
+      "original_lines": 178,
+      "original_nonblank": 159,
+      "formatted_lines": 178,
+      "formatted_nonblank": 159,
+      "counted_code_lines": 158
+    },
+    {
+      "path": "backend/app/services/__init__.py",
+      "original_sha256": "8d83ded6ec95cebe7eb95ee61b3650bc697381b881288b3a2357a87e5e606316",
+      "formatted_sha256": "8d83ded6ec95cebe7eb95ee61b3650bc697381b881288b3a2357a87e5e606316",
+      "original_lines": 1,
+      "original_nonblank": 1,
+      "formatted_lines": 1,
+      "formatted_nonblank": 1,
+      "counted_code_lines": 0
+    },
+    {
+      "path": "backend/app/services/account_service.py",
+      "original_sha256": "34c28d4a1acdb54b17a5feee3eea6a3de31fcbe52eaa4e6625e100d036abc9b9",
+      "formatted_sha256": "34c28d4a1acdb54b17a5feee3eea6a3de31fcbe52eaa4e6625e100d036abc9b9",
+      "original_lines": 194,
+      "original_nonblank": 181,
+      "formatted_lines": 194,
+      "formatted_nonblank": 181,
+      "counted_code_lines": 181
+    },
+    {
+      "path": "backend/app/services/ai_assist_service.py",
+      "original_sha256": "1ce5e2687cda8da97e1879b50dc9a3f7a7212eb1e61f676fbd40cace2366ad3c",
+      "formatted_sha256": "1ce5e2687cda8da97e1879b50dc9a3f7a7212eb1e61f676fbd40cace2366ad3c",
+      "original_lines": 362,
+      "original_nonblank": 335,
+      "formatted_lines": 362,
+      "formatted_nonblank": 335,
+      "counted_code_lines": 334
+    },
+    {
+      "path": "backend/app/services/assessment_service.py",
+      "original_sha256": "644014ef14cd5fcaf5450fa854b195f1026caf9669d1d10e40dee2ce4c9cb31e",
+      "formatted_sha256": "644014ef14cd5fcaf5450fa854b195f1026caf9669d1d10e40dee2ce4c9cb31e",
+      "original_lines": 962,
+      "original_nonblank": 917,
+      "formatted_lines": 962,
+      "formatted_nonblank": 917,
+      "counted_code_lines": 914
+    },
+    {
+      "path": "backend/app/services/auth_service.py",
+      "original_sha256": "573ca8bf2d5915bf56dbb7dd2905a41aab6cfdbce104d913285785190c7a5050",
+      "formatted_sha256": "573ca8bf2d5915bf56dbb7dd2905a41aab6cfdbce104d913285785190c7a5050",
+      "original_lines": 187,
+      "original_nonblank": 167,
+      "formatted_lines": 187,
+      "formatted_nonblank": 167,
+      "counted_code_lines": 166
+    },
+    {
+      "path": "backend/app/services/bootstrap_service.py",
+      "original_sha256": "18e4d204e46872aaecf0294dfc7dec7063b9987e2863ddf3006651163acd3fe6",
+      "formatted_sha256": "18e4d204e46872aaecf0294dfc7dec7063b9987e2863ddf3006651163acd3fe6",
+      "original_lines": 91,
+      "original_nonblank": 86,
+      "formatted_lines": 91,
+      "formatted_nonblank": 86,
+      "counted_code_lines": 86
+    },
+    {
+      "path": "backend/app/services/consent_service.py",
+      "original_sha256": "0f8a2560afaded9f50fa287905298bb72be0221d187dfcf785e6d5cfa7a654f4",
+      "formatted_sha256": "0f8a2560afaded9f50fa287905298bb72be0221d187dfcf785e6d5cfa7a654f4",
+      "original_lines": 314,
+      "original_nonblank": 289,
+      "formatted_lines": 314,
+      "formatted_nonblank": 289,
+      "counted_code_lines": 288
+    },
+    {
+      "path": "backend/app/services/idempotency_service.py",
+      "original_sha256": "0a0d677dcf2874244ddfa8100a52e646488f731c8c60b60ca38d6d890906070d",
+      "formatted_sha256": "0a0d677dcf2874244ddfa8100a52e646488f731c8c60b60ca38d6d890906070d",
+      "original_lines": 152,
+      "original_nonblank": 133,
+      "formatted_lines": 152,
+      "formatted_nonblank": 133,
+      "counted_code_lines": 130
+    },
+    {
+      "path": "backend/app/services/identity_access_service.py",
+      "original_sha256": "ae3569d849cca11e8123b775c4358cea7156ce351f6a6cd0998682da30fcacd9",
+      "formatted_sha256": "ae3569d849cca11e8123b775c4358cea7156ce351f6a6cd0998682da30fcacd9",
+      "original_lines": 289,
+      "original_nonblank": 272,
+      "formatted_lines": 289,
+      "formatted_nonblank": 272,
+      "counted_code_lines": 272
+    },
+    {
+      "path": "backend/app/services/identity_service.py",
+      "original_sha256": "cbfc566ced96766183518065314547387a00fa03da9192f1360873aae800db26",
+      "formatted_sha256": "cbfc566ced96766183518065314547387a00fa03da9192f1360873aae800db26",
+      "original_lines": 583,
+      "original_nonblank": 522,
+      "formatted_lines": 583,
+      "formatted_nonblank": 522,
+      "counted_code_lines": 515
+    },
+    {
+      "path": "backend/app/services/mood_service.py",
+      "original_sha256": "32f749ea1f4340043abb782a791b3cf0a0de9e9b24b0516b4662c6f793259428",
+      "formatted_sha256": "32f749ea1f4340043abb782a791b3cf0a0de9e9b24b0516b4662c6f793259428",
+      "original_lines": 415,
+      "original_nonblank": 372,
+      "formatted_lines": 415,
+      "formatted_nonblank": 372,
+      "counted_code_lines": 371
+    },
+    {
+      "path": "backend/app/services/quote_service.py",
+      "original_sha256": "089fd599eccbb59e4f2e837769a57756c4325e4c17fb55e22caada0440e8d640",
+      "formatted_sha256": "089fd599eccbb59e4f2e837769a57756c4325e4c17fb55e22caada0440e8d640",
+      "original_lines": 72,
+      "original_nonblank": 56,
+      "formatted_lines": 72,
+      "formatted_nonblank": 56,
+      "counted_code_lines": 55
+    },
+    {
+      "path": "backend/app/services/support_resource_service.py",
+      "original_sha256": "b077f79e6234dbd2c50f9e08190eac201058bf50974b58c4a21fdc7c6474af76",
+      "formatted_sha256": "b077f79e6234dbd2c50f9e08190eac201058bf50974b58c4a21fdc7c6474af76",
+      "original_lines": 115,
+      "original_nonblank": 99,
+      "formatted_lines": 115,
+      "formatted_nonblank": 99,
+      "counted_code_lines": 98
+    },
+    {
+      "path": "backend/app/services/today_service.py",
+      "original_sha256": "d446247099c93ce87a6584bc5d9f36e4a4a90e1380bac3fb8bcee6853a5e7a6c",
+      "formatted_sha256": "d446247099c93ce87a6584bc5d9f36e4a4a90e1380bac3fb8bcee6853a5e7a6c",
+      "original_lines": 176,
+      "original_nonblank": 152,
+      "formatted_lines": 176,
+      "formatted_nonblank": 152,
+      "counted_code_lines": 151
+    },
+    {
+      "path": "backend/scf_bootstrap",
+      "original_sha256": "1f279cdc6b4714900592530fdff6845a232764f3de1d070ebb62ce6dc65d1aa9",
+      "formatted_sha256": "1f279cdc6b4714900592530fdff6845a232764f3de1d070ebb62ce6dc65d1aa9",
+      "original_lines": 4,
+      "original_nonblank": 3,
+      "formatted_lines": 4,
+      "formatted_nonblank": 3,
+      "counted_code_lines": 2
+    },
+    {
+      "path": "backend/app/services/safety_service.py",
+      "original_sha256": "b8daeae95355135b3b28d4075cc027d3f1450fc1a6b0bd0783734b2b2885deb3",
+      "formatted_sha256": "b8daeae95355135b3b28d4075cc027d3f1450fc1a6b0bd0783734b2b2885deb3",
+      "original_lines": 516,
+      "original_nonblank": 489,
+      "formatted_lines": 516,
+      "formatted_nonblank": 489,
+      "counted_code_lines": 488
+    },
+    {
+      "path": "backend/app/services/treehole_service.py",
+      "original_sha256": "e1a1c5afe7139fbe4a6a6ecedcb52246eb96689b8a68999912997b505a3ffb5f",
+      "formatted_sha256": "e1a1c5afe7139fbe4a6a6ecedcb52246eb96689b8a68999912997b505a3ffb5f",
+      "original_lines": 643,
+      "original_nonblank": 609,
+      "formatted_lines": 643,
+      "formatted_nonblank": 609,
+      "counted_code_lines": 609
+    },
+    {
+      "path": "backend/app/services/admin_workbench_service.py",
+      "original_sha256": "f7081fe71b4f0e4564ff2a59e81cc0a28fb580d928df6ef57a60f0f33c8bf34d",
+      "formatted_sha256": "f7081fe71b4f0e4564ff2a59e81cc0a28fb580d928df6ef57a60f0f33c8bf34d",
+      "original_lines": 479,
+      "original_nonblank": 449,
+      "formatted_lines": 479,
+      "formatted_nonblank": 449,
+      "counted_code_lines": 441
+    }
+  ]
+}

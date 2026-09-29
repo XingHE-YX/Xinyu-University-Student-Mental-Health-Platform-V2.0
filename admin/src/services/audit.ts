@@ -157,7 +157,7 @@ export async function getAuditEvents(
     if (filters.eventType && actionFilter[filters.eventType])
       params.set("action", actionFilter[filters.eventType]);
     const result = await apiRequest(
-      `/api/v1/admin/audit-events?${params.toString()}`,
+      `/admin/audit-events?${params.toString()}`,
       { token: accessToken },
       (value) => auditPageSchema.parse(value),
     );
@@ -264,7 +264,7 @@ export async function resetDemoData(
     );
   if (accessToken) {
     const result = await apiRequest(
-      "/api/v1/admin/demo/reset",
+      "/admin/demo/reset",
       {
         method: "POST",
         token: accessToken,

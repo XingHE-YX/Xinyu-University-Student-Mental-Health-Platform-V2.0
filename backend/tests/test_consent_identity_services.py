@@ -15,8 +15,10 @@ from app.domain.models import (
     UserAccountDocument,
 )
 from app.integrations.school_identity import (
+    DemoSchoolIdentityProvider,
     HttpSchoolIdentityProvider,
     SchoolIdentityVerificationResult,
+    UnavailableSchoolIdentityProvider,
 )
 from app.repositories.audit_repository import InMemoryAuditRepository
 from app.repositories.domain_data_repository import InMemoryDomainDataRepository
@@ -1536,6 +1538,47 @@ async def test_school_identity_adapter_normalizes_response_exception_to_unavaila
     result = await provider.verify_student(student_name="王小雨", student_number="20260001")
 
     assert result == SchoolIdentityVerificationResult(status="unavailable")
+
+
+@pytest.mark.asyncio
+async def test_demo_school_identity_accepts_only_the_fixed_synthetic_record() -> None:
+    provider = DemoSchoolIdentityProvider()
+
+    accepted = await provider.verify_student(student_name="王小雨", student_number="20260001")
+    rejected = await provider.verify_student(student_name="真实姓名", student_number="20260002")
+
+    assert accepted == SchoolIdentityVerificationResult(
+        status="verified",
+        provider_reference="demo-school-identity-001",
+    )
+    assert rejected == SchoolIdentityVerificationResult(
+        status="failed",
+        failed_reason_code="demo_identity_mismatch",
+    )
+
+
+def test_default_identity_provider_uses_synthetic_records_only_in_demo() -> None:
+    def build_service(settings: Settings) -> IdentityService:
+        return IdentityService(
+            settings=settings,
+            repository=InMemoryDomainDataRepository(),
+            session_repository=InMemorySessionRepository(),
+            token_manager=TokenManager("student-session-secret"),
+            idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+            audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="test-env"),
+        )
+
+    demo_settings = Settings.from_environment(
+        {"CLOUDBASE_ENV_ID": "demo-env", "DEMO_MODE": "true"},
+        demo_env_ids={"demo-env"},
+    )
+    authorized_settings = Settings.from_environment(
+        {"CLOUDBASE_ENV_ID": "authorized-env", "DEMO_MODE": "false"},
+        authorized_env_ids={"authorized-env"},
+    )
+
+    assert isinstance(build_service(demo_settings).school, DemoSchoolIdentityProvider)
+    assert isinstance(build_service(authorized_settings).school, UnavailableSchoolIdentityProvider)
 
 
 @pytest.mark.asyncio

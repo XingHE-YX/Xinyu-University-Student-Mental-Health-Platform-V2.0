@@ -189,15 +189,20 @@ Python HTTP 函数发布包必须有平台启动文件 scf_bootstrap，启动命
 | WECHAT_APPID | 微信登录交换 | 服务端密钥配置 |
 | WECHAT_APPSECRET | 微信登录交换 | 只在服务端密钥配置 |
 | CLOUDBASE_ENV_ID | 数据库和云函数环境 | 环境级配置 |
+| CLOUDBASE_ENV_ID_DEMO | 已登记的演示环境 ID，供启动时核对白名单 | 服务端非秘密配置；不得从 DEMO_MODE 自动推导 |
+| CLOUDBASE_ENV_ID_AUTHORIZED | 已登记的真实授权环境 ID，供启动时核对白名单 | 服务端非秘密配置；不得与演示 ID 相同 |
 | CLOUDBASE_API_KEY | CloudBase HTTP 访问 | 只在服务端密钥配置 |
-| DEEPSEEK_API_KEY | DeepSeek 调用 | 只在服务端密钥配置 |
+| PERSISTENCE_BACKEND | 选择 `memory` 或 `cloudbase` 仓储 | 云端显式设为 `cloudbase`；本地默认 `memory`，避免测试误连真实环境 |
+| DEEPSEEK_API_KEY | 可选的 DeepSeek 辅助调用 | 只在服务端密钥配置；缺失不阻断核心服务 |
 | ADMIN_PASSWORD_HASH | 固定后台账号密码哈希 | 只在服务端密钥配置 |
 | ADMIN_SESSION_SECRET | 后台会话签名或哈希 | 只在服务端密钥配置 |
 | SCHOOL_IDENTITY_PROVIDER_URL | 学校身份核验适配器 | 未配置时必须显示未配置 |
 | SUPPORT_RESOURCE_VERSION | 支持资源版本 | 环境配置 |
 | DEMO_MODE | 是否为演示环境 | 必须由环境标记决定 |
 
-所有配置位允许由用户后续填写，但未配置不代表功能已实现。缺少真实支持资源、身份核验或 DeepSeek 密钥时只能进入演示或明确的未配置状态。
+所有配置位允许由用户后续填写，但未配置不代表功能已实现。缺少支持资源、身份核验或其他核心配置时保持明确的未配置状态。DeepSeek 是可选依赖：核心配置齐全且环境 ID 与模式匹配时，缺少 DeepSeek 密钥只触发 AI 固定回退，不改变核心服务的就绪状态。
+
+启动时分别读取 `CLOUDBASE_ENV_ID_DEMO` 和 `CLOUDBASE_ENV_ID_AUTHORIZED`，再核对当前 `CLOUDBASE_ENV_ID` 与 `DEMO_MODE`。只创建演示环境时可以暂不设置正式环境 ID；正式部署前必须登记两套不同 ID。空白值和未替换的模板占位符不视为已配置。
 
 ## 5. 前端构建和运行约束
 

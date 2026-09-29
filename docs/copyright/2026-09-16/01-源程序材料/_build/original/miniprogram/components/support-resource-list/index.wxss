@@ -1,0 +1,1 @@
+.resource+.resource{margin-top:12px}.resource-action{margin-top:12px;padding:0;border:0;background:transparent;color:var(--xinyu-color-primary);text-decoration:underline;text-align:left}.resource-action::after{border:0}

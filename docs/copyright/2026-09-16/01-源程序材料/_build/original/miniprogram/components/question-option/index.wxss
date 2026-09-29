@@ -1,0 +1,2 @@
+.option{display:flex;align-items:center;min-height:52px;margin-top:8px;padding:0 16px;box-sizing:border-box;background:var(--xinyu-color-surface);border:1px solid var(--xinyu-color-divider);border-radius:8px}
+.option--selected{border:2px solid var(--xinyu-color-primary);background:var(--xinyu-color-primary-soft)}

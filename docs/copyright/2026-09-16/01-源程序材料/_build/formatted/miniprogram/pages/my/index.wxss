@@ -1,0 +1,29 @@
+.identity-summary {
+  padding: 20px 0;
+  border-top: 1px solid var(--xinyu-color-divider);
+  border-bottom: 1px solid var(--xinyu-color-divider);
+}
+.identity-summary__label {
+  display: block;
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+.identity-summary__name {
+  display: block;
+  margin-top: 4px;
+  color: var(--xinyu-color-text);
+  font-size: 24px;
+  line-height: 34px;
+  font-weight: 600;
+}
+.identity-summary__body {
+  display: block;
+  margin-top: 4px;
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+.my-space {
+  margin-top: 32px;
+}

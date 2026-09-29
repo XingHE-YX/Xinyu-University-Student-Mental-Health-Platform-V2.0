@@ -1,0 +1,15 @@
+{
+  "pdf_pages": 60,
+  "min_counted_code_lines_per_page": 50,
+  "pdf_source_rows_verified": 3043,
+  "source_files_unchanged": 255,
+  "zip_files": 350,
+  "zip_bytes": 417957,
+  "backend_tests_passed": 180,
+  "miniprogram_tests_passed": 19,
+  "admin_tests_passed": 5,
+  "admin_build": "passed",
+  "backend_http_health": 200,
+  "backend_health_state": "unconfigured/degraded",
+  "registered_endpoints": 50
+}

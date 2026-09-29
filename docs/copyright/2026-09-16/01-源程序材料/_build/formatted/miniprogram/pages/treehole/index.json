@@ -1,0 +1,6 @@
+{
+  "usingComponents": {
+    "state-message": "/components/state-message/index",
+    "empty-state": "/components/empty-state/index"
+  }
+}

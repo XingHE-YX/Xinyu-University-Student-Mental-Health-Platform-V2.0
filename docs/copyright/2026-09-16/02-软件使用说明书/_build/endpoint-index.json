@@ -1,0 +1,551 @@
+[
+  {
+    "method": "GET",
+    "path": "/api/v1/health",
+    "purpose": "健康检查",
+    "parameters": [],
+    "body_fields": [],
+    "response": "ApiEnvelope_HealthData_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/wechat/session",
+    "purpose": "微信凭证换学生会话",
+    "parameters": [],
+    "body_fields": [
+      "code（必填）",
+      "client_version（必填）"
+    ],
+    "response": "ApiEnvelope_StudentSessionData_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/refresh",
+    "purpose": "刷新学生会话",
+    "parameters": [],
+    "body_fields": [
+      "refresh_token（必填）"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/auth/logout",
+    "purpose": "退出学生会话",
+    "parameters": [],
+    "body_fields": [],
+    "response": "ApiEnvelope_dict_str__bool__"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me",
+    "purpose": "读取学生主体与账户状态",
+    "parameters": [],
+    "body_fields": [],
+    "response": "ApiEnvelope_StudentMeData_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/login",
+    "purpose": "后台固定账号登录",
+    "parameters": [],
+    "body_fields": [
+      "login_name（必填）",
+      "password（必填）"
+    ],
+    "response": "ApiEnvelope_AdminSessionData_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/refresh",
+    "purpose": "刷新学生会话",
+    "parameters": [],
+    "body_fields": [
+      "refresh_token（必填）"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/auth/logout",
+    "purpose": "退出学生会话",
+    "parameters": [],
+    "body_fields": [],
+    "response": "ApiEnvelope_dict_str__bool__"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/me",
+    "purpose": "读取学生主体与账户状态",
+    "parameters": [],
+    "body_fields": [],
+    "response": "ApiEnvelope_AdminMeData_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/workbench",
+    "purpose": "读取后台任务区块",
+    "parameters": [
+      "section[query]",
+      "cursor[query]",
+      "limit[query]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_WorkbenchPage_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/tasks/{task_id}",
+    "purpose": "读取后台任务详情",
+    "parameters": [
+      "task_id[path]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_TaskDetail_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/tasks/{task_id}/claim",
+    "purpose": "认领任务",
+    "parameters": [
+      "task_id[path]"
+    ],
+    "body_fields": [
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_TaskMutationResult_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/tasks/{task_id}/release",
+    "purpose": "释放任务",
+    "parameters": [
+      "task_id[path]"
+    ],
+    "body_fields": [
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_TaskMutationResult_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/tasks/{task_id}/decision",
+    "purpose": "提交任务处理决定",
+    "parameters": [
+      "task_id[path]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_TaskMutationResult_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/audit-events",
+    "purpose": "查询审计日志",
+    "parameters": [
+      "from[query]",
+      "to[query]",
+      "resource_type[query]",
+      "action[query]",
+      "outcome[query]",
+      "cursor[query]",
+      "limit[query]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_AuditPage_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/demo/reset",
+    "purpose": "重置后台演示案例",
+    "parameters": [],
+    "body_fields": [
+      "confirmation_text（必填）",
+      "reset_scope（必填）"
+    ],
+    "response": "ApiEnvelope_ResetResult_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/admin/identity-access-requests",
+    "purpose": "创建身份授权申请",
+    "parameters": [],
+    "body_fields": [
+      "user_reference_id（必填）",
+      "requested_fields（必填）",
+      "reason_fact（必填）"
+    ],
+    "response": "ApiEnvelope_IdentityAccessRequestProjection_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/identity-access-requests/{identity_request_id}",
+    "purpose": "读取身份授权申请",
+    "parameters": [
+      "identity_request_id[path]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_IdentityAccessRequestProjection_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/admin/identity-access-requests/{identity_request_id}/identity",
+    "purpose": "按授权范围读取身份字段",
+    "parameters": [
+      "identity_request_id[path]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_IdentityAccessIdentityProjection_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/assessment-sessions",
+    "purpose": "开始自测会话",
+    "parameters": [],
+    "body_fields": [
+      "module_code（必填）",
+      "client_start_key（必填）"
+    ],
+    "response": "ApiEnvelope_StartAssessmentSessionResponse_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/assessment-sessions/{session_id}/complete",
+    "purpose": "完成自测并返回结果引用",
+    "parameters": [
+      "session_id[path]"
+    ],
+    "body_fields": [
+      "answers（必填）",
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/assessment-sessions/{session_id}/abandon",
+    "purpose": "放弃未完成会话",
+    "parameters": [
+      "session_id[path]"
+    ],
+    "body_fields": [
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_AssessmentSessionStateResponse_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/assessment-sessions/{session_id}/safety-confirmation",
+    "purpose": "确认安全状态",
+    "parameters": [
+      "session_id[path]"
+    ],
+    "body_fields": [
+      "state（必填）",
+      "answers（必填）",
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_SafetyConfirmationResponse_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/assessment-sessions/{session_id}/support-resource-ack",
+    "purpose": "确认已展示资源版本",
+    "parameters": [
+      "session_id[path]"
+    ],
+    "body_fields": [
+      "resource_context（必填）",
+      "resource_version（必填）",
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_SupportResourceAckResponse_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/assessment-modules",
+    "purpose": "读取自测目录",
+    "parameters": [],
+    "body_fields": [],
+    "response": "ApiEnvelope_AssessmentModuleListResponse_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/assessment-results/{result_id}",
+    "purpose": "读取单条结果",
+    "parameters": [
+      "result_id[path]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_AssessmentResultProjection_"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/assessment-results/{result_id}",
+    "purpose": "删除本人结果",
+    "parameters": [
+      "result_id[path]"
+    ],
+    "body_fields": [
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_AssessmentResultDeleteResponse_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/assessment-results",
+    "purpose": "读取本人结果列表",
+    "parameters": [
+      "module_code[query]",
+      "from_date[query]",
+      "to_date[query]",
+      "cursor[query]",
+      "limit[query]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_AssessmentResultListResponse_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/treehole/posts",
+    "purpose": "读取公开树洞列表",
+    "parameters": [
+      "sort[query]",
+      "cursor[query]",
+      "limit[query]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_TreeholePostListResponse_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/treehole/posts",
+    "purpose": "提交树洞帖子",
+    "parameters": [],
+    "body_fields": [
+      "body（必填）",
+      "client_idempotency_key（必填）"
+    ],
+    "response": "ApiEnvelope_TreeholeMutationResponse_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/treehole/posts/{post_id}",
+    "purpose": "读取帖子允许展示的详情",
+    "parameters": [
+      "post_id[path]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_TreeholePostProjection_"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/treehole/posts/{post_id}",
+    "purpose": "删除本人帖子",
+    "parameters": [
+      "post_id[path]"
+    ],
+    "body_fields": [
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_TreeholeDeleteResponse_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/treehole/posts/{post_id}/withdraw",
+    "purpose": "撤回本人帖子",
+    "parameters": [
+      "post_id[path]"
+    ],
+    "body_fields": [
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_TreeholeMutationResponse_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/treehole/posts/{post_id}/responses",
+    "purpose": "提交帖子回应",
+    "parameters": [
+      "post_id[path]"
+    ],
+    "body_fields": [
+      "body（必填）",
+      "object_version（必填）",
+      "client_idempotency_key（必填）"
+    ],
+    "response": "ApiEnvelope_TreeholeResponseProjection_"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/treehole/responses/{response_id}",
+    "purpose": "删除本人回应",
+    "parameters": [
+      "response_id[path]"
+    ],
+    "body_fields": [
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_TreeholeDeleteResponse_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/treehole/posts",
+    "purpose": "读取本人帖子列表",
+    "parameters": [
+      "cursor[query]",
+      "limit[query]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_TreeholePostListResponse_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/app/bootstrap",
+    "purpose": "读取账户、同意与匿名身份摘要",
+    "parameters": [],
+    "body_fields": [],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/consents/base",
+    "purpose": "记录基础服务同意",
+    "parameters": [],
+    "body_fields": [
+      "document_version（必填）",
+      "action",
+      "object_version"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/consents/community",
+    "purpose": "记录或撤回社区同意",
+    "parameters": [],
+    "body_fields": [
+      "document_version（必填）",
+      "action",
+      "object_version"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/identity/verifications",
+    "purpose": "提交身份核验",
+    "parameters": [],
+    "body_fields": [
+      "student_name（必填）",
+      "student_number（必填）",
+      "client_request_key（必填）",
+      "object_version"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/identity/verifications/{verification_id}",
+    "purpose": "读取身份核验状态",
+    "parameters": [
+      "verification_id[path]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/me/anonymous-identity",
+    "purpose": "读取匿名身份",
+    "parameters": [],
+    "body_fields": [],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/today",
+    "purpose": "读取今日内容",
+    "parameters": [
+      "previous_quote_id[query]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "PUT",
+    "path": "/api/v1/moods/today",
+    "purpose": "保存今日心情",
+    "parameters": [],
+    "body_fields": [
+      "record_date（必填）",
+      "mood_code（必填）",
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/moods",
+    "purpose": "读取本人心情历史",
+    "parameters": [
+      "from_date[query]",
+      "to_date[query]",
+      "cursor[query]",
+      "limit[query]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "DELETE",
+    "path": "/api/v1/moods/{record_id}",
+    "purpose": "删除本人单条心情",
+    "parameters": [
+      "record_id[path]"
+    ],
+    "body_fields": [
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/support-resources",
+    "purpose": "读取支持资源",
+    "parameters": [
+      "context[query]"
+    ],
+    "body_fields": [],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/account/stop",
+    "purpose": "停止使用账户",
+    "parameters": [],
+    "body_fields": [
+      "confirmation_text",
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "POST",
+    "path": "/api/v1/account/recover",
+    "purpose": "恢复账户",
+    "parameters": [],
+    "body_fields": [
+      "confirmation_text",
+      "object_version（必填）"
+    ],
+    "response": "ApiEnvelope_object_"
+  },
+  {
+    "method": "GET",
+    "path": "/api/v1/account/status",
+    "purpose": "读取账户及恢复状态",
+    "parameters": [],
+    "body_fields": [],
+    "response": "ApiEnvelope_object_"
+  }
+]

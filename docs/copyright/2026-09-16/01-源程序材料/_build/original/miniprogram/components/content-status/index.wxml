@@ -1,0 +1,1 @@
+<text class="status-chip {{status === 'checking' || status === 'pending_confirmation' ? 'status-chip--waiting' : status === 'safety_priority' ? 'status-chip--safety' : ''}}">{{status}}</text>

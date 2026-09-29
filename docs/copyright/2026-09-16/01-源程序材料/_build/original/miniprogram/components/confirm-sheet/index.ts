@@ -1,0 +1,1 @@
+Component({ properties: { visible: { type: Boolean, value: false }, title: { type: String, value: '请确认' }, message: { type: String, value: '' }, confirmLabel: { type: String, value: '确认' } }, methods: { cancel() { this.triggerEvent('cancel') }, confirm() { this.triggerEvent('confirm') } } })

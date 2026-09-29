@@ -47,7 +47,7 @@ class AuthService:
 
     async def login_student(self, code: str, *, client_version: str) -> StudentSessionData:
         del client_version
-        self._require_ready()
+        self._require_student_login_ready()
         identity = await self.wechat.exchange_code(code)
         user = self._ensure_student_user(identity.subject_id)
         pair = self.tokens.issue("student", identity.subject_id, self.sessions)
@@ -66,9 +66,9 @@ class AuthService:
     def login_admin(self, login_name: str, password: str) -> AdminSessionData:
         self._require_ready()
         if login_name != self.ADMIN_LOGIN_NAME or not self.settings.password_hash:
-            raise ApiException(401, "AUTH_REQUIRED")
+            raise ApiException(401, "INVALID_CREDENTIALS")
         if not verify_password(password, self.settings.password_hash):
-            raise ApiException(401, "AUTH_REQUIRED")
+            raise ApiException(401, "INVALID_CREDENTIALS")
         pair = self.tokens.issue(
             "admin",
             "admin:fixed-super-admin",
@@ -127,6 +127,10 @@ class AuthService:
     def _require_ready(self) -> None:
         if self.settings.configuration_status != "ready":
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "服务环境尚未完成配置")
+
+    def _require_student_login_ready(self) -> None:
+        if not self.settings.student_login_ready:
+            raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "微信登录暂未完成配置")
 
     def _ensure_student_user(self, subject_id: str) -> UserAccountDocument:
         if self.domain_repository is None:

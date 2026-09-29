@@ -1,0 +1,2 @@
+.resource-action { margin-top:16px; padding:0; border:0; background:transparent; color:var(--xinyu-color-primary); font-size:14px; text-decoration:underline; text-align:left; }
+.resource-action::after { border:0; }

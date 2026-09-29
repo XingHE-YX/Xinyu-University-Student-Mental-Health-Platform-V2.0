@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -19,6 +20,7 @@ from app.repositories.protocols import RepositoryNotFound
 from app.repositories.session_repository import InMemorySessionRepository
 from app.schemas.errors import ApiException
 from app.security.tokens import TokenManager
+from app.services.ai_assist_service import AiAssistService
 from app.services.idempotency_service import IdempotencyService
 
 
@@ -124,6 +126,65 @@ def build_service(repository: InMemoryDomainDataRepository) -> object:
         idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
         audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
     )
+
+
+@pytest.mark.asyncio
+async def test_completed_assessment_persists_and_returns_ai_assist() -> None:
+    class StubClient:
+        async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+            assert payload["module"] == "GAD7"
+            return {
+                "task_type": task_type,
+                "status": "ok",
+                "summary": (
+                    "这段说明帮助你阅读已经完成的固定结果，并保持原有分层不变，"
+                    "你可以按自己的节奏决定是否查看支持资源。"
+                ),
+                "observations": ["本次结果只作为自我观察参考。"],
+                "practical_steps": ["可以先查看支持资源。"],
+                "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
+            }
+
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    settings = configured_settings()
+    ai_assist = AiAssistService(settings, client=StubClient(), repository=repository)
+    service_module = pytest.importorskip("app.services.assessment_service")
+    service = service_module.AssessmentService(
+        settings=settings,
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+        ai_assist_service=ai_assist,
+    )
+    access_token = issue_student_access_token(sessions)
+    started = service.start_session(
+        access_token,
+        module_code="gad7",
+        request_id="req-ai-start",
+        idempotency_key="ai-start",
+    )
+    completed = service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=started.object_version,
+        answers=[
+            {"question_key": f"q{question_number}", "option_key": "0"}
+            for question_number in range(1, 8)
+        ],
+        request_id="req-ai-complete",
+        idempotency_key="ai-complete",
+    )
+
+    await service.attach_ai_assist(access_token, result_id=completed.result_id or "")
+    projection = service.get_result(access_token, result_id=completed.result_id or "")
+
+    assert projection.ai_assist is not None
+    assert projection.ai_assist["status"] == "adopted"
+    assert repository.get_assessment_result(completed.result_id or "").ai_assist_snapshot_id
+    assert len(repository.extra_collection("ai_assist_snapshots")) == 1
 
 
 def test_start_session_freezes_enabled_questionnaire_version_without_score_rules() -> None:

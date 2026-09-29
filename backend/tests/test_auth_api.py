@@ -61,6 +61,45 @@ def test_student_login_and_me_use_the_server_subject_not_client_identity_fields(
     }
 
 
+def test_student_login_is_not_blocked_by_unrelated_unconfigured_integrations() -> None:
+    environment = {
+        "WECHAT_APPID": "wx-demo",
+        "WECHAT_APPSECRET": "wechat-secret",
+        "CLOUDBASE_ENV_ID": "demo-env",
+        "ADMIN_SESSION_SECRET": "student-session-secret",
+        "DEMO_MODE": "true",
+    }
+    settings = Settings.from_environment(environment, demo_env_ids={"demo-env"})
+    assert settings.configuration_status == "unconfigured"
+
+    app = create_app(settings, wechat_client=FakeWechatClient())
+    response = TestClient(app).post(
+        "/api/v1/auth/wechat/session",
+        json={"code": "one-time-code", "client_version": "0.1.0"},
+    )
+
+    assert response.status_code == 200
+
+
+def test_student_login_requires_a_stable_session_secret() -> None:
+    environment = {
+        "WECHAT_APPID": "wx-demo",
+        "WECHAT_APPSECRET": "wechat-secret",
+        "CLOUDBASE_ENV_ID": "demo-env",
+        "DEMO_MODE": "true",
+    }
+    settings = Settings.from_environment(environment, demo_env_ids={"demo-env"})
+
+    app = create_app(settings, wechat_client=FakeWechatClient())
+    response = TestClient(app).post(
+        "/api/v1/auth/wechat/session",
+        json={"code": "one-time-code", "client_version": "0.1.0"},
+    )
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "DEPENDENCY_UNAVAILABLE"
+
+
 def test_admin_login_uses_fixed_account_and_refresh_rotation() -> None:
     app = create_app(configured_settings(), wechat_client=FakeWechatClient())
     client = TestClient(app)
@@ -95,6 +134,19 @@ def test_admin_login_uses_fixed_account_and_refresh_rotation() -> None:
     )
     assert me.status_code == 200
     assert me.json()["data"]["capability_label"] == "超级管理员"
+
+
+def test_admin_login_reports_invalid_credentials_instead_of_missing_session() -> None:
+    client = TestClient(create_app(configured_settings(), wechat_client=FakeWechatClient()))
+
+    response = client.post(
+        "/api/v1/admin/auth/login",
+        json={"login_name": "心理健康中心工作人员", "password": "wrong-password"},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "INVALID_CREDENTIALS"
+    assert response.json()["error"]["message"] == "账号或密码不正确"
 
 
 def test_student_and_admin_refresh_endpoints_cannot_cross_subject_types() -> None:

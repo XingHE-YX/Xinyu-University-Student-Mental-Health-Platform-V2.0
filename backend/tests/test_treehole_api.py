@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Literal, cast
+from typing import Any, Literal, cast
 
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from app.domain.models import (
     AnonymousIdentityDocument,
@@ -13,11 +15,33 @@ from app.domain.models import (
 )
 from app.main import create_app
 from app.repositories.domain_data_repository import InMemoryDomainDataRepository
+from app.security.passwords import hash_password
+from app.services.ai_assist_service import AiAssistService
 
 from .test_assessment_service import configured_settings
 
 
 def build_client() -> tuple[TestClient, InMemoryDomainDataRepository, str]:
+    class StubTreeholeAiClient:
+        async def complete(
+            self,
+            *,
+            task_type: str,
+            payload: Mapping[str, Any],
+        ) -> dict[str, Any]:
+            source = str(payload["sanitized_text"])
+            return {
+                "task_type": task_type,
+                "status": "ok",
+                "content_safety": "clear",
+                "wellbeing_signal": "none",
+                "privacy_signal": "clear",
+                "community_issue": ["none"],
+                "evidence_spans": [source[:8]],
+                "recommended_route": "allow",
+                "review_note": "已完成受限辅助检查，最终状态仍由规则和人工决定。",
+            }
+
     now = datetime(2026, 9, 2, tzinfo=UTC)
     user = UserAccountDocument(
         _id="user-1",
@@ -59,7 +83,22 @@ def build_client() -> tuple[TestClient, InMemoryDomainDataRepository, str]:
     repository = InMemoryDomainDataRepository(
         users=[user], identities=[identity], anonymous_identities=[anonymous]
     )
-    app = create_app(configured_settings(), domain_repository=repository)
+    settings = configured_settings().model_copy(
+        update={
+            "admin_password_hash": SecretStr(
+                hash_password("correct-password", salt=b"treehole-admin-test")
+            )
+        }
+    )
+    app = create_app(
+        settings,
+        domain_repository=repository,
+        ai_assist_service=AiAssistService(
+            settings,
+            client=StubTreeholeAiClient(),
+            repository=repository,
+        ),
+    )
     token = app.state.auth_service.tokens.issue(
         "student", "user-1", app.state.auth_service.sessions
     ).access_token
@@ -77,9 +116,82 @@ def test_treehole_create_hides_unpublished_body_from_public_list_and_supports_ow
     assert created.status_code == 200
     post_id = created.json()["data"]["post_id"]
     assert created.json()["data"]["display_projection"]["body_sanitized"] is None
+    assert created.json()["data"]["review_state"] == "automated_checked"
     assert client.get("/api/v1/treehole/posts", headers=headers).json()["data"]["items"] == []
     assert client.get(f"/api/v1/treehole/posts/{post_id}", headers=headers).json()["data"]["mine"]
     assert repository.extra_collection("content_review_tasks")
+    work_tasks = repository.extra_collection("work_tasks")
+    assert len(work_tasks) == 1
+    assert work_tasks[0]["source_type"] == "post"
+    assert work_tasks[0]["redacted_content"] == "一段只想先放下的心事"
+    assert work_tasks[0]["records"][0]["label"] == "DeepSeek 建议"
+    assert len(repository.extra_collection("ai_assist_snapshots")) == 1
+
+    login = client.post(
+        "/api/v1/admin/auth/login",
+        json={"login_name": "心理健康中心工作人员", "password": "correct-password"},
+    )
+    admin_headers = {"Authorization": f"Bearer {login.json()['data']['access_token']}"}
+    task_id = f"content_review_{post_id}"
+    detail = client.get(f"/api/v1/admin/tasks/{task_id}", headers=admin_headers)
+    assert detail.status_code == 200
+    assert detail.json()["data"]["redacted_content"] == "一段只想先放下的心事"
+    assert "publish" in detail.json()["data"]["allowed_actions"]
+    claimed = client.post(
+        f"/api/v1/admin/tasks/{task_id}/claim",
+        headers={**admin_headers, "Idempotency-Key": "claim-live-post"},
+        json={"object_version": detail.json()["data"]["object_version"]},
+    )
+    decided = client.post(
+        f"/api/v1/admin/tasks/{task_id}/decision",
+        headers={**admin_headers, "Idempotency-Key": "publish-live-post"},
+        json={
+            "object_version": claimed.json()["data"]["new_object_version"],
+            "action": "publish",
+            "internal_reason": "内容已完成脱敏与人工确认",
+        },
+    )
+
+    assert decided.status_code == 200
+    published = repository.get_treehole_post(post_id)
+    assert published.visibility_state == "published"
+    assert published.review_state == "decided"
+    public_items = client.get("/api/v1/treehole/posts", headers=headers).json()["data"]["items"]
+    assert public_items[0]["body_sanitized"] == "一段只想先放下的心事"
+
+
+def test_treehole_response_persists_ai_snapshot_without_auto_publishing() -> None:
+    client, repository, token = build_client()
+    headers = {"Authorization": f"Bearer {token}"}
+    created = client.post(
+        "/api/v1/treehole/posts",
+        headers=headers,
+        json={"body": "一段普通的演示内容", "client_idempotency_key": "post-response"},
+    )
+    post = repository.get_treehole_post(created.json()["data"]["post_id"])
+    published = repository.save_treehole_post(
+        post.model_copy(update={"visibility_state": "published", "review_state": "decided"}),
+        expected_version=post.version,
+    )
+
+    response = client.post(
+        f"/api/v1/treehole/posts/{published.document_id}/responses",
+        headers=headers,
+        json={
+            "body": "谢谢你愿意分享这些感受",
+            "object_version": published.version,
+            "client_idempotency_key": "response-ai",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["state"] == "checking"
+    stored = repository.get_treehole_response(response.json()["data"]["response_id"])
+    assert stored.ai_assist_snapshot_id is not None
+    assert len(repository.extra_collection("ai_assist_snapshots")) == 2
+    work_tasks = repository.extra_collection("work_tasks")
+    assert len(work_tasks) == 2
+    assert work_tasks[-1]["source_type"] == "response"
 
 
 def test_treehole_post_rejects_client_visibility_and_cross_user_mutation() -> None:

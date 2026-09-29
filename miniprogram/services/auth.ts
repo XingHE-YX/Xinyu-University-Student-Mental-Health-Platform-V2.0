@@ -15,11 +15,19 @@ export const loginWithWechat = async (): Promise<StudentSession> => {
   return session
 }
 
+export const logoutSession = async (): Promise<void> => {
+  try {
+    await request('/auth/logout', { method: 'POST' })
+  } finally {
+    sessionStore.clear()
+  }
+}
+
 export const fetchUser = async (): Promise<UserProjection> => {
-  const result = await request<Record<string, unknown>>('/me')
+  const result = await request<Record<string, unknown>>('/app/bootstrap')
   if (result.error || !result.data) throw new Error(result.error?.message ?? '账户信息暂时不可用')
   const data = result.data
-  const user: UserProjection = { displayName: ((data.anonymous_identity_summary as Record<string, unknown> | undefined)?.display_name as string | undefined) ?? (data.displayName as string | undefined) ?? null, accountStatus: data.account_status === 'recovery_pending' || data.accountStatus === 'recovery' ? 'recovery' : 'active', recoveryUntil: (data.recovery_deadline_at as string | null | undefined) ?? null, basicConsent: data.base_consent === 'accepted' || data.basicConsent === true, communityConsent: data.community_consent === 'accepted' || data.communityConsent === true, identityVerified: data.identity_status === 'verified' || data.identityVerified === true }
+  const user: UserProjection = { displayName: ((data.anonymous_identity_summary as Record<string, unknown> | undefined)?.display_name as string | undefined) ?? (data.displayName as string | undefined) ?? null, accountStatus: data.account_status === 'recovery_pending' || data.accountStatus === 'recovery' ? 'recovery' : 'active', recoveryUntil: (data.recovery_deadline_at as string | null | undefined) ?? null, basicConsent: (data.base_consent as Record<string, unknown> | undefined)?.status === 'accepted' || data.basicConsent === true, communityConsent: (data.community_consent as Record<string, unknown> | undefined)?.status === 'accepted' || data.communityConsent === true, identityVerified: data.identity_status === 'verified' || data.identityVerified === true }
   sessionStore.setUser(user)
   return user
 }
@@ -37,6 +45,9 @@ export const verifyIdentity = async (name: string, studentNumber: string): Promi
   const result = await request<Record<string, unknown>>('/identity/verifications', { method: 'POST', data: { student_name: name, student_number: studentNumber, client_request_key: idempotencyKey }, idempotencyKey })
   if (result.error || !result.data) throw new Error(result.error?.message ?? '身份核验暂时不可用')
   const resultData = result.data
+  if (resultData.status !== 'verified' && resultData.identityVerified !== true && resultData.verification_status !== 'verified') {
+    throw new Error(resultData.status === 'failed' ? '信息未通过核验，请检查后重试' : '身份核验暂未完成，请稍后重试')
+  }
   const user: UserProjection = { displayName: sessionStore.getUser().displayName ?? '一片云', accountStatus: sessionStore.getUser().accountStatus, recoveryUntil: null, basicConsent: true, communityConsent: sessionStore.getUser().communityConsent, identityVerified: resultData.status === 'verified' || resultData.identityVerified === true || resultData.verification_status === 'verified' }
   sessionStore.setUser(user)
   const current = sessionStore.get()
@@ -49,7 +60,7 @@ export const updateCommunityConsent = async (granted: boolean): Promise<UserProj
   if (result.error || !result.data) throw new Error(result.error?.message ?? '同意状态暂时无法更新')
   const data = result.data
   const currentUser = sessionStore.getUser()
-  const user: UserProjection = { ...currentUser, communityConsent: data.community_consent === 'accepted' || data.communityConsent === true || (data.ok === true && granted) }
+  const user: UserProjection = { ...currentUser, communityConsent: data.community_consent_status === 'accepted' || data.community_consent === 'accepted' || data.communityConsent === true || (data.ok === true && granted) }
   sessionStore.setUser(user)
   const currentSession = sessionStore.get()
   if (currentSession) sessionStore.set({ ...currentSession, communityConsent: granted })
@@ -57,7 +68,9 @@ export const updateCommunityConsent = async (granted: boolean): Promise<UserProj
 }
 
 export const stopAccount = async (): Promise<void> => {
-  const result = await request('/account/stop', { method: 'POST', data: { confirmation_text: '停止使用', object_version: 1 }, idempotencyKey: `stop-${Date.now()}` })
+  const status = await request<Record<string, unknown>>('/account/status')
+  if (status.error || !status.data) throw new Error(status.error?.message ?? '账户状态暂时不可用')
+  const result = await request('/account/stop', { method: 'POST', data: { confirmation_text: '停止使用', object_version: Number(status.data.object_version) }, idempotencyKey: `stop-${Date.now()}` })
   if (result.error) throw new Error(result.error.message)
   const current = sessionStore.get()
   if (current) sessionStore.set({ ...current, accountStatus: 'recovery' })
@@ -65,7 +78,9 @@ export const stopAccount = async (): Promise<void> => {
 }
 
 export const recoverAccount = async (): Promise<void> => {
-  const result = await request('/account/recover', { method: 'POST', data: { object_version: 1 }, idempotencyKey: `recover-${Date.now()}` })
+  const status = await request<Record<string, unknown>>('/account/status')
+  if (status.error || !status.data) throw new Error(status.error?.message ?? '账户状态暂时不可用')
+  const result = await request('/account/recover', { method: 'POST', data: { object_version: Number(status.data.object_version) }, idempotencyKey: `recover-${Date.now()}` })
   if (result.error) throw new Error(result.error.message)
   const current = sessionStore.get()
   if (current) sessionStore.set({ ...current, accountStatus: 'active' })

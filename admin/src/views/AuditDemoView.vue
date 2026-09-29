@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
 import AdminShell from "@/components/AdminShell.vue";
-import DesktopWidthNotice from "@/components/DesktopWidthNotice.vue";
 import AuditTable from "@/components/AuditTable.vue";
 import DemoResetDialog from "@/components/DemoResetDialog.vue";
 import {
@@ -88,7 +87,6 @@ onMounted(() => void load());
 </script>
 <template>
   <AdminShell title="审计与演示">
-    <DesktopWidthNotice />
     <section class="audit" aria-label="审计日志与演示数据">
       <div class="audit__intro">
         <div>
@@ -109,9 +107,11 @@ onMounted(() => void load());
         </button>
       </div>
       <form class="filters" @submit.prevent="applyFilters">
-        <label
-          >时间范围<input v-model="filters.from" type="date" /> –
-          <input v-model="filters.to" type="date" /></label
+        <label class="date-filter"
+          ><span>时间范围</span>
+          <span class="date-filter__inputs"
+            ><input v-model="filters.from" type="date" /><span>至</span
+            ><input v-model="filters.to" type="date" /></span></label
         ><label
           >事件类型<select v-model="filters.eventType">
             <option>全部</option>
@@ -273,8 +273,10 @@ button {
   color: var(--xinyu-color-surface);
 }
 .filters {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns:
+    minmax(320px, 1.5fr) repeat(3, minmax(120px, 0.65fr))
+    minmax(180px, 1fr) auto;
   gap: var(--xinyu-space-3);
   align-items: end;
   padding: var(--xinyu-space-4);
@@ -289,12 +291,27 @@ label {
 }
 .filters input,
 .filters select {
+  width: 100%;
+  min-width: 0;
   margin-top: 0;
+}
+.date-filter__inputs {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto minmax(130px, 1fr);
+  gap: var(--xinyu-space-2);
+  align-items: center;
 }
 .audit__body {
   display: grid;
   grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.8fr);
   gap: var(--xinyu-space-6);
+}
+.audit__list,
+.detail {
+  min-width: 0;
+}
+.audit__list {
+  overflow-x: auto;
 }
 .pager {
   display: flex;
@@ -327,13 +344,15 @@ label {
 }
 .detail h3 {
   margin-bottom: var(--xinyu-space-6);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 dl {
   margin: 0;
 }
 dl div {
   display: grid;
-  grid-template-columns: 110px 1fr;
+  grid-template-columns: 110px minmax(0, 1fr);
   gap: var(--xinyu-space-3);
   padding: var(--xinyu-space-3) 0;
   border-bottom: 1px solid var(--xinyu-color-divider);
@@ -342,7 +361,10 @@ dt {
   color: var(--xinyu-color-text-secondary);
 }
 dd {
+  min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .empty {
   color: var(--xinyu-color-text-secondary);
@@ -352,5 +374,28 @@ dd {
   padding: var(--xinyu-space-3);
   background: var(--xinyu-color-primary-soft);
   color: var(--xinyu-color-primary-pressed);
+}
+@media (max-width: 1499px) {
+  .audit__body {
+    grid-template-columns: 1fr;
+  }
+  .filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .date-filter {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 820px) {
+  .filters {
+    grid-template-columns: 1fr 1fr;
+  }
+  .date-filter,
+  .filters .primary {
+    grid-column: 1 / -1;
+  }
+  .date-filter__inputs {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

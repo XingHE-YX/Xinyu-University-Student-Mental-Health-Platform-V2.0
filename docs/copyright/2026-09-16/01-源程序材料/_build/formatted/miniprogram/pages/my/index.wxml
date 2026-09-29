@@ -1,0 +1,78 @@
+<view class="page-container page-container--padded page-container--main">
+  <view class="page-heading">
+    <text class="page-heading__title">我的</text>
+    <text class="page-heading__greeting">记录只属于你，树洞中只展示匿名身份。</text>
+  </view>
+
+  <view wx:if="{{loading}}" class="reading-block"
+    ><text class="reading-block__body">正在准备你的空间…</text></view
+  >
+  <state-message
+    wx:elif="{{error}}"
+    title="账户信息暂时无法读取"
+    message="请稍后重新试试。"
+    action-label="重新试试"
+    bindaction="load"
+  ></state-message>
+  <view wx:elif="{{profile}}" class="identity-summary">
+    <text class="identity-summary__label">在树洞中的身份</text>
+    <text class="identity-summary__name">{{profile.displayName || '匿名同学'}}</text>
+    <text class="identity-summary__body">真实姓名和学号不会公开。</text>
+    <text
+      wx:if="{{profile.accountStatus === 'recovery'}}"
+      class="identity-summary__body"
+      >账户处于 30 天恢复期。</text
+    >
+  </view>
+
+  <view class="content-section my-space">
+    <text class="content-section__title">我的空间</text>
+    <view class="plain-list">
+      <view
+        class="plain-list__item"
+        data-path="/pages/anonymous-identity/index"
+        bindtap="open"
+        ><text class="plain-list__title">在树洞中的身份</text
+        ><text class="plain-list__chevron">›</text></view
+      >
+      <view
+        class="plain-list__item"
+        data-path="/pages/my-content/index"
+        bindtap="open"
+        ><text class="plain-list__title">我的树洞内容</text
+        ><text class="plain-list__chevron">›</text></view
+      >
+      <view class="plain-list__item" data-path="/pages/history/index" bindtap="open"
+        ><text class="plain-list__title">我的记录</text
+        ><text class="plain-list__chevron">›</text></view
+      >
+      <view
+        class="plain-list__item"
+        data-path="/pages/support-resources/index"
+        bindtap="open"
+        ><text class="plain-list__title">支持资源</text
+        ><text class="plain-list__chevron">›</text></view
+      >
+      <view class="plain-list__item" data-path="/pages/privacy/index" bindtap="open"
+        ><text class="plain-list__title">数据与隐私</text
+        ><text class="plain-list__chevron">›</text></view
+      >
+      <view
+        wx:if="{{profile && profile.accountStatus === 'recovery'}}"
+        class="plain-list__item"
+        data-path="/pages/account-recover/index"
+        bindtap="open"
+        ><text class="plain-list__title">恢复账户</text
+        ><text class="plain-list__chevron">›</text></view
+      >
+      <view
+        wx:elif="{{profile}}"
+        class="plain-list__item"
+        data-path="/pages/account-stop/index"
+        bindtap="open"
+        ><text class="plain-list__title">停止使用账户</text
+        ><text class="plain-list__chevron">›</text></view
+      >
+    </view>
+  </view>
+</view>

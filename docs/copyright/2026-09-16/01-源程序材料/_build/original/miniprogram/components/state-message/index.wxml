@@ -1,0 +1,1 @@
+<view class="state-message"><text class="state-message__title">{{title}}</text><text class="state-message__message">{{message}}</text><button wx:if="{{actionLabel}}" class="state-message__action" bindtap="action">{{actionLabel}}</button></view>

@@ -16,6 +16,7 @@ from app.domain.ai_policy import (
 )
 from app.integrations.deepseek_client import DeepSeekClient, DeepSeekUnavailable
 from app.repositories.audit_repository import InMemoryAuditRepository
+from app.repositories.domain_data_repository import InMemoryDomainDataRepository
 from app.services.ai_assist_service import AiAssistService
 
 
@@ -147,8 +148,10 @@ def test_missing_key_is_explicit_unavailable() -> None:
 
 def test_service_falls_back_and_audits_without_blocking_fixed_result() -> None:
     audit_repository = InMemoryAuditRepository()
+    settings = settings_for(api_key=None)
+    assert settings.configuration_status == "ready"
     service = AiAssistService(
-        settings_for(api_key=None),
+        settings,
         audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
     )
 
@@ -206,7 +209,9 @@ def test_service_adopts_valid_output_but_does_not_change_fixed_band() -> None:
 
 
 def test_treehole_failure_requests_manual_review_and_never_publishes() -> None:
-    service = AiAssistService(settings_for(api_key=None))
+    settings = settings_for(api_key=None)
+    assert settings.configuration_status == "ready"
+    service = AiAssistService(settings)
     result = asyncio.run(
         service.treehole_review_assist(
             resource_id="post-1",
@@ -248,3 +253,38 @@ def test_needs_fallback_model_response_is_not_adopted() -> None:
     assert result.status == "fallback"
     assert result.fallback_reason == "output_rejected"
     assert service.snapshots[result.snapshot_id or ""].output_status == "rejected"
+
+
+def test_ai_snapshot_persists_and_can_be_reloaded() -> None:
+    repository = InMemoryDomainDataRepository()
+
+    class StubClient:
+        async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+            del payload
+            return {
+                "task_type": task_type,
+                "status": "ok",
+                "summary": (
+                    "这段说明帮助你阅读已经完成的固定结果，并保持原有分层不变，"
+                    "你可以按自己的节奏决定是否查看支持资源。"
+                ),
+                "observations": ["本次结果只作为自我观察参考。"],
+                "practical_steps": ["可以先查看支持资源。"],
+                "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
+            }
+
+    first = AiAssistService(settings_for(), client=StubClient(), repository=repository)
+    result = asyncio.run(
+        first.assessment_explanation(
+            resource_id="result-persistent",
+            owner_user_id="user-1",
+            input_data=ASSESSMENT_INPUT,
+        )
+    )
+    second = AiAssistService(settings_for(), client=StubClient(), repository=repository)
+
+    projection = second.snapshot_projection(result.snapshot_id)
+
+    assert projection is not None
+    assert projection["status"] == "adopted"
+    assert projection["output_projection"]["task_type"] == "assessment_explanation"

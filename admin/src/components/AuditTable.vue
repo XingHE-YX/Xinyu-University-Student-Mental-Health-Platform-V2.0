@@ -34,13 +34,16 @@ defineEmits<{ select: [event: AuditEvent] }>();
 </template>
 <style scoped>
 .audit-table {
+  min-width: 860px;
   border: 1px solid var(--xinyu-color-divider);
   background: var(--xinyu-color-surface);
 }
 .audit-table__head,
 .audit-table__row {
   display: grid;
-  grid-template-columns: 1.25fr 0.8fr 1.2fr 1fr 0.7fr 0.8fr;
+  grid-template-columns:
+    minmax(130px, 0.9fr) minmax(120px, 0.85fr) minmax(220px, 1.6fr)
+    minmax(120px, 0.9fr) 72px 88px;
   gap: var(--xinyu-space-3);
   align-items: center;
   padding: 0 var(--xinyu-space-4);
@@ -55,12 +58,20 @@ defineEmits<{ select: [event: AuditEvent] }>();
 .audit-table__row {
   width: 100%;
   min-height: 56px;
+  padding-top: var(--xinyu-space-3);
+  padding-bottom: var(--xinyu-space-3);
   border: 0;
   border-bottom: 1px solid var(--xinyu-color-divider);
   background: transparent;
   color: var(--xinyu-color-text);
   font-size: 14px;
   cursor: pointer;
+}
+.audit-table__head span,
+.audit-table__row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .audit-table__row:hover,
 .audit-table__row.selected {

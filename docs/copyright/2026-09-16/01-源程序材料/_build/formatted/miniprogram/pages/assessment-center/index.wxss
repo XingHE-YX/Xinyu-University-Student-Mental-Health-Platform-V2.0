@@ -1,0 +1,18 @@
+.assessment-list {
+  margin-top: 8px;
+}
+.assessment-row {
+  position: relative;
+  padding-right: 28px;
+}
+.assessment-row__content {
+  min-width: 0;
+}
+.assessment-row .plain-list__chevron {
+  position: absolute;
+  top: 28px;
+  right: 0;
+}
+.assessment-history {
+  margin-top: 32px;
+}

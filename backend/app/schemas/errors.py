@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 ERROR_MESSAGES: dict[str, str] = {
     "INVALID_REQUEST": "请求内容不正确，请检查后重试",
     "AUTH_REQUIRED": "请先完成登录",
+    "INVALID_CREDENTIALS": "账号或密码不正确",
     "SESSION_EXPIRED": "会话已过期，请重新登录",
     "CONSENT_REQUIRED": "完成相关同意后才能继续",
     "IDENTITY_REQUIRED": "完成身份核验后才能继续",

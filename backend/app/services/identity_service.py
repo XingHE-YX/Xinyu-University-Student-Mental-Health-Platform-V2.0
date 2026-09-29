@@ -13,9 +13,11 @@ from datetime import UTC, datetime
 from typing import Literal, Protocol
 
 from app.audit.writer import AuditWriter
+from app.config.environments import EnvironmentKind
 from app.config.settings import Settings
 from app.domain.models import AnonymousIdentityDocument, IdentityRecordDocument, UserAccountDocument
 from app.integrations.school_identity import (
+    DemoSchoolIdentityProvider,
     HttpSchoolIdentityProvider,
     SchoolIdentityProvider,
     SchoolIdentityVerificationResult,
@@ -397,11 +399,13 @@ class IdentityService:
         }
 
     def _default_school_provider(self) -> SchoolIdentityProvider:
-        if not self.settings.school_identity_provider_url:
-            return UnavailableSchoolIdentityProvider()
-        return HttpSchoolIdentityProvider(
-            provider_url=self.settings.school_identity_provider_url,
-        )
+        if self.settings.school_identity_provider_url:
+            return HttpSchoolIdentityProvider(
+                provider_url=self.settings.school_identity_provider_url,
+            )
+        if self.settings.persistence_environment_kind is EnvironmentKind.DEMO:
+            return DemoSchoolIdentityProvider()
+        return UnavailableSchoolIdentityProvider()
 
 
 def _build_identity_record(

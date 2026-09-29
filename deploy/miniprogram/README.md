@@ -4,6 +4,12 @@
 HTTPS 业务 API 地址。将它复制到被 Git 忽略的本地文件后替换占位符；不要把
 AppSecret、CloudBase API Key、DeepSeek Key 或任何身份/支持资源写进小程序配置。
 
+当前普通小程序通过 `miniprogram/config/deployment-profiles.ts` 按运行时 AppID 选择
+AppID 对应的 EnvID、HTTPS API 地址和环境类型。该文件只允许登记非秘密构建值；
+未知 AppID 保持未配置，不能回退到演示环境。`miniprogram/ext.json` 仅作为被 Git
+忽略的开发者工具/第三方代开发覆盖配置，不作为普通真机发布的唯一配置来源。
+两种方式都不得包含 AppSecret 或任意服务端 Key。
+
 ## 发布前检查
 
 ```text
