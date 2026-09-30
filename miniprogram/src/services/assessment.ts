@@ -2,6 +2,9 @@ import { AppError, assertApiData, assertApiSuccess } from '../infra/error'
 import { request } from '../infra/http'
 import { normalizeAssessmentModules } from './normalizers'
 import type { AssessmentAiAssist, AssessmentModule, AssessmentResult, AssessmentSession, SupportResource } from '../infra/types/api'
+import { createLogger } from '../infra/logger'
+
+const log = createLogger('services.assessment')
 
 const activeSessions = new Map<string, { questions: AssessmentSession['questions']; version: number }>()
 let supportResourceVersion = ''
@@ -52,6 +55,7 @@ export const startAssessment = async (module: AssessmentModule['key']): Promise<
     }),
   }
   activeSessions.set(session.id, { questions: session.questions, version: Number(data.object_version ?? 1) })
+  log.audit('assessment.started', { outcome: 'success', requestId: result.request_id })
   return session
 }
 
@@ -60,6 +64,7 @@ export const submitAssessment = async (sessionId: string, module: AssessmentModu
   const result = await request<Record<string, unknown>>(`/assessment-sessions/${sessionId}/complete`, { method: 'POST', data: { answers: answerPayload(sessionId, answers), object_version: context.version }, idempotencyKey: `assessment-submit-${sessionId}-${context.version}` })
   assertApiData(result, '结果暂时没有保存成功，请稍后重试')
   if (result.data.completion_state !== 'result_ready' || !result.data.result_id) throw new AppError('STATE_ERROR', { userMessage: '请先完成安全确认并查看支持资源' })
+  log.audit('assessment.completed', { outcome: 'success', requestId: result.request_id })
   return fetchAssessmentResult(String(result.data.result_id), module)
 }
 
@@ -74,6 +79,7 @@ export const abandonAssessment = async (sessionId: string): Promise<void> => {
   const result = await request(`/assessment-sessions/${sessionId}/abandon`, { method: 'POST', data: { object_version: context.version }, idempotencyKey: `abandon-${sessionId}` })
   assertApiSuccess(result)
   activeSessions.delete(sessionId)
+  log.audit('assessment.abandoned', { outcome: 'success', requestId: result.request_id })
 }
 
 const normalizeAssessmentResult = (data: Record<string, unknown>, fallbackModule: AssessmentModule['key']): AssessmentResult => {
@@ -118,6 +124,7 @@ export const confirmSafety = async (sessionId: string, state: 'can_be_safe' | 'u
   const result = await request<Record<string, unknown>>(`/assessment-sessions/${sessionId}/safety-confirmation`, { method: 'POST', data: { state, answers: answerPayload(sessionId, answers), object_version: context.version }, idempotencyKey: `safety-${sessionId}-${context.version}-${state}` })
   assertApiData(result, '安全确认暂时不可用')
   context.version = Number(result.data.version)
+  log.audit('safety.confirmed', { outcome: 'success', requestId: result.request_id })
 }
 
 export const acknowledgeSupportResources = async (sessionId: string): Promise<void> => {
@@ -126,6 +133,7 @@ export const acknowledgeSupportResources = async (sessionId: string): Promise<vo
   const result = await request<Record<string, unknown>>(`/assessment-sessions/${sessionId}/support-resource-ack`, { method: 'POST', data: { resource_context: 'safety', resource_version: supportResourceVersion, object_version: context.version }, idempotencyKey: `support-ack-${sessionId}-${context.version}` })
   assertApiData(result, '资源确认暂时不可用')
   context.version = Number(result.data.version)
+  log.audit('support.acknowledged', { outcome: 'success', requestId: result.request_id })
 }
 
 export const fetchResources = async (context: 'ordinary' | 'safety' = 'ordinary'): Promise<SupportResource[]> => {

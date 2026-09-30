@@ -6,6 +6,7 @@ import { fetchToday, saveMood } from '../src/services/today.ts'
 import { fetchHistory } from '../src/services/me.ts'
 import { logoutSession } from '../src/services/auth.ts'
 import { sessionStore } from '../src/infra/store/session.ts'
+import { configureLogger } from '../src/infra/logger.ts'
 
 let pageDefinition
 globalThis.Page = (page) => { pageDefinition = page }
@@ -20,6 +21,7 @@ let responses
 let requests
 let tabBarVisible
 beforeEach(() => {
+  configureLogger({ level: 'warn', sink: () => {} })
   responses = {}
   requests = []
   tabBarVisible = true
@@ -36,6 +38,18 @@ beforeEach(() => {
       options.success({ data: { request_id: 'fixture', data: response, error: null } })
     },
   }
+})
+
+test('successful business operations emit audit metadata without observation content', async () => {
+  const entries = []
+  configureLogger({ level: 'debug', sink: (entry) => entries.push(entry) })
+  responses['/moods/today'] = { record_id: 'private-record', mood_code: 'tired', saved_at: '2026-09-07T06:32:00Z' }
+  await saveMood('tired')
+  const audits = entries.filter((entry) => entry.kind === 'audit')
+  assert.equal(audits.length, 1)
+  assert.equal(audits[0].event, 'mood.saved')
+  assert.equal(audits[0].context.requestId, 'fixture')
+  assert.doesNotMatch(JSON.stringify(entries), /private-record|tired|疲惫/)
 })
 
 test('main page services unwrap real backend responses into readable page data', async () => {

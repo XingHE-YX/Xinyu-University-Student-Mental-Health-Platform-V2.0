@@ -3,12 +3,27 @@ import { beforeEach, test } from 'node:test'
 import { request } from '../src/infra/http.ts'
 import { assertApiData } from '../src/infra/error.ts'
 import { sessionStore } from '../src/infra/store/session.ts'
+import { configureLogger } from '../src/infra/logger.ts'
 
 let definition
 beforeEach(() => {
+  configureLogger({ sink: () => {} })
   sessionStore.clear()
   globalThis.getApp = () => ({ globalData: { apiBaseUrl: 'https://example.test/api/v1', environmentKind: 'authorized' } })
   globalThis.wx = { request(options) { definition = options } }
+})
+
+test('request logs contain route templates and correlation without bodies, IDs or queries', async () => {
+  const entries = []
+  configureLogger({ level: 'debug', sink: (entry) => entries.push(entry) })
+  const pending = request('/treehole/posts/private-post-id/responses?token=secret', { method: 'POST', data: { body: 'private-body' } })
+  definition.success({ statusCode: 200, data: { request_id: 'server-id', data: {}, error: null } })
+  await pending
+  assert.equal(entries.length, 2)
+  assert.equal(entries[1].context.route, '/treehole/posts/:id/responses')
+  assert.equal(entries[1].context.requestId, 'server-id')
+  assert.equal(entries[1].context.clientRequestId, definition.header['X-Request-ID'])
+  assert.doesNotMatch(JSON.stringify(entries), /private-post-id|private-body|secret/)
 })
 
 test('request IDs match the sent header and preserve distinct server IDs', async () => {

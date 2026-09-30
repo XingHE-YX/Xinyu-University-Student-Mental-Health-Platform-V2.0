@@ -2,6 +2,9 @@ import { AppError, assertApiData, assertApiSuccess } from '../infra/error'
 import { request } from '../infra/http'
 import { sessionStore } from '../infra/store/session'
 import type { StudentSession, UserProjection } from '../infra/types/api'
+import { createLogger } from '../infra/logger'
+
+const log = createLogger('services.auth')
 
 export const loginWithWechat = async (): Promise<StudentSession> => {
   const loginResult = await new Promise<WechatMiniprogram.LoginSuccessCallbackResult>((resolve, reject) => {
@@ -13,6 +16,7 @@ export const loginWithWechat = async (): Promise<StudentSession> => {
   const session: StudentSession = { accessToken: String(data.access_token ?? data.accessToken ?? ''), expiresAt: String(data.access_expires_at ?? data.expiresAt ?? ''), identityVerified: data.identity_status === 'verified' || data.identityVerified === true, basicConsent: data.base_consent_status === 'accepted' || data.basicConsent === true, communityConsent: data.community_consent_status === 'accepted' || data.communityConsent === true, accountStatus: data.account_status === 'recovery' ? 'recovery' : 'active' }
   sessionStore.set(session)
   sessionStore.setUser({ displayName: null, accountStatus: session.accountStatus, recoveryUntil: null, basicConsent: session.basicConsent, communityConsent: session.communityConsent, identityVerified: session.identityVerified })
+  log.audit('session.login', { outcome: 'success', requestId: result.request_id })
   return session
 }
 
@@ -21,6 +25,7 @@ export const logoutSession = async (): Promise<void> => {
     await request('/auth/logout', { method: 'POST' })
   } finally {
     sessionStore.clear()
+    log.audit('session.clear', { outcome: 'success' })
   }
 }
 
@@ -39,6 +44,7 @@ export const recordBasicConsent = async (): Promise<void> => {
   const current = sessionStore.get()
   if (current) sessionStore.set({ ...current, basicConsent: true })
   sessionStore.setUser({ ...sessionStore.getUser(), basicConsent: true })
+  log.audit('consent.base.accepted', { outcome: 'success', requestId: result.request_id })
 }
 
 export const verifyIdentity = async (name: string, studentNumber: string): Promise<UserProjection> => {
@@ -53,6 +59,7 @@ export const verifyIdentity = async (name: string, studentNumber: string): Promi
   sessionStore.setUser(user)
   const current = sessionStore.get()
   if (current) sessionStore.set({ ...current, identityVerified: user.identityVerified })
+  log.audit('identity.verified', { outcome: 'success', requestId: result.request_id })
   return user
 }
 
@@ -65,6 +72,7 @@ export const updateCommunityConsent = async (granted: boolean): Promise<UserProj
   sessionStore.setUser(user)
   const currentSession = sessionStore.get()
   if (currentSession) sessionStore.set({ ...currentSession, communityConsent: granted })
+  log.audit(granted ? 'consent.community.accepted' : 'consent.community.withdrawn', { outcome: 'success', requestId: result.request_id })
   return user
 }
 
@@ -76,6 +84,7 @@ export const stopAccount = async (): Promise<void> => {
   const current = sessionStore.get()
   if (current) sessionStore.set({ ...current, accountStatus: 'recovery' })
   sessionStore.setUser({ ...sessionStore.getUser(), accountStatus: 'recovery' })
+  log.audit('account.stopped', { outcome: 'success', requestId: result.request_id })
 }
 
 export const recoverAccount = async (): Promise<void> => {
@@ -86,4 +95,5 @@ export const recoverAccount = async (): Promise<void> => {
   const current = sessionStore.get()
   if (current) sessionStore.set({ ...current, accountStatus: 'active' })
   sessionStore.setUser({ ...sessionStore.getUser(), accountStatus: 'active' })
+  log.audit('account.recovered', { outcome: 'success', requestId: result.request_id })
 }

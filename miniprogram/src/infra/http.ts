@@ -3,6 +3,7 @@ import { sessionStore } from './store/session'
 import { moodDateKey } from './date'
 import { AppError, fromApiError } from './error'
 import type { ApiResult } from './error'
+import { createLogger, logErrorOnce } from './logger'
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
@@ -143,15 +144,28 @@ const failure = <T>(error: AppError, requestId: string): ApiResult<T> => ({
 
 export const request = <T>(path: string, options: RequestOptions = {}): Promise<ApiResult<T>> => {
   const requestId = newRequestId()
+  const started = Date.now()
+  const log = createLogger('http')
+  const routeNames = new Set(['auth', 'wechat', 'session', 'logout', 'app', 'bootstrap', 'today', 'me', 'consents', 'base', 'community', 'identity', 'verifications', 'moods', 'assessment-modules', 'assessment-sessions', 'assessment-results', 'complete', 'abandon', 'safety-confirmation', 'support-resource-ack', 'support-resources', 'treehole', 'posts', 'responses', 'account', 'status', 'stop', 'recover'])
+  const route = '/' + path.split('?')[0].split('/').filter(Boolean).map((part) => routeNames.has(part) ? part : ':id').join('/')
+  const context = { route, method: options.method ?? 'GET', clientRequestId: requestId }
+  log.debug('request.started', context)
+  const complete = (result: ApiResult<T>): ApiResult<T> => {
+    const metadata = { ...context, requestId: result.request_id, statusCode: result.statusCode, durationMs: Date.now() - started }
+    const error = result.clientError ?? (result.error ? fromApiError(result.error, metadata) : undefined)
+    if (error) logErrorOnce('http', 'request.failed', error, { ...metadata, outcome: 'failure' })
+    else log.debug('request.completed', { ...metadata, outcome: 'success' })
+    return error ? { ...result, clientError: error } : result
+  }
   const app = getApp<{ globalData: { apiBaseUrl?: string } }>()
   const baseUrl = app.globalData.apiBaseUrl ?? ''
   if (getEnvironment() === 'demo' && !baseUrl) {
-    return Promise.resolve({ ...demoResponse<T>(path, options), clientRequestId: requestId })
+    return Promise.resolve(complete({ ...demoResponse<T>(path, options), clientRequestId: requestId }))
   }
-  if (!baseUrl) return Promise.resolve(failure<T>(new AppError('CONFIGURATION_ERROR', {
+  if (!baseUrl) return Promise.resolve(complete(failure<T>(new AppError('CONFIGURATION_ERROR', {
     requestId, clientRequestId: requestId,
-  }), requestId))
-  return new Promise((resolve) => {
+  }), requestId)))
+  return new Promise<ApiResult<T>>((resolve) => {
     try { wx.request<ApiEnvelope<T>>({
       url: `${baseUrl}${path}`,
       method: options.method ?? 'GET',
@@ -188,5 +202,5 @@ export const request = <T>(path: string, options: RequestOptions = {}): Promise<
     }) } catch (cause) {
       resolve(failure<T>(new AppError('WX_API_ERROR', { requestId, clientRequestId: requestId, cause }), requestId))
     }
-  })
+  }).then(complete)
 }

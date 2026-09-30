@@ -3,6 +3,9 @@ import { request } from '../infra/http'
 import { formatMoodTime, moodDateKey, moodLabel } from './mood'
 import { normalizeTodayObservations } from './normalizers'
 import type { MoodRecord, TodayProjection } from '../infra/types/api'
+import { createLogger } from '../infra/logger'
+
+const log = createLogger('services.today')
 
 export const fetchToday = async (): Promise<TodayProjection> => {
   const result = await request<Record<string, unknown>>('/today')
@@ -19,5 +22,6 @@ export const saveMood = async (mood: string): Promise<MoodRecord> => {
   const result = await request<Record<string, unknown>>('/moods/today', { method: 'PUT', data: { record_date: recordDate, mood_code: mood, object_version: 1 }, idempotencyKey: `mood-${recordDate}` })
   assertApiData(result, '没有保存成功，请再试一次')
   const data = result.data
+  log.audit('mood.saved', { outcome: 'success', requestId: result.request_id })
   return { id: String(data.record_id ?? data.id ?? ''), mood: moodLabel(data.mood_code ?? data.mood ?? mood), recordedAt: formatMoodTime(data.saved_at ?? data.recordedAt ?? new Date().toISOString()) }
 }

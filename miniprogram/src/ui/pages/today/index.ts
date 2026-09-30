@@ -1,3 +1,4 @@
+import { reportPageError } from '../../shared/scripts/page-error'
 import { fetchToday, saveMood } from '../../../services/today'
 import { MOOD_OPTIONS, moodDateKey } from '../../../services/mood'
 import { sessionStore } from '../../../infra/store/session'
@@ -16,7 +17,7 @@ Page({
     try {
       const today = await fetchToday()
       this.setData({ quote: today.quote, mood: today.mood, observations: today.observations, loaded: true })
-    } catch { this.setData({ error: '暂时无法读取今天的内容，请重新试试。' }) }
+    } catch (error) { reportPageError(error); this.setData({ error: '暂时无法读取今天的内容，请重新试试。' }) }
     finally { this.setData({ loading: false }) }
   },
   selectMood(event: WechatMiniprogram.BaseEvent) {
@@ -30,7 +31,7 @@ Page({
     if (sessionStore.get()?.accountStatus === 'recovery') { this.setData({ moodError: '账户处于恢复期，恢复后才能记录' }); return }
     this.setData({ saving: true, moodError: '' })
     try { const mood = await saveMood(this.data.selectedMood); this.setData({ mood, selectedMood: '', moodError: '', loaded: true }) }
-    catch { this.setData({ moodError: '暂时没有记下这次选择' }) }
+    catch (error) { reportPageError(error); this.setData({ moodError: '暂时没有记下这次选择' }) }
     finally { this.setData({ saving: false }) }
   },
   openObservation(event: WechatMiniprogram.BaseEvent) {

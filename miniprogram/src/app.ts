@@ -1,4 +1,13 @@
 import { runtimeConfig } from './infra/config/runtime'
+import { configureLogger, createLogger, logErrorOnce } from './infra/logger'
+
+try {
+  const development = wx.getDeviceInfo().platform === 'devtools'
+    || wx.getAccountInfoSync().miniProgram.envVersion === 'develop'
+  configureLogger({ level: development ? 'debug' : 'warn' })
+} catch { configureLogger({ level: 'warn' }) }
+
+const log = createLogger('app')
 
 interface IAppOption {
   globalData: {
@@ -16,6 +25,12 @@ App<IAppOption>({
     environmentKind: runtimeConfig.environmentKind,
   },
   onLaunch() {
-    // 初始化阶段不发起网络请求；环境状态由后续服务端配置确认。
+    log.info('app.launch', { environment: runtimeConfig.environmentKind })
+  },
+  onError(error) {
+    logErrorOnce('app', 'app.error', error)
+  },
+  onUnhandledRejection(event) {
+    logErrorOnce('app', 'app.unhandled_rejection', event.reason)
   },
 });
