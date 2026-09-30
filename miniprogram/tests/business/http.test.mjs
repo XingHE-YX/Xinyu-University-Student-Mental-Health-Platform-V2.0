@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { beforeEach, test } from 'node:test'
-import { request } from '../src/infra/http.ts'
-import { assertApiData } from '../src/infra/error.ts'
-import { sessionStore } from '../src/infra/store/session.ts'
-import { configureLogger } from '../src/infra/logger.ts'
+import { request } from '../../src/infra/http.ts'
+import { assertApiData } from '../../src/infra/error.ts'
+import { sessionStore } from '../../src/infra/store/session.ts'
+import { configureLogger } from '../../src/infra/logger.ts'
 
 let definition
 beforeEach(() => {

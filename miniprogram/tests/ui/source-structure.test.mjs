@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { access, readFile, readdir } from 'node:fs/promises'
 import { test } from 'node:test'
 
-const root = new URL('../', import.meta.url)
+const root = new URL('../../', import.meta.url)
 const src = new URL('src/', root)
 const readJson = async (url) => JSON.parse(await readFile(url, 'utf8'))
 const walk = async (url) => (await Promise.all((await readdir(url, { withFileTypes: true })).map(
@@ -31,13 +31,5 @@ test('WeChat loads src/app.ts and every declared page, component and tab icon ex
       assert.match(path, /^\/ui\/components\//)
       for (const extension of ['ts', 'json', 'wxml']) await access(new URL(`${path.slice(1)}.${extension}`, src))
     }
-  }
-})
-
-test('infrastructure does not import services or UI modules', async () => {
-  for (const file of await walk(new URL('infra/', src))) {
-    if (!file.pathname.endsWith('.ts')) continue
-    const source = await readFile(file, 'utf8')
-    assert.doesNotMatch(source, /from ['"][^'"]*(?:services|ui)\//, file.pathname)
   }
 })

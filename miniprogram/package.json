@@ -6,7 +6,11 @@
   "description": "心语 V2 原生微信小程序学生端",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test:structure": "node --import ./tests/register-ts.mjs --test tests/*.test.mjs"
+    "test": "node --import ./tests/helpers/register-ts.mjs --test tests/ui/*.test.mjs tests/business/*.test.mjs tests/utils/*.test.mjs",
+    "test:ui": "node --import ./tests/helpers/register-ts.mjs --test tests/ui/*.test.mjs",
+    "test:business": "node --import ./tests/helpers/register-ts.mjs --test tests/business/*.test.mjs",
+    "test:utils": "node --import ./tests/helpers/register-ts.mjs --test tests/utils/*.test.mjs",
+    "test:structure": "node --import ./tests/helpers/register-ts.mjs --test tests/ui/main-pages-structure.test.mjs tests/ui/source-structure.test.mjs tests/ui/styles.test.mjs tests/business/architecture.test.mjs"
   },
   "devDependencies": {
     "miniprogram-api-typings": "5.2.3",

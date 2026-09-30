@@ -43,6 +43,8 @@
 | --- | --- | --- | --- |
 | TypeScript | 7.0.2 | 开发依赖 | 学生端业务代码类型检查与编译 |
 | miniprogram-api-typings | 5.2.3 | 开发依赖 | 微信小程序 API 类型声明 |
+| postcss | 8.5.28 | 开发依赖 | WXSS 语法与样式归属回归检查 |
+| postcss-selector-parser | 7.1.6 | 开发依赖 | BEM 选择器及动态状态 class 检查 |
 
 学生端调用微信能力只使用原生接口：微信登录、网络请求、云能力初始化、页面导航、系统剪贴板和拨号/打开链接等。不得引入 axios、request 封装包、第三方登录包或客户端 DeepSeek 包。
 

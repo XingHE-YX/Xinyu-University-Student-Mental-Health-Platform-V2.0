@@ -76,7 +76,9 @@ npm run dev
 ```
 
 当前仓库不提供预置合成身份和演示任务的本地演示入口。
-微信开发者工具打开 `miniprogram/`；本地预览配置只在开发者工具环境生效。
+微信开发者工具打开 `miniprogram/`，项目配置指定源码根目录为 `src/`；
+本地预览配置位于 `src/infra/config/local-preview.ts`，只在开发者工具环境生效。
+小程序目录、错误、日志与测试规范见 [学生端开发](docs/develop/MINIPROGRAM.md)。
 
 对应 API、CORS 和环境配置见
 [环境配置](docs/develop/CONFIGURATION_REGISTRY.md) 和 [后台部署](docs/develop/deploy/ADMIN.md)。
@@ -107,8 +109,12 @@ npm run build
 
 ```bash
 npm run typecheck
-npm run test:structure
+npm test
 ```
+
+可用 `npm run test:ui`、`npm run test:business`、`npm run test:utils` 分别执行
+页面与组件、业务、工具测试；`npm run test:structure` 只执行目录、页面与样式结构检查。
+测试代码使用 `tests/helpers/` 的微信 mock，不连接真实业务服务。
 
 提交前在项目根目录检查 `git diff --check`。从与改动相关的检查开始，再按影响范围补充其他检查。
 现有后台 `typecheck` 使用 `tsc`，不覆盖 Vue 模板；`lint` 只检查 `eslint.config.js`，

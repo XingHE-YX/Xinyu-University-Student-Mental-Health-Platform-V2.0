@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { AppError } from '../src/infra/error.ts'
-import { configureLogger, createLogger, logErrorOnce } from '../src/infra/logger.ts'
+import { AppError } from '../../src/infra/error.ts'
+import { configureLogger, createLogger, logErrorOnce } from '../../src/infra/logger.ts'
 
 test('logger filters levels and emits stable structured development audit events', () => {
   const entries = []

@@ -20,6 +20,7 @@
 | `docs/product/` | 产品需求、确认决策、每日短句与量表依据 |
 | `docs/design/` | 学生端与后台的页面、状态和应用流程 |
 | `docs/develop/` | 技术栈、前后端规范、配置、AI 接口与排错 |
+| `docs/develop/MINIPROGRAM.md` | 学生端源码目录、BEM、AppError、logger 与分类测试 |
 | `docs/develop/deploy/` | CloudBase、后端、后台与小程序部署要求 |
 | `docs/plans/` | 后续实施计划与项目计划书 |
 | `docs/copyright/` | 软著申请、源程序和软件使用说明材料 |
@@ -42,3 +43,9 @@
 
 安装和检查命令见 [CONTRIBUTING.md](CONTRIBUTING.md)，完整依赖清单见
 [技术栈文档](docs/develop/TECH_STACK.md)。
+
+小程序源码根目录为 `miniprogram/src/`，应用由 `src/app.ts` 注册。
+样式随页面和组件存放，全页面基础规则位于 `ui/shared/styles/`。
+测试按 `tests/ui/`、`tests/business/`、`tests/utils/` 分类，公共 mock 位于
+`tests/helpers/`。在 `miniprogram/` 执行 `npm run typecheck` 和 `npm test`；
+子集命令为 `test:ui`、`test:business`、`test:utils`、`test:structure`。

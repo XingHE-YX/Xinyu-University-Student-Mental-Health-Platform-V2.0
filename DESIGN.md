@@ -28,6 +28,10 @@
 源码位于 `miniprogram/src/`，`app.ts` 注册应用并初始化运行环境。
 `ui/pages/` 承载页面，`ui/components/` 放共享交互，`services/` 处理业务 API，
 `infra/store/` 保存客户端状态，`infra/config/` 管理运行环境和部署配置。
+`infra/http.ts` 负责请求与关联 ID，`infra/error.ts` 定义客户端错误，
+`infra/logger.ts` 提供诊断日志与开发审计。基础设施不反向依赖业务服务或 UI。
+共享样式只包含全页面基础规则，其他样式随页面和组件存放。
+目录及接口细节见 [学生端开发](docs/develop/MINIPROGRAM.md)。
 
 首次使用包括登录、基础同意与身份核验。未核验、同意撤回、记录删除和会话失效都应
 有明确状态；「我的」提供重新核验与退出入口。具体流程见 [应用流程](docs/design/APP_FLOW.md)。

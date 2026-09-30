@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import postcss from 'postcss'
 import selectorParser from 'postcss-selector-parser'
 
-const src = new URL('../src/', import.meta.url)
+const src = new URL('../../src/', import.meta.url)
 const read = (path) => readFile(new URL(path, src), 'utf8')
 const names = (css) => {
   const classes = new Set()

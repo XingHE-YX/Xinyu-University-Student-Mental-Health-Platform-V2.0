@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { AppError, errorDefinitions, fromApiError, normalizeError, getUserMessage, assertApiData, assertApiSuccess } from '../src/infra/error.ts'
+import { AppError, errorDefinitions, fromApiError, normalizeError, getUserMessage, assertApiData, assertApiSuccess } from '../../src/infra/error.ts'
 
 test('AppError preserves standard Error information and typed diagnostic metadata', () => {
   const cause = new Error('transport details')

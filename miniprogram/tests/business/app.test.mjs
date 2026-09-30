@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { configureLogger } from '../src/infra/logger.ts'
+import { configureLogger } from '../../src/infra/logger.ts'
 
 test('app initializes development logging and captures global failures without network requests', async () => {
   const entries = []
@@ -14,7 +14,7 @@ test('app initializes development logging and captures global failures without n
     request: () => assert.fail('startup must not request the backend'),
   }
   globalThis.App = (definition) => { app = definition; registrations += 1 }
-  await import('../src/app.ts')
+  await import('../../src/app.ts')
   assert.equal(registrations, 1)
   app.onLaunch()
   const error = new Error('private failure detail')

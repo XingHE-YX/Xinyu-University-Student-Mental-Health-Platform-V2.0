@@ -1,43 +1,20 @@
 import assert from 'node:assert/strict'
 import { beforeEach, test } from 'node:test'
-import { fetchModules, fetchResources } from '../src/services/assessment.ts'
-import { fetchPosts } from '../src/services/treehole.ts'
-import { fetchToday, saveMood } from '../src/services/today.ts'
-import { fetchHistory } from '../src/services/me.ts'
-import { logoutSession } from '../src/services/auth.ts'
-import { sessionStore } from '../src/infra/store/session.ts'
-import { configureLogger } from '../src/infra/logger.ts'
-
-let pageDefinition
-globalThis.Page = (page) => { pageDefinition = page }
-await import('../src/ui/pages/today/index.ts')
-const makeTodayPage = () => {
-  const page = { ...pageDefinition, data: structuredClone(pageDefinition.data) }
-  page.setData = (value) => Object.assign(page.data, value)
-  return page
-}
+import { installWxMock } from '../helpers/wx-mock.mjs'
+import { fetchModules, fetchResources } from '../../src/services/assessment.ts'
+import { fetchPosts } from '../../src/services/treehole.ts'
+import { fetchToday, saveMood } from '../../src/services/today.ts'
+import { fetchHistory } from '../../src/services/me.ts'
+import { logoutSession } from '../../src/services/auth.ts'
+import { sessionStore } from '../../src/infra/store/session.ts'
+import { configureLogger } from '../../src/infra/logger.ts'
 
 let responses
 let requests
-let tabBarVisible
 beforeEach(() => {
-  configureLogger({ level: 'warn', sink: () => {} })
-  responses = {}
-  requests = []
-  tabBarVisible = true
-  sessionStore.clear()
-  globalThis.getApp = () => ({ globalData: { apiBaseUrl: 'https://example.test/api/v1', environmentKind: 'authorized' } })
-  globalThis.wx = {
-    hideTabBar() { tabBarVisible = false },
-    showTabBar() { tabBarVisible = true },
-    request(options) {
-      const path = options.url.replace('https://example.test/api/v1', '')
-      requests.push({ path, method: options.method, data: options.data })
-      const response = responses[path]
-      if (!response) { options.fail(); return }
-      options.success({ data: { request_id: 'fixture', data: response, error: null } })
-    },
-  }
+  const fixture = installWxMock()
+  responses = fixture.responses
+  requests = fixture.requests
 })
 
 test('successful business operations emit audit metadata without observation content', async () => {
@@ -96,42 +73,6 @@ test('saving a mood sends its code and displays the returned Chinese label', asy
   assert.equal(requests[0].data.mood_code, 'tired')
   assert.equal(saved.mood, '疲惫')
   assert.equal(saved.recordedAt, '14:32')
-})
-
-test('mood failures stay in the sheet; retry succeeds without losing the selection', async () => {
-  const page = makeTodayPage()
-  page.data.loaded = true
-  page.data.loading = false
-  page.openMoodSheet()
-  assert.equal(tabBarVisible, false)
-  page.selectMood({ currentTarget: { dataset: { mood: 'tired' } } })
-  await page.saveMood()
-  assert.equal(page.data.moodError, '暂时没有记下这次选择')
-  assert.equal(page.data.selectedMood, 'tired')
-  assert.equal(page.data.mood, null)
-  assert.equal(page.data.error, '')
-  responses['/moods/today'] = { record_id: 'mood-1', mood_code: 'tired', saved_at: '2026-09-07T06:32:00Z' }
-  await page.saveMood()
-  assert.equal(page.data.mood.mood, '疲惫')
-  assert.equal(page.data.showMoodSheet, true)
-  page.closeMoodSheet()
-  assert.equal(tabBarVisible, true)
-  assert.equal(page.data.showMoodSheet, false)
-})
-
-test('closing the mood sheet without saving makes no request; saving prevents repeat taps', async () => {
-  const page = makeTodayPage()
-  page.data.loaded = true
-  page.data.loading = false
-  page.openMoodSheet()
-  page.closeMoodSheet()
-  assert.equal(requests.length, 0)
-  page.data.saving = true
-  page.data.selectedMood = 'calm'
-  await page.saveMood()
-  page.selectMood({ currentTarget: { dataset: { mood: 'low' } } })
-  assert.equal(requests.length, 0)
-  assert.equal(page.data.selectedMood, 'calm')
 })
 
 test('history accepts backend pages without losing the mood date or sort order', async () => {

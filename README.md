@@ -11,7 +11,7 @@
 
 | 目录 | 内容 |
 | --- | --- |
-| `miniprogram/` | 原生微信小程序，TypeScript / WXML / WXSS |
+| `miniprogram/` | 原生微信小程序，源码位于 `src/`，分类测试位于 `tests/` |
 | `admin/` | Vue 3 / TypeScript / Vite 桌面管理后台 |
 | `backend/` | Python 3.11 / FastAPI 业务 API、规则、仓储与集成 |
 | `docs/` | 产品、详细设计、开发、计划和软著材料 |
@@ -36,6 +36,7 @@
 | [产品需求](docs/product/PRD.md) / [产品决策](docs/product/V2_CONFIRMED_PRODUCT_DECISIONS.md) | 功能范围、角色、隐私与产品约定 |
 | [应用流程](docs/design/APP_FLOW.md) | 学生端与后台页面、状态和导航 |
 | [技术栈](docs/develop/TECH_STACK.md) / [后台开发](docs/develop/ADMIN.md) | 依赖、运行单元与后台目录 |
+| [学生端开发](docs/develop/MINIPROGRAM.md) | 小程序目录、样式归属、错误、开发审计及测试 |
 | [前端规范](docs/develop/FRONTEND_GUIDELINES.md) / [后端规范](docs/develop/BACKEND_STRUCTURE.md) | 视觉组件、数据库、API 与权限 |
 | [AI 接口](docs/develop/V2_AI_INTERFACE_AND_PROMPT_SPEC.md) | 输入边界、提示词、输出与回退 |
 | [排错](docs/develop/TROUBLESHOOTING.md) | 安装兼容性、配置与联调问题 |

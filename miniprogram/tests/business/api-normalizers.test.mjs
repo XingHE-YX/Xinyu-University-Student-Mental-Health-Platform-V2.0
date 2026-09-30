@@ -8,7 +8,7 @@ import {
   normalizeTodayObservations,
   normalizeTreeholePost,
   normalizeTreeholePosts,
-} from '../src/services/normalizers.ts'
+} from '../../src/services/normalizers.ts'
 
 test('normalizes paginated assessment modules from the backend contract', () => {
   assert.deepEqual(normalizeAssessmentModules({ modules: [{ module_code: 'sleep_observation', title: '睡眠与作息自我观察', description: '观察睡眠', expected_minutes: 3, latest_completed_date: '2026-09-06' }] }), [
