@@ -20,10 +20,8 @@ from app.infra.ai.prompt.templates.common import (
     REQUEST_MODEL,
     SYSTEM_PROMPT,
 )
-
-
-class DeepSeekUnavailable(RuntimeError):
-    """Raised when DeepSeek cannot produce a usable JSON response."""
+from app.infra.logger.common import traced
+from app.infra.serializer.error.ai import DeepSeekUnavailable as DeepSeekUnavailable
 
 
 class DeepSeekClient:
@@ -41,6 +39,7 @@ class DeepSeekClient:
         self._timeout = timeout
         self._semaphore = asyncio.Semaphore(DEEPSEEK_MAX_CONCURRENCY)
 
+    @traced
     async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         if not self._api_key:
             raise DeepSeekUnavailable("DeepSeek 未配置")
@@ -81,6 +80,7 @@ class DeepSeekClient:
         return parsed
 
 
+@traced
 def _extract_content(body: Any) -> str | None:
     if not isinstance(body, dict):
         return None

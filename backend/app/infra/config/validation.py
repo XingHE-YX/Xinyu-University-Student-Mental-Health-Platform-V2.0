@@ -4,19 +4,15 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 
+from app.infra.logger.common import traced
+from app.infra.serializer.error.config import ConfigurationError as ConfigurationError
+from app.infra.serializer.error.config import EnvironmentMismatchError as EnvironmentMismatchError
+
 
 class EnvironmentKind(StrEnum):
     DEMO = "demo"
     AUTHORIZED = "authorized"
     UNCONFIGURED = "unconfigured"
-
-
-class ConfigurationError(RuntimeError):
-    """Base error for an unsafe or incomplete deployment configuration."""
-
-
-class EnvironmentMismatchError(ConfigurationError):
-    """Raised when a known environment is paired with the wrong mode."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +23,7 @@ class EnvironmentDecision:
     matched_kind: EnvironmentKind
 
 
+@traced
 def parse_demo_mode(value: str | None) -> bool | None:
     """Parse the explicit deployment switch without accepting ambiguous values."""
 
@@ -40,6 +37,7 @@ def parse_demo_mode(value: str | None) -> bool | None:
     raise ConfigurationError("DEMO_MODE must be true or false")
 
 
+@traced
 def resolve_environment(
     *,
     demo_mode: bool | None,

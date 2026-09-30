@@ -5,7 +5,6 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-import logging
 from datetime import UTC, datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -20,6 +19,7 @@ from app.infra.database.common import (
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import DailyMoodRecordDocument
@@ -30,7 +30,7 @@ from app.services.v2.idempotency_service import (
     serialize_api_error,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 MoodCode = Literal["pleasant", "calm", "tired", "anxious", "low", "irritable"]
@@ -88,6 +88,7 @@ class MoodService:
         self.audit = audit_writer
         self._now_provider = now_provider
 
+    @traced
     def record_today_mood(
         self,
         access_token: str,
@@ -175,6 +176,7 @@ class MoodService:
         )
         return response
 
+    @traced
     def list_history(
         self,
         access_token: str,
@@ -206,6 +208,7 @@ class MoodService:
             next_cursor=next_cursor,
         )
 
+    @traced
     def delete_mood(
         self,
         access_token: str,
@@ -295,6 +298,7 @@ class MoodService:
         )
         return response
 
+    @traced
     def _ensure_private_access(self, user_id: str) -> None:
         user = self.repository.get_user(user_id)
         if user.status != "active":
@@ -310,6 +314,7 @@ class MoodService:
         if identity.user_id != user.document_id or identity.verification_status != "verified":
             raise ApiException(403, "IDENTITY_REQUIRED")
 
+    @traced
     def _audit(
         self,
         *,
@@ -338,6 +343,7 @@ class MoodService:
         except Exception:
             logger.warning("audit_write_failed")
 
+    @traced
     def _now(self) -> datetime:
         if callable(self._now_provider):
             value = self._now_provider()
@@ -345,6 +351,7 @@ class MoodService:
                 return value
         return datetime.now(UTC)
 
+    @traced
     def _today(self) -> str:
         value = self._now()
         if value.tzinfo is None:
@@ -352,6 +359,7 @@ class MoodService:
         return value.astimezone(SHANGHAI).date().isoformat()
 
 
+@traced
 def _mood_fact(record: DailyMoodRecordDocument) -> MoodFact:
     return MoodFact(
         record_id=record.document_id,
@@ -362,6 +370,7 @@ def _mood_fact(record: DailyMoodRecordDocument) -> MoodFact:
     )
 
 
+@traced
 def _mood_fact_from_digest(response_digest: str | None) -> MoodFact:
     if response_digest is None:
         raise ApiException(500, "INTERNAL_ERROR")
@@ -371,6 +380,7 @@ def _mood_fact_from_digest(response_digest: str | None) -> MoodFact:
     return MoodFact.model_validate_json(response_digest)
 
 
+@traced
 def _deleted_mood_fact_from_digest(response_digest: str | None) -> DeletedMoodFact:
     if response_digest is None:
         raise ApiException(500, "INTERNAL_ERROR")
@@ -380,6 +390,7 @@ def _deleted_mood_fact_from_digest(response_digest: str | None) -> DeletedMoodFa
     return DeletedMoodFact.model_validate_json(response_digest)
 
 
+@traced
 def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
@@ -393,16 +404,19 @@ def _complete_failure(
     )
 
 
+@traced
 def _repository_failure(error: RepositoryError) -> ApiException:
     if isinstance(error, RepositoryNotFound):
         return ApiException(404, "NOT_FOUND")
     return ApiException(503, "DEPENDENCY_UNAVAILABLE")
 
 
+@traced
 def _encode_cursor(offset: int) -> str:
     return base64.urlsafe_b64encode(json.dumps(offset).encode("ascii")).decode("ascii")
 
 
+@traced
 def _decode_cursor(cursor: str | None) -> int:
     if not cursor:
         return 0

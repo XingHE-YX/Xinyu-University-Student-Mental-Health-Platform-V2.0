@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict
 from app.infra.config.settings import Settings
 from app.infra.config.validation import EnvironmentKind
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
 
 ResourceContext = Literal["normal", "safety"]
@@ -54,6 +55,7 @@ class SupportResourceService:
         self.repository = repository
         self._now_provider = now_provider
 
+    @traced
     def list_resources(self, *, context: str) -> SupportResourceList:
         if context not in {"normal", "safety"}:
             raise ApiException(422, "VALIDATION_FAILED")
@@ -107,6 +109,7 @@ class SupportResourceService:
             ],
         )
 
+    @traced
     def _now(self) -> datetime:
         if callable(self._now_provider):
             value = self._now_provider()

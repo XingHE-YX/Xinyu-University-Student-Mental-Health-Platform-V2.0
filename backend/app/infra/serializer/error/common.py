@@ -1,5 +1,6 @@
 """Stable API errors and their user-readable Chinese messages."""
 
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict
@@ -39,7 +40,42 @@ class ApiError(BaseModel):
     current_version: int | str | None = None
 
 
-class ApiException(Exception):
+class ErrorCode(StrEnum):
+    INVALID_REQUEST = "INVALID_REQUEST"
+    AUTH_REQUIRED = "AUTH_REQUIRED"
+    INVALID_CREDENTIALS = "INVALID_CREDENTIALS"
+    SESSION_EXPIRED = "SESSION_EXPIRED"
+    CONSENT_REQUIRED = "CONSENT_REQUIRED"
+    IDENTITY_REQUIRED = "IDENTITY_REQUIRED"
+    FORBIDDEN = "FORBIDDEN"
+    NOT_FOUND = "NOT_FOUND"
+    VERSION_CONFLICT = "VERSION_CONFLICT"
+    IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT"
+    VALIDATION_FAILED = "VALIDATION_FAILED"
+    SAFETY_CONFIRMATION_REQUIRED = "SAFETY_CONFIRMATION_REQUIRED"
+    SAFETY_SUPPORT_BLOCKED = "SAFETY_SUPPORT_BLOCKED"
+    RATE_LIMITED = "RATE_LIMITED"
+    INTERNAL_ERROR = "INTERNAL_ERROR"
+    DEPENDENCY_UNAVAILABLE = "DEPENDENCY_UNAVAILABLE"
+    CONFIGURATION_ERROR = "CONFIGURATION_ERROR"
+    REPOSITORY_NOT_FOUND = "REPOSITORY_NOT_FOUND"
+    REPOSITORY_VERSION_CONFLICT = "REPOSITORY_VERSION_CONFLICT"
+    REPOSITORY_UNAVAILABLE = "REPOSITORY_UNAVAILABLE"
+    REPOSITORY_COMMIT_UNKNOWN = "REPOSITORY_COMMIT_UNKNOWN"
+    AI_UNAVAILABLE = "AI_UNAVAILABLE"
+    OPERATION_CANCELLED = "OPERATION_CANCELLED"
+
+
+class AppError(RuntimeError):
+    """Typed failure whose log projection never includes the exception message."""
+
+    code: str = ErrorCode.INTERNAL_ERROR
+
+    def log_fields(self) -> dict[str, str | int | None]:
+        return {"error_code": self.code, "error_type": type(self).__name__}
+
+
+class ApiException(AppError):
     """An expected failure that can safely cross the HTTP boundary."""
 
     def __init__(
@@ -65,6 +101,9 @@ class ApiException(Exception):
             retryable=self.retryable,
             current_version=self.current_version,
         )
+
+    def log_fields(self) -> dict[str, str | int | None]:
+        return {**super().log_fields(), "current_version": self.current_version}
 
 
 def status_error(status_code: int) -> ApiException:

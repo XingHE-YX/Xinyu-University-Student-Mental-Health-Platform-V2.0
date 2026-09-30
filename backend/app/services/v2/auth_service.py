@@ -8,6 +8,7 @@ from app.infra.config.settings import Settings
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.integrations.wechat import WechatAuthClient, WechatIdentity
+from app.infra.logger.common import traced
 from app.infra.password.common import verify_password
 from app.infra.security.tokens import (
     AuthenticatedSubject,
@@ -21,6 +22,7 @@ from app.models.v2.responses.auth import AdminSessionData, StudentSessionData, T
 
 
 class WechatClient(Protocol):
+    @traced
     async def exchange_code(self, code: str) -> WechatIdentity: ...
 
 
@@ -50,6 +52,7 @@ class AuthService:
         )
         self.domain_repository = domain_repository
 
+    @traced
     async def login_student(self, code: str, *, client_version: str) -> StudentSessionData:
         del client_version
         self._require_student_login_ready()
@@ -68,6 +71,7 @@ class AuthService:
             identity_status=("verified" if user.identity_record_id else "unverified"),
         )
 
+    @traced
     def login_admin(self, login_name: str, password: str) -> AdminSessionData:
         self._require_ready()
         if login_name != self.ADMIN_LOGIN_NAME or not self.settings.password_hash:
@@ -86,6 +90,7 @@ class AuthService:
             capability_label=self.ADMIN_CAPABILITY_LABEL,
         )
 
+    @traced
     def refresh(
         self,
         refresh_token: str,
@@ -114,9 +119,11 @@ class AuthService:
             identity_status="unverified",
         )
 
+    @traced
     def authenticate(self, access_token: str) -> AuthenticatedSubject:
         return self.tokens.authenticate_access(access_token, self.sessions)
 
+    @traced
     def logout(
         self,
         access_token: str,
@@ -129,14 +136,17 @@ class AuthService:
             expected_subject_type=expected_subject_type,
         )
 
+    @traced
     def _require_ready(self) -> None:
         if self.settings.configuration_status != "ready":
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "服务环境尚未完成配置")
 
+    @traced
     def _require_student_login_ready(self) -> None:
         if not self.settings.student_login_ready:
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "微信登录暂未完成配置")
 
+    @traced
     def _ensure_student_user(self, subject_id: str) -> UserAccountDocument:
         if self.domain_repository is None:
             return _ephemeral_user(subject_id)
@@ -163,6 +173,7 @@ class AuthService:
             raise
 
 
+@traced
 def _pair_data(pair: TokenPair) -> dict[str, Any]:
     return {
         "access_token": pair.access_token,
@@ -172,6 +183,7 @@ def _pair_data(pair: TokenPair) -> dict[str, Any]:
     }
 
 
+@traced
 def _ephemeral_user(subject_id: str) -> UserAccountDocument:
     now = datetime.now(UTC)
     return UserAccountDocument(
@@ -186,6 +198,7 @@ def _ephemeral_user(subject_id: str) -> UserAccountDocument:
     )
 
 
+@traced
 def _session_account_status(
     status: str,
 ) -> Literal["active", "recovery_pending", "stopped", "purged"]:

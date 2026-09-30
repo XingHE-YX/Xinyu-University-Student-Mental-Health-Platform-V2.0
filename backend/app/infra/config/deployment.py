@@ -8,6 +8,8 @@ without ever printing secret values.
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
+from app.infra.logger.common import traced
+
 
 @dataclass(frozen=True, slots=True)
 class DeploymentValidation:
@@ -30,6 +32,7 @@ _REQUIRED = (
 )
 
 
+@traced
 def validate_deployment_config(values: dict[str, str]) -> DeploymentValidation:
     """Check environment isolation and HTTPS origins without exposing secrets.
 

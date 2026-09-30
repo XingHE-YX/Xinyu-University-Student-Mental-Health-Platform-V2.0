@@ -5,6 +5,8 @@ from datetime import datetime
 from threading import RLock
 from typing import Any, Protocol
 
+from app.infra.logger.common import traced
+
 
 @dataclass(frozen=True, slots=True)
 class AuditEventRecord:
@@ -26,8 +28,10 @@ class AuditEventRecord:
 
 
 class AuditRepository(Protocol):
+    @traced
     def append(self, event: AuditEventRecord) -> AuditEventRecord: ...
 
+    @traced
     def list(self) -> tuple[AuditEventRecord, ...]: ...
 
 
@@ -36,11 +40,13 @@ class InMemoryAuditRepository:
         self._events: list[AuditEventRecord] = []
         self._lock = RLock()
 
+    @traced
     def append(self, event: AuditEventRecord) -> AuditEventRecord:
         with self._lock:
             self._events.append(event)
         return event
 
+    @traced
     def list(self) -> tuple[AuditEventRecord, ...]:
         with self._lock:
             return tuple(self._events)

@@ -8,6 +8,8 @@ from typing import Literal, Protocol
 import httpx
 from httpx import AsyncBaseTransport
 
+from app.infra.logger.common import traced
+
 
 @dataclass(frozen=True, slots=True)
 class SchoolIdentityVerificationResult:
@@ -17,6 +19,7 @@ class SchoolIdentityVerificationResult:
 
 
 class SchoolIdentityProvider(Protocol):
+    @traced
     async def verify_student(
         self,
         *,
@@ -26,6 +29,7 @@ class SchoolIdentityProvider(Protocol):
 
 
 class UnavailableSchoolIdentityProvider:
+    @traced
     async def verify_student(
         self,
         *,
@@ -42,6 +46,7 @@ class DemoSchoolIdentityProvider:
     STUDENT_NAME = "王小雨"
     STUDENT_NUMBER = "20260001"
 
+    @traced
     async def verify_student(
         self,
         *,
@@ -74,6 +79,7 @@ class HttpSchoolIdentityProvider:
         self._timeout = timeout
         self._transport = transport
 
+    @traced
     async def verify_student(
         self,
         *,

@@ -16,6 +16,7 @@ from app.infra.database.common import (
 from app.infra.database.memory.audit import AuditRepository, InMemoryAuditRepository
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import WorkTaskDocument
 from app.models.v2.responses.admin_workbench import (
@@ -58,6 +59,7 @@ class AdminWorkbenchService:
         if not self.tasks:
             self._seed_demo_tasks()
 
+    @traced
     def list_tasks(
         self,
         section: WorkbenchSection,
@@ -83,6 +85,7 @@ class AdminWorkbenchService:
             next_cursor=next_cursor,
         )
 
+    @traced
     def get_task(self, task_id: str, *, admin_id: str) -> TaskDetail:
         self._reload_tasks()
         task = self.tasks.get(task_id)
@@ -90,6 +93,7 @@ class AdminWorkbenchService:
             raise ApiException(404, "NOT_FOUND")
         return self._detail(task)
 
+    @traced
     def record_view(self, task_id: str, *, admin_id: str, request_id: str) -> None:
         """Record a minimal detail-view audit event after the projection is authorized."""
 
@@ -112,6 +116,7 @@ class AdminWorkbenchService:
             facts={"task_kind": task["task_kind"], "object_version": task["version"]},
         )
 
+    @traced
     def record_task_outcome(
         self,
         task_id: str,
@@ -141,6 +146,7 @@ class AdminWorkbenchService:
             facts={"task_kind": task["task_kind"], "object_version": task["version"]},
         )
 
+    @traced
     def claim(
         self,
         task_id: str,
@@ -167,6 +173,7 @@ class AdminWorkbenchService:
         self._write_audit(request_id, task, "task_claim", "success")
         return result
 
+    @traced
     def release(
         self,
         task_id: str,
@@ -193,6 +200,7 @@ class AdminWorkbenchService:
         self._write_audit(request_id, task, "task_release", "success")
         return result
 
+    @traced
     def decide(
         self,
         task_id: str,
@@ -258,6 +266,7 @@ class AdminWorkbenchService:
         self._write_audit(request_id, task, action, "success")
         return result
 
+    @traced
     def list_audit(self) -> list[AuditEvent]:
         return [
             AuditEvent(
@@ -280,6 +289,7 @@ class AdminWorkbenchService:
             for event in self.audit.repository.list()
         ]
 
+    @traced
     def list_audit_page(
         self,
         *,
@@ -310,6 +320,7 @@ class AdminWorkbenchService:
         next_cursor = str(offset + len(page)) if offset + len(page) < len(filtered) else None
         return page, next_cursor
 
+    @traced
     def reset_demo(
         self, *, request_id: str, admin_id: str, scopes: list[str]
     ) -> list[dict[str, str]]:
@@ -347,6 +358,7 @@ class AdminWorkbenchService:
         )
         return results
 
+    @traced
     def _seed_demo_tasks(self) -> None:
         """Populate only synthetic, non-identifying tasks in the demo namespace."""
 
@@ -422,6 +434,7 @@ class AdminWorkbenchService:
                 self.task_repository.save(task, expected_version=int(current["version"]))
             self._reload_tasks()
 
+    @traced
     def _get_mutable(
         self, task_id: str, object_version: int, admin_id: str, key: str
     ) -> dict[str, Any]:
@@ -436,6 +449,7 @@ class AdminWorkbenchService:
             raise ApiException(409, "VERSION_CONFLICT", current_version=task["version"])
         return deepcopy(task)
 
+    @traced
     def _reload_tasks(self) -> None:
         if self.task_repository is not None:
             self.tasks = {task["task_id"]: task for task in self.task_repository.list()}
@@ -445,6 +459,7 @@ class AdminWorkbenchService:
                 task["task_id"] = task.pop("_id")
                 self.tasks[str(task["task_id"])] = task
 
+    @traced
     def _save_task(self, task: dict[str, Any], *, expected_version: int) -> None:
         task["object_version"] = task["version"]
         if self.task_repository is not None:
@@ -465,6 +480,7 @@ class AdminWorkbenchService:
                 )
         self.tasks[str(task["task_id"])] = task
 
+    @traced
     def _apply_content_decision(self, task: dict[str, Any], action: str) -> None:
         if self.content_repository is None:
             return
@@ -513,6 +529,7 @@ class AdminWorkbenchService:
         )
 
     @staticmethod
+    @traced
     def _decode_cursor(cursor: str | None) -> int:
         if not cursor:
             return 0
@@ -522,6 +539,7 @@ class AdminWorkbenchService:
             raise ApiException(400, "INVALID_REQUEST") from error
 
     @staticmethod
+    @traced
     def _in_section(task: dict[str, Any], section: WorkbenchSection, admin_id: str) -> bool:
         state = task["state"]
         if section == "needs_action":
@@ -536,6 +554,7 @@ class AdminWorkbenchService:
             return state in {"completed", "cancelled"}
         return True
 
+    @traced
     def _summary(self, task: dict[str, Any], *, admin_id: str) -> TaskSummary:
         assigned = task.get("assigned_admin_id")
         return TaskSummary(
@@ -551,6 +570,7 @@ class AdminWorkbenchService:
             object_version=task["version"],
         )
 
+    @traced
     def _detail(self, task: dict[str, Any]) -> TaskDetail:
         return TaskDetail(
             task_id=task["task_id"],
@@ -565,6 +585,7 @@ class AdminWorkbenchService:
         )
 
     @staticmethod
+    @traced
     def _allowed_actions(task_kind: TaskKind, source_type: str | None = None) -> list[str]:
         actions = {
             "content_review": ["publish", "protect", "unpublish", "safety_review"],
@@ -577,6 +598,7 @@ class AdminWorkbenchService:
         ]
 
     @staticmethod
+    @traced
     def _result(task: dict[str, Any], request_id: str) -> TaskMutationResult:
         return TaskMutationResult(
             task_id=task["task_id"],
@@ -585,9 +607,11 @@ class AdminWorkbenchService:
             audit_request_id=request_id,
         )
 
+    @traced
     def _remember(self, admin_id: str, key: str, result: TaskMutationResult) -> None:
         self._idempotency[(admin_id, key)] = result
 
+    @traced
     def _write_audit(
         self, request_id: str, task: dict[str, Any], action: str, outcome: str
     ) -> None:

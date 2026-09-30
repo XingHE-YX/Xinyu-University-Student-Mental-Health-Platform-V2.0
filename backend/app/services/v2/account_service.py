@@ -10,6 +10,7 @@ from app.infra.database.common import (
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import UserAccountDocument
@@ -38,6 +39,7 @@ class AccountService:
         self.idempotency = idempotency_service
         self.audit = audit_writer
 
+    @traced
     def stop(
         self, access_token: str, *, object_version: int, request_id: str, idempotency_key: str
     ) -> AccountState:
@@ -49,6 +51,7 @@ class AccountService:
             idempotency_key=idempotency_key,
         )
 
+    @traced
     def recover(
         self, access_token: str, *, object_version: int, request_id: str, idempotency_key: str
     ) -> AccountState:
@@ -60,12 +63,14 @@ class AccountService:
             idempotency_key=idempotency_key,
         )
 
+    @traced
     def status(self, access_token: str) -> AccountState:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
         return self._state(self.repository.get_user(subject.subject_id))
 
+    @traced
     def _transition(
         self,
         access_token: str,
@@ -158,6 +163,7 @@ class AccountService:
         return state
 
     @staticmethod
+    @traced
     def _state(user: UserAccountDocument) -> AccountState:
         return AccountState(
             status=user.status,
@@ -171,6 +177,7 @@ class AccountService:
         )
 
 
+@traced
 def _state_from_digest(value: str | None) -> AccountState:
     if value is None:
         raise ApiException(500, "INTERNAL_ERROR")
@@ -183,6 +190,7 @@ def _state_from_digest(value: str | None) -> AccountState:
         raise ApiException(500, "INTERNAL_ERROR") from exc
 
 
+@traced
 def _complete_failure(
     idempotency: IdempotencyService, reservation: IdempotencyReservation, error: ApiException
 ) -> None:

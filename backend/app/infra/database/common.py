@@ -4,6 +4,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app.infra.logger.common import traced
+from app.infra.serializer.error.database import RepositoryError as RepositoryError
+from app.infra.serializer.error.database import RepositoryNotFound as RepositoryNotFound
+from app.infra.serializer.error.database import RepositoryUnavailable as RepositoryUnavailable
+from app.infra.serializer.error.database import (
+    RepositoryVersionConflict as RepositoryVersionConflict,
+)
+
 JsonDocument = dict[str, Any]
 
 
@@ -13,27 +21,8 @@ class DocumentPage:
     next_cursor: str | None
 
 
-class RepositoryError(RuntimeError):
-    """Base class for errors that must be mapped at the API boundary."""
-
-
-class RepositoryNotFound(RepositoryError):
-    """The requested document does not exist in the current environment."""
-
-
-class RepositoryVersionConflict(RepositoryError):
-    """The document version changed before a conditional update."""
-
-    def __init__(self, current_version: int | None) -> None:
-        self.current_version = current_version
-        super().__init__("document version conflict")
-
-
-class RepositoryUnavailable(RepositoryError):
-    """CloudBase or another persistence dependency cannot be reached."""
-
-
 class DocumentRepository(Protocol):
+    @traced
     def query(
         self,
         collection: str,
@@ -43,6 +32,7 @@ class DocumentRepository(Protocol):
         limit: int = 20,
     ) -> DocumentPage: ...
 
+    @traced
     def conditional_update(
         self,
         collection: str,
@@ -52,6 +42,7 @@ class DocumentRepository(Protocol):
         updates: Mapping[str, Any],
     ) -> JsonDocument: ...
 
+    @traced
     def logical_delete(
         self,
         collection: str,

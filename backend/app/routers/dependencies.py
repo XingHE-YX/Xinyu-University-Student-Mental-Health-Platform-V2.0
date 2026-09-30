@@ -1,6 +1,5 @@
 """HTTP request context, authentication dependencies and safe exception mapping."""
 
-import logging
 import re
 from dataclasses import dataclass
 from typing import cast
@@ -17,12 +16,13 @@ from app.infra.database.common import (
     RepositoryUnavailable,
     RepositoryVersionConflict,
 )
+from app.infra.logger.common import get_logger
 from app.infra.security.tokens import AuthenticatedSubject
 from app.infra.serializer.envelope import ApiEnvelope
 from app.infra.serializer.error.common import ApiException, status_error
 from app.services.v2.auth_service import AuthService
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,63}$")
 
 

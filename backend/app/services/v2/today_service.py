@@ -12,6 +12,7 @@ from app.infra.config.settings import Settings
 from app.infra.database.common import RepositoryNotFound
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.logger.common import traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import AssessmentResultDocument
@@ -76,6 +77,7 @@ class TodayService:
         self.support_resources = support_resource_service
         self._now_provider = now_provider
 
+    @traced
     def get_today(
         self,
         access_token: str,
@@ -112,6 +114,7 @@ class TodayService:
             ),
         )
 
+    @traced
     def _assessment_shortcuts(self, user_id: str) -> list[AssessmentShortcut]:
         ordinary_results: dict[
             Literal["phq9", "gad7", "sleep_observation"],
@@ -144,6 +147,7 @@ class TodayService:
             )
         return shortcuts
 
+    @traced
     def _ensure_private_access(self, user_id: str) -> None:
         user = self.repository.get_user(user_id)
         if user.status != "active":
@@ -159,6 +163,7 @@ class TodayService:
         if identity.user_id != user.document_id or identity.verification_status != "verified":
             raise ApiException(403, "IDENTITY_REQUIRED")
 
+    @traced
     def _now(self) -> datetime:
         if callable(self._now_provider):
             value = self._now_provider()
@@ -166,10 +171,12 @@ class TodayService:
                 return value
         return datetime.now(UTC)
 
+    @traced
     def _today(self) -> str:
         return _shanghai_date(self._now())
 
 
+@traced
 def _shanghai_date(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)

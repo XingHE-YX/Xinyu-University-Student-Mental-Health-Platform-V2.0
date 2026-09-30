@@ -23,9 +23,11 @@ from app.infra.database.memory.idempotency import (
     InMemoryIdempotencyRepository,
 )
 from app.infra.database.memory.session import AuthSessionRecord, InMemorySessionRepository
+from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
 
 
+@traced
 def parse_record[R: (AuthSessionRecord, IdempotencyRecord, AuditEventRecord)](
     model: type[R], data: dict[str, Any]
 ) -> R:
@@ -39,11 +41,13 @@ class CloudBaseSessionRepository(InMemorySessionRepository):
     def __init__(self, store: CloudBaseStore) -> None:
         self.store = store
 
+    @traced
     def save(self, record: AuthSessionRecord) -> None:
         document = asdict(record)
         document.pop("session_id")
         self.store.insert("auth_sessions", {"_id": record.session_id, **document})
 
+    @traced
     def replace(self, record: AuthSessionRecord) -> None:
         try:
             document = asdict(record)
@@ -55,6 +59,7 @@ class CloudBaseSessionRepository(InMemorySessionRepository):
             # A concurrent refresh/logout consumes or revokes the old token only once.
             raise ApiException(401, "SESSION_EXPIRED") from None
 
+    @traced
     def _find(self, where: dict[str, Any]) -> AuthSessionRecord | None:
         rows = self.store.query("auth_sessions", where, limit=1)
         return (
@@ -63,15 +68,19 @@ class CloudBaseSessionRepository(InMemorySessionRepository):
             else None
         )
 
+    @traced
     def get_by_session_id(self, session_id: str) -> AuthSessionRecord | None:
         return self._find({"_id": session_id})
 
+    @traced
     def get_by_access_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
         return self._find({"access_token_hash": token_hash})
 
+    @traced
     def get_by_refresh_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
         return self._find({"refresh_token_hash": token_hash})
 
+    @traced
     def revoke(self, session_id: str, *, now: datetime) -> AuthSessionRecord | None:
         with self.store.transaction():
             record = self.get_by_session_id(session_id)
@@ -87,10 +96,12 @@ class CloudBaseIdempotencyRepository(InMemoryIdempotencyRepository):
         self.store = store
 
     @staticmethod
+    @traced
     def _document_id(actor_type: str, actor_id: str, route_key: str, idempotency_key: str) -> str:
         value = json.dumps([actor_type, actor_id, route_key, idempotency_key])
         return "idem_" + hashlib.sha256(value.encode()).hexdigest()
 
+    @traced
     def get(
         self, actor_type: str, actor_id: str, route_key: str, idempotency_key: str, *, now: datetime
     ) -> IdempotencyRecord | None:
@@ -103,6 +114,7 @@ class CloudBaseIdempotencyRepository(InMemoryIdempotencyRepository):
             return None
         return record if record.expires_at > now else None
 
+    @traced
     def reserve(self, record: IdempotencyRecord, *, now: datetime) -> IdempotencyRecord | None:
         document_id = self._document_id(*self._key(record))
         try:
@@ -127,6 +139,7 @@ class CloudBaseIdempotencyRepository(InMemoryIdempotencyRepository):
             raise
         return None
 
+    @traced
     def complete(
         self,
         record_id: str,
@@ -161,6 +174,7 @@ class CloudBaseAuditRepository:
     def __init__(self, store: CloudBaseStore) -> None:
         self.store = store
 
+    @traced
     def append(self, event: AuditEventRecord) -> AuditEventRecord:
         self.store.insert(
             "audit_events",
@@ -186,6 +200,7 @@ class CloudBaseAuditRepository:
         )
         return event
 
+    @traced
     def list(self) -> tuple[AuditEventRecord, ...]:
         events = [
             AuditEventRecord(

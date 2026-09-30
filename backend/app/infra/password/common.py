@@ -5,10 +5,13 @@ import hashlib
 import hmac
 import secrets
 
+from app.infra.logger.common import traced
+
 PASSWORD_SCHEME = "pbkdf2_sha256"
 PASSWORD_ITERATIONS = 310_000
 
 
+@traced
 def hash_password(password: str, *, salt: bytes | None = None) -> str:
     if not password:
         raise ValueError("password cannot be empty")
@@ -20,12 +23,14 @@ def hash_password(password: str, *, salt: bytes | None = None) -> str:
         PASSWORD_ITERATIONS,
     )
 
+    @traced
     def encode(value: bytes) -> str:
         return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
 
     return f"{PASSWORD_SCHEME}${PASSWORD_ITERATIONS}${encode(actual_salt)}${encode(digest)}"
 
 
+@traced
 def verify_password(password: str, encoded_hash: str) -> bool:
     try:
         scheme, iteration_text, salt_text, digest_text = encoded_hash.split("$", 3)
@@ -42,6 +47,7 @@ def verify_password(password: str, encoded_hash: str) -> bool:
     return hmac.compare_digest(actual, expected)
 
 
+@traced
 def _decode(value: str) -> bytes:
     padding = "=" * (-len(value) % 4)
     return base64.urlsafe_b64decode(value + padding)

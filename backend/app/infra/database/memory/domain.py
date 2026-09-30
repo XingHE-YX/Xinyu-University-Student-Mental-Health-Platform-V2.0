@@ -11,6 +11,7 @@ from threading import RLock
 from typing import Any
 
 from app.infra.database.common import RepositoryNotFound, RepositoryVersionConflict
+from app.infra.logger.common import traced
 from app.models.v2.documents import (
     AnonymousIdentityDocument,
     AssessmentModuleDocument,
@@ -148,6 +149,7 @@ class InMemoryDomainDataRepository:
                 self._restore(snapshot)
                 raise
 
+    @traced
     def _snapshot(self) -> _DomainDataSnapshot:
         return _DomainDataSnapshot(
             users=deepcopy(self._users),
@@ -180,6 +182,7 @@ class InMemoryDomainDataRepository:
             identity_access_request_counter=self._identity_access_request_counter,
         )
 
+    @traced
     def _restore(self, snapshot: _DomainDataSnapshot) -> None:
         self._users = snapshot.users
         self._consents = snapshot.consents
@@ -210,6 +213,7 @@ class InMemoryDomainDataRepository:
         self._identity_access_requests = snapshot.identity_access_requests
         self._identity_access_request_counter = snapshot.identity_access_request_counter
 
+    @traced
     def get_user(self, user_id: str) -> UserAccountDocument:
         with self._lock:
             try:
@@ -217,6 +221,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("user not found") from error
 
+    @traced
     def get_user_by_auth_subject_hash(self, subject_hash: str) -> UserAccountDocument | None:
         with self._lock:
             return next(
@@ -224,6 +229,7 @@ class InMemoryDomainDataRepository:
                 None,
             )
 
+    @traced
     def create_user(self, user: UserAccountDocument) -> UserAccountDocument:
         with self._lock:
             if user.document_id in self._users:
@@ -233,6 +239,7 @@ class InMemoryDomainDataRepository:
             self._users[user.document_id] = user
             return user
 
+    @traced
     def save_user(self, user: UserAccountDocument, *, expected_version: int) -> UserAccountDocument:
         with self._lock:
             current = self.get_user(user.document_id)
@@ -247,22 +254,26 @@ class InMemoryDomainDataRepository:
             self._users[user.document_id] = updated
             return updated
 
+    @traced
     def append_consent_event(self, consent: ConsentEventDocument) -> ConsentEventDocument:
         with self._lock:
             self._consents[consent.document_id] = consent
             return consent
 
+    @traced
     def list_consent_events(self, user_id: str) -> tuple[ConsentEventDocument, ...]:
         with self._lock:
             events = [event for event in self._consents.values() if event.user_id == user_id]
             events.sort(key=lambda event: (event.occurred_at, event.document_id))
             return tuple(events)
 
+    @traced
     def create_identity_record(self, identity: IdentityRecordDocument) -> IdentityRecordDocument:
         with self._lock:
             self._identities[identity.document_id] = identity
             return identity
 
+    @traced
     def save_identity_record(
         self,
         identity: IdentityRecordDocument,
@@ -282,6 +293,7 @@ class InMemoryDomainDataRepository:
             self._identities[identity.document_id] = updated
             return updated
 
+    @traced
     def get_identity_record(self, identity_record_id: str) -> IdentityRecordDocument:
         with self._lock:
             try:
@@ -289,6 +301,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("identity record not found") from error
 
+    @traced
     def get_identity_record_by_user(self, user_id: str) -> IdentityRecordDocument | None:
         with self._lock:
             for record in self._identities.values():
@@ -296,6 +309,7 @@ class InMemoryDomainDataRepository:
                     return record
             return None
 
+    @traced
     def create_anonymous_identity(
         self,
         anonymous_identity: AnonymousIdentityDocument,
@@ -304,6 +318,7 @@ class InMemoryDomainDataRepository:
             self._anonymous[anonymous_identity.document_id] = anonymous_identity
             return anonymous_identity
 
+    @traced
     def get_anonymous_identity(self, anonymous_identity_id: str) -> AnonymousIdentityDocument:
         with self._lock:
             try:
@@ -311,6 +326,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("anonymous identity not found") from error
 
+    @traced
     def get_active_anonymous_identity_by_user(
         self,
         user_id: str,
@@ -321,6 +337,7 @@ class InMemoryDomainDataRepository:
                     return identity
             return None
 
+    @traced
     def list_anonymous_identities(self, user_id: str) -> tuple[AnonymousIdentityDocument, ...]:
         with self._lock:
             identities = [
@@ -329,21 +346,25 @@ class InMemoryDomainDataRepository:
             identities.sort(key=lambda identity: (identity.created_at, identity.document_id))
             return tuple(identities)
 
+    @traced
     def next_consent_id(self) -> str:
         with self._lock:
             self._consent_counter += 1
             return f"consent_{self._consent_counter:04d}"
 
+    @traced
     def next_identity_record_id(self) -> str:
         with self._lock:
             self._identity_counter += 1
             return f"identity_{self._identity_counter:04d}"
 
+    @traced
     def next_anonymous_identity_id(self) -> str:
         with self._lock:
             self._anonymous_counter += 1
             return f"anonymous_{self._anonymous_counter:04d}"
 
+    @traced
     def get_assessment_module(self, module_code: str) -> AssessmentModuleDocument:
         with self._lock:
             try:
@@ -351,6 +372,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("assessment module not found") from error
 
+    @traced
     def replace_assessment_module(
         self,
         module: AssessmentModuleDocument,
@@ -367,6 +389,7 @@ class InMemoryDomainDataRepository:
             self._assessment_modules[module.module_code] = updated
             return updated
 
+    @traced
     def get_assessment_questionnaire(
         self,
         module_code: str,
@@ -379,6 +402,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("assessment questionnaire not found") from error
 
+    @traced
     def create_assessment_session(
         self, session: AssessmentSessionDocument
     ) -> AssessmentSessionDocument:
@@ -386,6 +410,7 @@ class InMemoryDomainDataRepository:
             self._assessment_sessions[session.document_id] = session
             return session
 
+    @traced
     def get_assessment_session(self, session_id: str) -> AssessmentSessionDocument:
         with self._lock:
             try:
@@ -393,6 +418,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("assessment session not found") from error
 
+    @traced
     def save_assessment_session(
         self,
         session: AssessmentSessionDocument,
@@ -409,6 +435,7 @@ class InMemoryDomainDataRepository:
             self._assessment_sessions[session.document_id] = updated
             return updated
 
+    @traced
     def create_assessment_result(
         self,
         result: AssessmentResultDocument,
@@ -419,6 +446,7 @@ class InMemoryDomainDataRepository:
             self._assessment_results[result.document_id] = result
             return result
 
+    @traced
     def get_assessment_result(self, result_id: str) -> AssessmentResultDocument:
         with self._lock:
             try:
@@ -426,6 +454,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("assessment result not found") from error
 
+    @traced
     def get_assessment_result_by_session(
         self,
         session_id: str,
@@ -436,6 +465,7 @@ class InMemoryDomainDataRepository:
                     return result
             return None
 
+    @traced
     def save_assessment_result(
         self,
         result: AssessmentResultDocument,
@@ -452,6 +482,7 @@ class InMemoryDomainDataRepository:
             self._assessment_results[result.document_id] = updated
             return updated
 
+    @traced
     def list_assessment_results_by_session(
         self,
         session_id: str,
@@ -465,6 +496,7 @@ class InMemoryDomainDataRepository:
             results.sort(key=lambda result: (result.created_at, result.document_id))
             return tuple(results)
 
+    @traced
     def list_assessment_results_by_user(
         self,
         user_id: str,
@@ -478,6 +510,7 @@ class InMemoryDomainDataRepository:
             results.sort(key=lambda result: (result.created_at, result.document_id), reverse=True)
             return tuple(results)
 
+    @traced
     def create_daily_mood_record(
         self,
         record: DailyMoodRecordDocument,
@@ -489,6 +522,7 @@ class InMemoryDomainDataRepository:
             self._daily_moods[record.document_id] = record
             return record
 
+    @traced
     def get_daily_mood(self, record_id: str) -> DailyMoodRecordDocument:
         with self._lock:
             try:
@@ -496,6 +530,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("daily mood record not found") from error
 
+    @traced
     def get_daily_mood_by_user_date(
         self,
         user_id: str,
@@ -507,6 +542,7 @@ class InMemoryDomainDataRepository:
                     return record
             return None
 
+    @traced
     def list_daily_mood_records(self, user_id: str) -> tuple[DailyMoodRecordDocument, ...]:
         with self._lock:
             records = [
@@ -517,6 +553,7 @@ class InMemoryDomainDataRepository:
             records.sort(key=lambda record: (record.record_date, record.created_at), reverse=True)
             return tuple(records)
 
+    @traced
     def save_daily_mood_record(
         self,
         record: DailyMoodRecordDocument,
@@ -533,6 +570,7 @@ class InMemoryDomainDataRepository:
             self._daily_moods[record.document_id] = updated
             return updated
 
+    @traced
     def list_available_quote_entries(self, record_date: str) -> tuple[QuoteEntryDocument, ...]:
         with self._lock:
             quotes = [
@@ -547,6 +585,7 @@ class InMemoryDomainDataRepository:
             quotes.sort(key=lambda quote: (quote.sort_order, quote.document_id))
             return tuple(quotes)
 
+    @traced
     def list_support_resources(
         self,
         environment_scope: str,
@@ -570,6 +609,7 @@ class InMemoryDomainDataRepository:
             resources.sort(key=lambda resource: (resource.sort_order, resource.document_id))
             return tuple(resources)
 
+    @traced
     def create_safety_support_task(
         self,
         task: SafetySupportTaskDocument,
@@ -578,17 +618,20 @@ class InMemoryDomainDataRepository:
             self._safety_support_tasks[task.document_id] = task
             return task
 
+    @traced
     def list_safety_support_tasks(self) -> tuple[SafetySupportTaskDocument, ...]:
         with self._lock:
             tasks = list(self._safety_support_tasks.values())
             tasks.sort(key=lambda task: (task.created_at, task.document_id))
             return tuple(tasks)
 
+    @traced
     def create_work_task(self, task: WorkTaskDocument) -> WorkTaskDocument:
         with self._lock:
             self._work_tasks[task.document_id] = task
             return task
 
+    @traced
     def get_work_task(self, task_id: str) -> WorkTaskDocument:
         with self._lock:
             try:
@@ -596,12 +639,14 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("work task not found") from error
 
+    @traced
     def list_work_tasks(self) -> tuple[WorkTaskDocument, ...]:
         with self._lock:
             tasks = list(self._work_tasks.values())
             tasks.sort(key=lambda task: (task.created_at, task.document_id), reverse=True)
             return tuple(tasks)
 
+    @traced
     def save_work_task(self, task: WorkTaskDocument, *, expected_version: int) -> WorkTaskDocument:
         with self._lock:
             current = self.get_work_task(task.document_id)
@@ -613,11 +658,13 @@ class InMemoryDomainDataRepository:
             self._work_tasks[task.document_id] = updated
             return updated
 
+    @traced
     def create_treehole_post(self, post: TreeholePostDocument) -> TreeholePostDocument:
         with self._lock:
             self._treehole_posts[post.document_id] = post
             return post
 
+    @traced
     def get_treehole_post(self, post_id: str) -> TreeholePostDocument:
         with self._lock:
             try:
@@ -625,6 +672,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("treehole post not found") from error
 
+    @traced
     def save_treehole_post(
         self,
         post: TreeholePostDocument,
@@ -641,12 +689,14 @@ class InMemoryDomainDataRepository:
             self._treehole_posts[post.document_id] = updated
             return updated
 
+    @traced
     def list_treehole_posts(self) -> tuple[TreeholePostDocument, ...]:
         with self._lock:
             posts = list(self._treehole_posts.values())
             posts.sort(key=lambda post: (post.created_at, post.document_id), reverse=True)
             return tuple(posts)
 
+    @traced
     def create_treehole_response(
         self, response: TreeholeResponseDocument
     ) -> TreeholeResponseDocument:
@@ -654,6 +704,7 @@ class InMemoryDomainDataRepository:
             self._treehole_responses[response.document_id] = response
             return response
 
+    @traced
     def get_treehole_response(self, response_id: str) -> TreeholeResponseDocument:
         with self._lock:
             try:
@@ -661,6 +712,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("treehole response not found") from error
 
+    @traced
     def save_treehole_response(
         self,
         response: TreeholeResponseDocument,
@@ -677,6 +729,7 @@ class InMemoryDomainDataRepository:
             self._treehole_responses[response.document_id] = updated
             return updated
 
+    @traced
     def list_treehole_responses(self, post_id: str) -> tuple[TreeholeResponseDocument, ...]:
         with self._lock:
             responses = [
@@ -687,41 +740,49 @@ class InMemoryDomainDataRepository:
             responses.sort(key=lambda response: (response.created_at, response.document_id))
             return tuple(responses)
 
+    @traced
     def next_assessment_session_id(self) -> str:
         with self._lock:
             self._assessment_session_counter += 1
             return f"assessment_session_{self._assessment_session_counter:04d}"
 
+    @traced
     def next_assessment_result_id(self) -> str:
         with self._lock:
             self._assessment_result_counter += 1
             return f"assessment_result_{self._assessment_result_counter:04d}"
 
+    @traced
     def next_daily_mood_id(self) -> str:
         with self._lock:
             self._daily_mood_counter += 1
             return f"daily_mood_{self._daily_mood_counter:04d}"
 
+    @traced
     def next_safety_support_task_id(self) -> str:
         with self._lock:
             self._safety_support_task_counter += 1
             return f"safety_support_task_{self._safety_support_task_counter:04d}"
 
+    @traced
     def next_work_task_id(self) -> str:
         with self._lock:
             self._work_task_counter += 1
             return f"work_task_{self._work_task_counter:04d}"
 
+    @traced
     def next_treehole_post_id(self) -> str:
         with self._lock:
             self._treehole_post_counter += 1
             return f"treehole_post_{self._treehole_post_counter:04d}"
 
+    @traced
     def next_treehole_response_id(self) -> str:
         with self._lock:
             self._treehole_response_counter += 1
             return f"treehole_response_{self._treehole_response_counter:04d}"
 
+    @traced
     def create_identity_access_request(
         self, request: IdentityAccessRequestDocument
     ) -> IdentityAccessRequestDocument:
@@ -729,6 +790,7 @@ class InMemoryDomainDataRepository:
             self._identity_access_requests[request.document_id] = request
             return request
 
+    @traced
     def get_identity_access_request(self, request_id: str) -> IdentityAccessRequestDocument:
         with self._lock:
             try:
@@ -736,6 +798,7 @@ class InMemoryDomainDataRepository:
             except KeyError as error:
                 raise RepositoryNotFound("identity access request not found") from error
 
+    @traced
     def save_identity_access_request(
         self,
         request: IdentityAccessRequestDocument,
@@ -752,17 +815,20 @@ class InMemoryDomainDataRepository:
             self._identity_access_requests[request.document_id] = updated
             return updated
 
+    @traced
     def next_identity_access_request_id(self) -> str:
         with self._lock:
             self._identity_access_request_counter += 1
             return f"identity_access_request_{self._identity_access_request_counter:04d}"
 
+    @traced
     def list_identity_access_requests(self) -> tuple[IdentityAccessRequestDocument, ...]:
         with self._lock:
             items = list(self._identity_access_requests.values())
             items.sort(key=lambda item: (item.created_at, item.document_id), reverse=True)
             return tuple(items)
 
+    @traced
     def extra_collection(self, name: str) -> list[dict[str, Any]]:
         with self._lock:
             if name == "work_tasks":
@@ -824,6 +890,7 @@ class InMemoryDomainDataRepository:
                 ]
             return deepcopy(self._extra_collections.get(name, []))
 
+    @traced
     def append_extra_document(self, name: str, document: Mapping[str, Any]) -> None:
         with self._lock:
             self._extra_collections.setdefault(name, []).append(deepcopy(dict(document)))

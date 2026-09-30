@@ -5,6 +5,7 @@ from typing import Literal, cast
 from app.infra.config.settings import Settings
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.logger.common import traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.responses.student_core import (
@@ -34,6 +35,7 @@ class BootstrapService:
         self.identity = identity_service
         self.today = today_service
 
+    @traced
     def get(self, access_token: str) -> BootstrapProjection:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":

@@ -12,6 +12,7 @@ from app.infra.database.memory.idempotency import (
     IdempotencyRepository,
     InMemoryIdempotencyRepository,
 )
+from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiError, ApiException
 
 
@@ -27,6 +28,7 @@ class IdempotencyService:
     def __init__(self, repository: IdempotencyRepository | None = None) -> None:
         self.repository = repository or InMemoryIdempotencyRepository()
 
+    @traced
     def begin(
         self,
         actor_type: str,
@@ -69,6 +71,7 @@ class IdempotencyService:
             )
         return IdempotencyReservation(record=existing, replayed=True)
 
+    @traced
     def complete(
         self,
         reservation: IdempotencyReservation,
@@ -92,6 +95,7 @@ class IdempotencyService:
         )
 
 
+@traced
 def serialize_api_error(error: ApiException) -> str:
     """Serialize only the safe API error contract for a failure replay."""
 
@@ -106,6 +110,7 @@ def serialize_api_error(error: ApiException) -> str:
     )
 
 
+@traced
 def deserialize_api_error(response_digest: str | None) -> ApiException | None:
     """Restore a safe API error digest, while tolerating legacy failure digests."""
 
@@ -135,6 +140,7 @@ def deserialize_api_error(response_digest: str | None) -> ApiException | None:
     return None
 
 
+@traced
 def _hash_request(request_body: Any) -> str:
     canonical = json.dumps(
         request_body,
@@ -146,6 +152,7 @@ def _hash_request(request_body: Any) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+@traced
 def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)

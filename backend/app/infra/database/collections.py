@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.infra.logger.common import traced
 from app.models.v2.documents import COLLECTION_MODELS
 
 
@@ -13,6 +14,7 @@ class FieldSpec:
     storage_type: str
     required: bool
 
+    @traced
     def as_dict(self) -> dict[str, object]:
         return {"storage_type": self.storage_type, "required": self.required}
 
@@ -22,6 +24,7 @@ class IndexSpec:
     fields: tuple[str, ...]
     unique: bool = False
 
+    @traced
     def as_dict(self, collection: str) -> dict[str, object]:
         suffix = "__unique" if self.unique else ""
         return {
@@ -38,6 +41,7 @@ class CollectionSpec:
     indexes: tuple[IndexSpec, ...]
 
 
+@traced
 def field(name: str, storage_type: str, *, required: bool) -> FieldSpec:
     return FieldSpec(name=name, storage_type=storage_type, required=required)
 
@@ -504,6 +508,7 @@ if set(COLLECTION_MODELS) != set(REGISTRY):
     )
 
 
+@traced
 def build_collection_projection() -> dict[str, dict[str, object]]:
     return {
         name: {
@@ -514,6 +519,7 @@ def build_collection_projection() -> dict[str, dict[str, object]]:
     }
 
 
+@traced
 def build_index_projection() -> dict[str, list[dict[str, object]]]:
     return {
         name: [index.as_dict(name) for index in spec.indexes] for name, spec in REGISTRY.items()

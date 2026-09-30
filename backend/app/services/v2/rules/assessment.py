@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
 
+from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import (
     AssessmentModuleDocument,
@@ -66,6 +67,7 @@ class CatalogQuestionnaire:
     questions: tuple[CatalogQuestion, ...]
 
 
+@traced
 def build_seed_documents() -> dict[
     str, list[AssessmentModuleDocument | AssessmentQuestionnaireDocument]
 ]:
@@ -82,6 +84,7 @@ def build_seed_documents() -> dict[
     }
 
 
+@traced
 def questionnaire_catalog(module_code: ModuleCode) -> CatalogQuestionnaire:
     if module_code == "phq9":
         return _phq9_catalog()
@@ -92,6 +95,7 @@ def questionnaire_catalog(module_code: ModuleCode) -> CatalogQuestionnaire:
     raise AssessmentValidationError()
 
 
+@traced
 def score_questionnaire(
     questionnaire_or_module_code: ModuleCode | AssessmentQuestionnaireDocument,
     answers: list[tuple[str, str]],
@@ -110,6 +114,7 @@ def score_questionnaire(
     return _score_sleep(validated)
 
 
+@traced
 def questionnaire_questions(
     questionnaire: AssessmentQuestionnaireDocument,
 ) -> tuple[CatalogQuestion, ...]:
@@ -176,6 +181,7 @@ def questionnaire_questions(
     return tuple(questions)
 
 
+@traced
 def _phq9_catalog() -> CatalogQuestionnaire:
     option_labels = ("从来没有", "有几天", "超过一半天数", "接近每天")
     scored_options = tuple(
@@ -250,6 +256,7 @@ def _phq9_catalog() -> CatalogQuestionnaire:
     )
 
 
+@traced
 def _gad7_catalog() -> CatalogQuestionnaire:
     option_labels = ("从来没有", "有几天", "超过一半天数", "接近每天")
     scored_options = tuple(
@@ -297,6 +304,7 @@ def _gad7_catalog() -> CatalogQuestionnaire:
     )
 
 
+@traced
 def _sleep_catalog() -> CatalogQuestionnaire:
     questions = (
         CatalogQuestion(
@@ -430,6 +438,7 @@ def _sleep_catalog() -> CatalogQuestionnaire:
     )
 
 
+@traced
 def _build_questionnaire_document(
     *,
     document_id: str,
@@ -461,6 +470,7 @@ def _build_questionnaire_document(
     )
 
 
+@traced
 def _validate_answers(
     questions: tuple[CatalogQuestion, ...],
     answers: list[tuple[str, str]],
@@ -511,6 +521,7 @@ def _validate_answers(
     return [(question, grouped.get(question.question_key, [])) for question in questions]
 
 
+@traced
 def _score_phq9(
     validated: list[tuple[CatalogQuestion, list[QuestionOptionModel]]],
 ) -> ScoreOutcome:
@@ -547,6 +558,7 @@ def _score_phq9(
     )
 
 
+@traced
 def _score_gad7(
     validated: list[tuple[CatalogQuestion, list[QuestionOptionModel]]],
 ) -> ScoreOutcome:
@@ -578,6 +590,7 @@ def _score_gad7(
     )
 
 
+@traced
 def _score_sleep(
     validated: list[tuple[CatalogQuestion, list[QuestionOptionModel]]],
 ) -> ScoreOutcome:
@@ -639,6 +652,7 @@ def _score_sleep(
     )
 
 
+@traced
 def _phq9_band(score: int) -> tuple[str, str]:
     if score <= 4:
         return "0-4", "这次记录里，近期情绪相关信号较少。"
@@ -651,6 +665,7 @@ def _phq9_band(score: int) -> tuple[str, str]:
     return "20-27", "这次记录显示，你近期的情绪困扰较多，值得尽快获得支持。"
 
 
+@traced
 def _gad7_band(score: int) -> tuple[str, str]:
     if score <= 4:
         return "0-4", "这次记录里，近期紧绷和担心的信号较少。"
@@ -661,5 +676,6 @@ def _gad7_band(score: int) -> tuple[str, str]:
     return "15-21", "这次记录显示，你近期的焦虑相关困扰较重，值得尽快与专业人员交流。"
 
 
+@traced
 def _option(option_key: str, label: str, score: int) -> QuestionOptionModel:
     return QuestionOptionModel(option_key=option_key, label=label, score=score)

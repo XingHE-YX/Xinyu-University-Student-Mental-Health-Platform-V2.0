@@ -12,6 +12,7 @@ from app.infra.database.memory.session import (
     AuthSessionRecord,
     InMemorySessionRepository,
 )
+from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
 
 TokenSubjectType = Literal["student", "admin"]
@@ -46,6 +47,7 @@ class TokenManager:
             raise ValueError("token secret cannot be empty")
         self._secret = secret.encode("utf-8")
 
+    @traced
     def issue(
         self,
         subject_type: TokenSubjectType,
@@ -83,6 +85,7 @@ class TokenManager:
         )
         return pair
 
+    @traced
     def authenticate_access(
         self,
         access_token: str,
@@ -104,6 +107,7 @@ class TokenManager:
             session_expires_at=record.access_expires_at,
         )
 
+    @traced
     def refresh(
         self,
         refresh_token: str,
@@ -147,6 +151,7 @@ class TokenManager:
         )
         return pair
 
+    @traced
     def logout(
         self,
         access_token: str,
@@ -162,16 +167,19 @@ class TokenManager:
             raise ApiException(403, "FORBIDDEN")
         repository.revoke(record.session_id, now=_utc(now or datetime.now(UTC)))
 
+    @traced
     def hash_token(self, token: str) -> str:
         return hmac.new(self._secret, token.encode("utf-8"), hashlib.sha256).hexdigest()
 
     @classmethod
+    @traced
     def _ttls(cls, subject_type: TokenSubjectType) -> tuple[timedelta, timedelta]:
         if subject_type == "student":
             return cls.STUDENT_ACCESS_TTL, cls.STUDENT_REFRESH_TTL
         return cls.ADMIN_ACCESS_TTL, cls.ADMIN_REFRESH_TTL
 
 
+@traced
 def _utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)

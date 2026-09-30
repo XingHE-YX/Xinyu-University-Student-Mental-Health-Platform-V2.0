@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Sequence
 from datetime import UTC, datetime
 
@@ -18,6 +17,7 @@ from app.infra.database.common import (
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import (
@@ -53,7 +53,7 @@ from app.services.v2.rules.safety import (
     minimal_visible_projection,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SafetyService:
@@ -74,6 +74,7 @@ class SafetyService:
         self.idempotency = idempotency_service
         self.audit = audit_writer
 
+    @traced
     def confirm_safety(
         self,
         access_token: str,
@@ -134,6 +135,7 @@ class SafetyService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def acknowledge_support_resource(
         self,
         access_token: str,
@@ -198,6 +200,7 @@ class SafetyService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def _confirm_safety(
         self,
         *,
@@ -283,6 +286,7 @@ class SafetyService:
             version=saved_session.version,
         )
 
+    @traced
     def _acknowledge_support_resource(
         self,
         *,
@@ -337,6 +341,7 @@ class SafetyService:
             version=saved_session.version,
         )
 
+    @traced
     def _validate_safety_answers(
         self,
         module: AssessmentModuleDocument,
@@ -365,6 +370,7 @@ class SafetyService:
         if option_scores[PHQ9_Q9_KEY][submitted[-1][1]] == 0:
             raise ApiException(422, "VALIDATION_FAILED")
 
+    @traced
     def _resource_categories(self) -> list[str]:
         if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
             return []
@@ -375,6 +381,7 @@ class SafetyService:
         )
         return sorted({resource.category for resource in resources})
 
+    @traced
     def _create_safety_tasks(
         self,
         *,
@@ -437,6 +444,7 @@ class SafetyService:
         self.repository.create_work_task(work_task)
         return True, safety_task.state
 
+    @traced
     def _ensure_assessment_access(self, user_id: str) -> None:
         user = self.repository.get_user(user_id)
         if user.status != "active":
@@ -452,6 +460,7 @@ class SafetyService:
         if identity.user_id != user.document_id or identity.verification_status != "verified":
             raise ApiException(403, "IDENTITY_REQUIRED")
 
+    @traced
     def _audit(
         self,
         *,
@@ -480,6 +489,7 @@ class SafetyService:
         except Exception:
             logger.warning("audit_write_failed")
 
+    @traced
     def _decode_confirmation_response(
         self, response_digest: str | None
     ) -> SafetyConfirmationResponse:
@@ -490,6 +500,7 @@ class SafetyService:
             raise error
         return SafetyConfirmationResponse.model_validate_json(response_digest)
 
+    @traced
     def _decode_ack_response(self, response_digest: str | None) -> SupportResourceAckResponse:
         if response_digest is None:
             raise ApiException(500, "INTERNAL_ERROR")
@@ -499,6 +510,7 @@ class SafetyService:
         return SupportResourceAckResponse.model_validate_json(response_digest)
 
 
+@traced
 def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
@@ -512,6 +524,7 @@ def _complete_failure(
     )
 
 
+@traced
 def _repository_failure(error: RepositoryError) -> ApiException:
     if isinstance(error, RepositoryNotFound):
         return ApiException(404, "NOT_FOUND")

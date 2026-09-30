@@ -12,6 +12,7 @@ from app.infra.config.validation import (
     parse_demo_mode,
     resolve_environment,
 )
+from app.infra.logger.common import traced
 
 
 class Settings(RuntimeConfig):
@@ -22,6 +23,7 @@ class Settings(RuntimeConfig):
     """
 
     @classmethod
+    @traced
     def from_environment(
         cls,
         environment: Mapping[str, str] | None = None,
@@ -107,6 +109,7 @@ class Settings(RuntimeConfig):
             ),
         )
 
+    @traced
     def public_snapshot(self) -> dict[str, object]:
         """Return the only configuration projection allowed in API responses."""
 
@@ -155,10 +158,12 @@ class Settings(RuntimeConfig):
         )
 
 
+@traced
 def _secret(value: str | None) -> SecretStr | None:
     return SecretStr(value) if value else None
 
 
+@traced
 def _configured_value(value: str) -> str | None:
     """Blank values and unrendered deployment references are not credentials."""
 
@@ -173,6 +178,7 @@ def _configured_value(value: str) -> str | None:
     return normalized
 
 
+@traced
 def _environment_ids(explicit: Iterable[str] | None, registered: str | None) -> tuple[str, ...]:
     # Explicit registries (including empty ones) override deployment variables.
     # Never register the target CLOUDBASE_ENV_ID automatically from DEMO_MODE.

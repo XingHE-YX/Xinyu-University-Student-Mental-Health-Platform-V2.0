@@ -18,8 +18,10 @@ from app.infra.database.common import (
     RepositoryUnavailable,
     RepositoryVersionConflict,
 )
+from app.infra.logger.common import traced
 
 
+@traced
 def encode_ejson(value: Any) -> Any:
     if isinstance(value, datetime):
         return {"$date": {"$numberLong": str(int(value.timestamp() * 1000))}}
@@ -30,6 +32,7 @@ def encode_ejson(value: Any) -> Any:
     return value
 
 
+@traced
 def decode_ejson(value: Any) -> Any:
     if isinstance(value, list):
         return [decode_ejson(item) for item in value]
@@ -83,9 +86,11 @@ class CloudBaseStore:
             "cloudbase_transaction", default=None
         )
 
+    @traced
     def close(self) -> None:
         self._client.close()
 
+    @traced
     def request(
         self,
         method: str,
@@ -157,11 +162,13 @@ class CloudBaseStore:
             self._transaction.reset(token)
 
     @staticmethod
+    @traced
     def collection_path(collection: str) -> str:
         if not re.fullmatch(r"[a-z][a-z0-9_]*", collection):
             raise ValueError("invalid collection name")
         return f"/collections/{collection}/documents"
 
+    @traced
     def query(
         self,
         collection: str,
@@ -185,6 +192,7 @@ class CloudBaseStore:
             raise RepositoryUnavailable("CloudBase query result is invalid")
         return items
 
+    @traced
     def all(self, collection: str, where: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
         documents: list[dict[str, Any]] = []
         while True:
@@ -193,17 +201,20 @@ class CloudBaseStore:
             if len(page) < 100:
                 return documents
 
+    @traced
     def get(self, collection: str, document_id: str) -> dict[str, Any]:
         items = self.query(collection, {"_id": document_id}, limit=1)
         if not items:
             raise RepositoryNotFound("CloudBase document not found")
         return items[0]
 
+    @traced
     def insert(self, collection: str, document: Mapping[str, Any]) -> None:
         result = self.request("POST", self.collection_path(collection), body={"data": [document]})
         if not isinstance(result.get("insertedIds"), list) or len(result["insertedIds"]) != 1:
             raise RepositoryUnavailable("CloudBase insert result is invalid")
 
+    @traced
     def replace(self, collection: str, document: Mapping[str, Any], expected_version: int) -> None:
         values = dict(document)
         document_id = values.pop("_id")
@@ -223,12 +234,14 @@ class CloudBaseStore:
         if result.get("updated") != 1:
             raise RepositoryUnavailable("CloudBase update was not applied")
 
+    @traced
     def create_collection(self, collection: str) -> None:
         self.collection_path(collection)
         self.request(
             "POST", "/collections", body={"collectionName": collection}, in_transaction=False
         )
 
+    @traced
     def commands(self, commands: list[dict[str, Any]]) -> list[Any]:
         result = self.request("POST", "/commands", body={"commands": commands})
         items = result.get("list")

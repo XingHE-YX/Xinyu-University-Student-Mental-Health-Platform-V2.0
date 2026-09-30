@@ -11,6 +11,7 @@ from app.infra.ai.prompt.templates.common import (
     REQUEST_MODEL,
     RESOLVED_MODEL_VERSION,
 )
+from app.infra.logger.common import traced
 
 ALLOWED_TASK_TYPES = {"assessment_explanation", "treehole_review_assist"}
 ASSESSMENT_FIELDS = {
@@ -60,6 +61,7 @@ class PolicyViolation(ValueError):
     """Raised when an AI input or output crosses the frozen policy boundary."""
 
 
+@traced
 def project_assessment_input(data: Mapping[str, Any]) -> dict[str, Any]:
     _require_task(data, "assessment_explanation")
     if any(
@@ -104,6 +106,7 @@ def project_assessment_input(data: Mapping[str, Any]) -> dict[str, Any]:
     return _copy_json_fields(data, ASSESSMENT_FIELDS)
 
 
+@traced
 def project_treehole_input(data: Mapping[str, Any]) -> dict[str, Any]:
     _require_task(data, "treehole_review_assist")
     if not TREEHOLE_FIELDS.issubset(data):
@@ -120,6 +123,7 @@ def project_treehole_input(data: Mapping[str, Any]) -> dict[str, Any]:
     return _copy_json_fields(data, TREEHOLE_FIELDS)
 
 
+@traced
 def validate_ai_output(
     task_type: str,
     output: Mapping[str, Any],
@@ -209,17 +213,20 @@ def validate_ai_output(
     return dict(output)
 
 
+@traced
 def _require_task(data: Mapping[str, Any], task_type: str) -> None:
     if data.get("task_type") != task_type:
         raise PolicyViolation("AI 任务类型不在允许范围")
 
 
+@traced
 def _reject_unknown(data: Mapping[str, Any], allowed: set[str]) -> None:
     unknown = set(data) - allowed
     if unknown:
         raise PolicyViolation("AI 输入或输出包含未允许字段")
 
 
+@traced
 def _require_string(data: Mapping[str, Any], key: str, maximum: int) -> str:
     value = data.get(key)
     if not isinstance(value, str) or len(value) > maximum:
@@ -227,6 +234,7 @@ def _require_string(data: Mapping[str, Any], key: str, maximum: int) -> str:
     return value
 
 
+@traced
 def _require_string_list(
     data: Mapping[str, Any], key: str, *, minimum: int = 0, maximum: int, item_max: int
 ) -> None:
@@ -237,6 +245,7 @@ def _require_string_list(
         raise PolicyViolation(f"字段 {key} 格式不正确")
 
 
+@traced
 def _reject_sensitive_text(value: str) -> None:
     if _PHONE_PATTERN.search(value) or any(
         marker.lower() in value.lower() for marker in _IDENTITY_MARKERS
@@ -244,11 +253,13 @@ def _reject_sensitive_text(value: str) -> None:
         raise PolicyViolation("文本包含身份或联系方式")
 
 
+@traced
 def _reject_prohibited_text(value: str) -> None:
     if any(marker in value for marker in _AI_PROHIBITED):
         raise PolicyViolation("AI 输出包含受限内容")
 
 
+@traced
 def _copy_json_fields(data: Mapping[str, Any], fields: set[str]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key in fields:
@@ -257,6 +268,7 @@ def _copy_json_fields(data: Mapping[str, Any], fields: set[str]) -> dict[str, An
     return result
 
 
+@traced
 def ai_metadata() -> dict[str, str]:
     return {
         "request_model": REQUEST_MODEL,

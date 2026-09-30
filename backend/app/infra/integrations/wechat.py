@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
 
 
@@ -29,6 +30,7 @@ class WechatAuthClient:
         self.transport = transport
         self.timeout = timeout
 
+    @traced
     async def exchange_code(self, code: str) -> WechatIdentity:
         if not self.appid or not self.appsecret:
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "微信登录暂未配置")

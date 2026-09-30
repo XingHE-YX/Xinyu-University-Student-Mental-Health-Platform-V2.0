@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from app.infra.logger.common import traced
+
 SafetyConfirmationState = Literal["can_be_safe", "uncertain", "cannot_be_safe"]
 SafetyNextStep = Literal["continue_assessment", "show_support_resources", "support_only"]
 
@@ -26,6 +28,7 @@ class SafetyBranchDecision:
     creates_immediate_task: bool
 
 
+@traced
 def decide_safety_branch(state: SafetyConfirmationState) -> SafetyBranchDecision:
     if state == "can_be_safe":
         return SafetyBranchDecision(
@@ -46,6 +49,7 @@ def decide_safety_branch(state: SafetyConfirmationState) -> SafetyBranchDecision
     )
 
 
+@traced
 def minimal_visible_projection(
     *,
     state: SafetyConfirmationState,

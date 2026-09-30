@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from typing import Literal
@@ -17,6 +16,7 @@ from app.infra.database.common import (
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import ConsentEventDocument, UserAccountDocument
@@ -27,7 +27,7 @@ from app.services.v2.idempotency_service import (
     serialize_api_error,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +56,7 @@ class ConsentService:
         self.idempotency = idempotency_service
         self.audit = audit_writer
 
+    @traced
     def accept_base_consent(
         self,
         access_token: str,
@@ -75,6 +76,7 @@ class ConsentService:
             idempotency_key=idempotency_key,
         )
 
+    @traced
     def accept_community_consent(
         self,
         access_token: str,
@@ -94,6 +96,7 @@ class ConsentService:
             idempotency_key=idempotency_key,
         )
 
+    @traced
     def withdraw_community_consent(
         self,
         access_token: str,
@@ -113,6 +116,7 @@ class ConsentService:
             idempotency_key=idempotency_key,
         )
 
+    @traced
     def ensure_community_write_allowed(self, access_token: str) -> None:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
@@ -133,6 +137,7 @@ class ConsentService:
         if identity is None or identity.verification_status != "verified":
             raise ApiException(403, "IDENTITY_REQUIRED")
 
+    @traced
     def _apply_consent(
         self,
         access_token: str,
@@ -251,6 +256,7 @@ class ConsentService:
         return state
 
 
+@traced
 def _updated_consent_user(
     user: UserAccountDocument,
     *,
@@ -276,10 +282,12 @@ def _updated_consent_user(
     )
 
 
+@traced
 def _digest_state(state: ConsentState) -> str:
     return json.dumps(asdict(state), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
 
+@traced
 def _state_from_digest(response_digest: str | None) -> ConsentState:
     if response_digest is None:
         raise ApiException(500, "INTERNAL_ERROR")
@@ -295,6 +303,7 @@ def _state_from_digest(response_digest: str | None) -> ConsentState:
         raise ApiException(500, "INTERNAL_ERROR") from error
 
 
+@traced
 def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
@@ -308,6 +317,7 @@ def _complete_failure(
     )
 
 
+@traced
 def _repository_failure(error: RepositoryError) -> ApiException:
     if isinstance(error, RepositoryNotFound):
         return ApiException(404, "NOT_FOUND")

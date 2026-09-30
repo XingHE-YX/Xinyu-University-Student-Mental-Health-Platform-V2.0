@@ -1,6 +1,8 @@
 """FastAPI application factory and dependency-free health endpoint."""
 
-from typing import Any
+import asyncio
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
@@ -22,9 +24,9 @@ from app.infra.database.memory.idempotency import (
 )
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.handlers import start_logging, stop_logging
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.envelope import ApiEnvelope
-from app.infra.serializer.error.common import ApiException
 from app.routers.controller.v2.admin.auth import router as admin_auth_router
 from app.routers.controller.v2.admin.identity import router as admin_identity_router
 from app.routers.controller.v2.admin.workbench import router as admin_workbench_router
@@ -36,10 +38,11 @@ from app.routers.controller.v2.student_core import router as student_core_router
 from app.routers.controller.v2.treehole import router as treehole_router
 from app.routers.controller.v2.treehole import student_router as treehole_student_router
 from app.routers.dependencies import (
-    _error_response,
     register_exception_handlers,
-    resolve_request_id,
 )
+from app.routers.middleware.access_log import AccessLogMiddleware
+from app.routers.middleware.cors import register_cors
+from app.routers.middleware.request_context import RequestContextMiddleware
 from app.services.v2.account_service import AccountService
 from app.services.v2.admin_workbench_service import AdminWorkbenchService
 from app.services.v2.ai_assist_service import AiAssistService
@@ -63,6 +66,15 @@ class HealthData(BaseModel):
     version: str
     environment_kind: str
     status: str
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    start_logging(app.state.settings.logger)
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(stop_logging)
 
 
 def create_app(
@@ -113,7 +125,7 @@ def create_app(
         runtime_audit_repository,
         environment_id=runtime_settings.cloudbase_env_id or "unconfigured",
     )
-    app = FastAPI(title="心语 V2 API", version="0.1.0")
+    app = FastAPI(title="心语 V2 API", version="0.1.0", lifespan=lifespan)
     app.state.settings = runtime_settings
     app.state.persistence_backend = "cloudbase" if cloudbase_store else "memory"
     app.state.cloudbase_store = cloudbase_store
@@ -223,18 +235,9 @@ def create_app(
 
     register_exception_handlers(app)
 
-    @app.middleware("http")
-    async def request_id_middleware(request: Request, call_next: Any) -> Any:
-        try:
-            request.state.request_id = resolve_request_id(request.headers.get("X-Request-Id"))
-        except ApiException as error:
-            request.state.request_id = f"req_invalid_{resolve_request_id(None)[4:]}"
-            response = _error_response(request, error)
-            response.headers["X-Request-Id"] = request.state.request_id
-            return response
-        response = await call_next(request)
-        response.headers["X-Request-Id"] = request.state.request_id
-        return response
+    register_cors(app, runtime_settings)
+    app.add_middleware(AccessLogMiddleware)
+    app.add_middleware(RequestContextMiddleware)
 
     @app.get("/api/v1/health")
     async def health(request: Request) -> ApiEnvelope[HealthData]:

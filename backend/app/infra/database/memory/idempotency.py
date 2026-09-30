@@ -5,6 +5,8 @@ from datetime import datetime
 from threading import RLock
 from typing import Literal, Protocol
 
+from app.infra.logger.common import traced
+
 IdempotencyOutcome = Literal["processing", "success", "failure"]
 
 
@@ -26,6 +28,7 @@ class IdempotencyRecord:
 
 
 class IdempotencyRepository(Protocol):
+    @traced
     def get(
         self,
         actor_type: str,
@@ -36,8 +39,10 @@ class IdempotencyRepository(Protocol):
         now: datetime,
     ) -> IdempotencyRecord | None: ...
 
+    @traced
     def reserve(self, record: IdempotencyRecord, *, now: datetime) -> IdempotencyRecord | None: ...
 
+    @traced
     def complete(
         self,
         record_id: str,
@@ -55,9 +60,11 @@ class InMemoryIdempotencyRepository:
         self._lock = RLock()
 
     @staticmethod
+    @traced
     def _key(record: IdempotencyRecord) -> tuple[str, str, str, str]:
         return record.actor_type, record.actor_id, record.route_key, record.idempotency_key
 
+    @traced
     def get(
         self,
         actor_type: str,
@@ -74,6 +81,7 @@ class InMemoryIdempotencyRepository:
                 return None
             return record
 
+    @traced
     def reserve(self, record: IdempotencyRecord, *, now: datetime) -> IdempotencyRecord | None:
         with self._lock:
             key = self._key(record)
@@ -83,6 +91,7 @@ class InMemoryIdempotencyRepository:
             self._records[key] = record
             return None
 
+    @traced
     def complete(
         self,
         record_id: str,

@@ -14,6 +14,7 @@ from app.infra.database.common import (
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import traced
 from app.infra.security.tokens import AuthenticatedSubject, TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import TreeholePostDocument, TreeholeResponseDocument, WorkTaskDocument
@@ -56,6 +57,7 @@ class TreeholeService:
         self.consent = consent_service
         self.ai_assist = ai_assist_service
 
+    @traced
     async def attach_post_ai_review(
         self,
         access_token: str,
@@ -108,6 +110,7 @@ class TreeholeService:
                 )
         return self._mutation(latest, subject.subject_id)
 
+    @traced
     async def attach_response_ai_review(
         self,
         access_token: str,
@@ -147,6 +150,7 @@ class TreeholeService:
                 )
         return _response_projection(latest, viewer_id=subject.subject_id, public=False)
 
+    @traced
     def list_public(
         self,
         access_token: str,
@@ -180,6 +184,7 @@ class TreeholeService:
             next_cursor=next_cursor,
         )
 
+    @traced
     def get_post(self, access_token: str, *, post_id: str) -> TreeholePostProjection:
         subject = self._student(access_token)
         try:
@@ -191,6 +196,7 @@ class TreeholeService:
             raise ApiException(404, "NOT_FOUND")
         return self._post_projection(post, viewer_id=subject.subject_id, public=not mine)
 
+    @traced
     def list_mine(
         self,
         access_token: str,
@@ -218,6 +224,7 @@ class TreeholeService:
             next_cursor=next_cursor,
         )
 
+    @traced
     def create_post(
         self,
         access_token: str,
@@ -333,6 +340,7 @@ class TreeholeService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def withdraw_post(
         self,
         access_token: str,
@@ -351,6 +359,7 @@ class TreeholeService:
             idempotency_key=idempotency_key,
         )
 
+    @traced
     def delete_post(
         self,
         access_token: str,
@@ -415,6 +424,7 @@ class TreeholeService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def create_response(
         self,
         access_token: str,
@@ -525,6 +535,7 @@ class TreeholeService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def delete_response(
         self,
         access_token: str,
@@ -586,6 +597,7 @@ class TreeholeService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def _change_post_state(
         self,
         access_token: str,
@@ -640,12 +652,14 @@ class TreeholeService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def _student(self, access_token: str) -> AuthenticatedSubject:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
         return subject
 
+    @traced
     def _post_projection(
         self, post: TreeholePostDocument, *, viewer_id: str, public: bool
     ) -> TreeholePostProjection:
@@ -673,6 +687,7 @@ class TreeholeService:
             responses=responses,
         )
 
+    @traced
     def _mutation(self, post: TreeholePostDocument, viewer_id: str) -> TreeholeMutationResponse:
         projection = self._post_projection(post, viewer_id=viewer_id, public=False)
         return TreeholeMutationResponse(
@@ -683,10 +698,12 @@ class TreeholeService:
             object_version=post.version,
         )
 
+    @traced
     def _check_owner(self, owner_id: str, subject_id: str) -> None:
         if owner_id != subject_id:
             raise ApiException(404, "NOT_FOUND")
 
+    @traced
     def _save_ai_review_to_task(self, *, task_id: str, assist: AiAssistResult) -> None:
         try:
             task = self.repository.get_work_task(task_id)
@@ -719,6 +736,7 @@ class TreeholeService:
             expected_version=task.version,
         )
 
+    @traced
     def _audit(
         self, request_id: str, actor_id: str, action: str, resource_id: str, status: str
     ) -> None:
@@ -741,6 +759,7 @@ class TreeholeService:
             pass
 
 
+@traced
 def _protected_body(body: str) -> str:
     return "enc:v1:" + hashlib.sha256(body.encode("utf-8")).hexdigest()
 
@@ -749,6 +768,7 @@ _PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?\d[\d\s-]{6,}\d)(?!\d)")
 _EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 
+@traced
 def _sanitize_for_ai(body: str) -> tuple[str, list[str]]:
     sanitized = _PHONE_PATTERN.sub("［已隐藏］", body)
     sanitized = _EMAIL_PATTERN.sub("［已隐藏］", sanitized)
@@ -756,10 +776,12 @@ def _sanitize_for_ai(body: str) -> tuple[str, list[str]]:
     return sanitized.strip(), flags
 
 
+@traced
 def _contains_safety_signal(body: str) -> bool:
     return any(token in body for token in ("自杀", "自残", "不想活", "伤害自己"))
 
 
+@traced
 def _decode_cursor(cursor: str | None) -> int:
     if cursor is None:
         return 0
@@ -772,6 +794,7 @@ def _decode_cursor(cursor: str | None) -> int:
     return value
 
 
+@traced
 def _response_projection(
     response: TreeholeResponseDocument, *, viewer_id: str, public: bool
 ) -> TreeholeResponseProjection:
@@ -791,6 +814,7 @@ def _response_projection(
     )
 
 
+@traced
 def _decode_mutation(value: str | None) -> TreeholeMutationResponse:
     if value is None:
         raise ApiException(500, "INTERNAL_ERROR")
@@ -803,6 +827,7 @@ def _decode_mutation(value: str | None) -> TreeholeMutationResponse:
         raise ApiException(500, "INTERNAL_ERROR") from exc
 
 
+@traced
 def _decode_response(value: str | None) -> TreeholeResponseProjection:
     if value is None:
         raise ApiException(500, "INTERNAL_ERROR")
@@ -815,6 +840,7 @@ def _decode_response(value: str | None) -> TreeholeResponseProjection:
         raise ApiException(500, "INTERNAL_ERROR") from exc
 
 
+@traced
 def _decode_delete(value: str | None) -> TreeholeDeleteResponse:
     if value is None:
         raise ApiException(500, "INTERNAL_ERROR")
@@ -827,6 +853,7 @@ def _decode_delete(value: str | None) -> TreeholeDeleteResponse:
         raise ApiException(500, "INTERNAL_ERROR") from exc
 
 
+@traced
 def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,

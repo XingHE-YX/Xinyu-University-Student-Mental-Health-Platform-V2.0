@@ -6,7 +6,6 @@ import base64
 import hashlib
 import hmac
 import json
-import logging
 import secrets
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -29,6 +28,7 @@ from app.infra.integrations.school_identity import (
     UnavailableSchoolIdentityProvider,
 )
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import (
@@ -43,13 +43,14 @@ from app.services.v2.idempotency_service import (
     serialize_api_error,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 IdentityVerificationStatus = Literal["not_started", "pending", "verified", "failed", "unavailable"]
 StudentSessionIdentityStatus = Literal["unverified", "pending", "verified"]
 
 
 class IdentityCipher(Protocol):
+    @traced
     def encrypt(self, value: str) -> str: ...
 
 
@@ -87,6 +88,7 @@ class HmacIdentityCipher:
             hashlib.sha256,
         ).digest()
 
+    @traced
     def encrypt(self, value: str) -> str:
         nonce = secrets.token_bytes(self.NONCE_SIZE)
         plaintext = value.encode("utf-8")
@@ -100,6 +102,7 @@ class HmacIdentityCipher:
         encoded = _urlsafe_encode(nonce + ciphertext + tag)
         return f"enc:v1:{encoded}"
 
+    @traced
     def decrypt(self, value: str) -> str:
         if not value.startswith("enc:v1:"):
             raise ValueError("unsupported identity ciphertext")
@@ -148,6 +151,7 @@ class IdentityService:
         self._identity_secret = settings.session_secret or secrets.token_urlsafe(32)
         self.identity_cipher = identity_cipher or HmacIdentityCipher(self._identity_secret)
 
+    @traced
     async def verify_student_identity(
         self,
         access_token: str,
@@ -351,6 +355,7 @@ class IdentityService:
             logger.warning("audit_write_failed")
         return state
 
+    @traced
     def get_identity_status(self, access_token: str) -> dict[str, str]:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
@@ -365,6 +370,7 @@ class IdentityService:
             "identity_status": to_student_session_identity_status(verification_status),
         }
 
+    @traced
     def get_verification(
         self, access_token: str, verification_id: str
     ) -> dict[str, str | int | None]:
@@ -381,6 +387,7 @@ class IdentityService:
             "next_poll_after_seconds": 5 if record.verification_status == "pending" else None,
         }
 
+    @traced
     def get_anonymous_identity(self, access_token: str) -> dict[str, str]:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
@@ -402,6 +409,7 @@ class IdentityService:
             "status": anonymous.status,
         }
 
+    @traced
     def _default_school_provider(self) -> SchoolIdentityProvider:
         if self.settings.school_identity_provider_url:
             return HttpSchoolIdentityProvider(
@@ -412,6 +420,7 @@ class IdentityService:
         return UnavailableSchoolIdentityProvider()
 
 
+@traced
 def _build_identity_record(
     *,
     repository: InMemoryDomainDataRepository,
@@ -459,12 +468,14 @@ def _build_identity_record(
     )
 
 
+@traced
 def _hash_reference(value: str | None) -> str | None:
     if not value:
         return None
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+@traced
 def to_student_session_identity_status(
     verification_status: IdentityVerificationStatus,
 ) -> StudentSessionIdentityStatus:
@@ -478,6 +489,7 @@ def to_student_session_identity_status(
 SAFE_FAILED_REASON_CODES = frozenset({"mismatch", "invalid_request", "provider_rejected"})
 
 
+@traced
 def _safe_failed_reason_code(verification: SchoolIdentityVerificationResult) -> str | None:
     if verification.status != "failed" or not verification.failed_reason_code:
         return None
@@ -486,6 +498,7 @@ def _safe_failed_reason_code(verification: SchoolIdentityVerificationResult) -> 
     return "provider_rejected"
 
 
+@traced
 def _identity_request_fingerprint(
     secret: str,
     *,
@@ -500,11 +513,13 @@ def _identity_request_fingerprint(
     }
 
 
+@traced
 def _keyed_digest(secret: str, field_name: str, value: str) -> str:
     message = f"{field_name}\x00{value}".encode()
     return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 
 
+@traced
 def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
@@ -518,6 +533,7 @@ def _complete_failure(
     )
 
 
+@traced
 def _get_bound_identity_record(
     repository: InMemoryDomainDataRepository,
     user: UserAccountDocument,
@@ -533,6 +549,7 @@ def _get_bound_identity_record(
     return record
 
 
+@traced
 async def _verify_school_identity(
     school: SchoolIdentityProvider,
     *,
@@ -553,12 +570,14 @@ async def _verify_school_identity(
     return result
 
 
+@traced
 def _repository_failure(error: RepositoryError) -> ApiException:
     if isinstance(error, RepositoryNotFound):
         return ApiException(404, "NOT_FOUND")
     return ApiException(503, "DEPENDENCY_UNAVAILABLE")
 
 
+@traced
 def _hmac_keystream(key: bytes, nonce: bytes, length: int) -> bytes:
     blocks = [
         hmac.new(key, nonce + counter.to_bytes(4, "big"), hashlib.sha256).digest()
@@ -567,15 +586,18 @@ def _hmac_keystream(key: bytes, nonce: bytes, length: int) -> bytes:
     return b"".join(blocks)[:length]
 
 
+@traced
 def _urlsafe_encode(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).decode("ascii")
 
 
+@traced
 def _generate_display_name(user_id: str) -> str:
     digest = hashlib.sha256(f"anonymous:{user_id}".encode()).hexdigest()[:6].upper()
     return f"树洞同学{digest}"
 
 
+@traced
 def _verification_state_from_digest(response_digest: str | None) -> IdentityVerificationState:
     if response_digest is None:
         raise ApiException(500, "INTERNAL_ERROR")

@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 from pydantic import BaseModel, ConfigDict
 
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.logger.common import traced
 from app.models.v2.documents import QuoteEntryDocument
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -43,6 +44,7 @@ class QuoteService:
         self.repository = repository
         self._choice_provider = choice_provider or random.choice
 
+    @traced
     def get_daily_quote(
         self,
         *,
@@ -66,6 +68,7 @@ class QuoteService:
         )
 
 
+@traced
 def _shanghai_date(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)

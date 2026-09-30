@@ -5,6 +5,8 @@ from datetime import datetime
 from threading import RLock
 from typing import Literal
 
+from app.infra.logger.common import traced
+
 SubjectType = Literal["student", "admin"]
 SessionStatus = Literal["active", "revoked"]
 
@@ -32,12 +34,14 @@ class InMemorySessionRepository:
         self._refresh_index: dict[str, str] = {}
         self._lock = RLock()
 
+    @traced
     def save(self, record: AuthSessionRecord) -> None:
         with self._lock:
             self._records[record.session_id] = record
             self._access_index[record.access_token_hash] = record.session_id
             self._refresh_index[record.refresh_token_hash] = record.session_id
 
+    @traced
     def replace(self, record: AuthSessionRecord) -> None:
         with self._lock:
             old = self._records.get(record.session_id)
@@ -46,20 +50,24 @@ class InMemorySessionRepository:
                 self._refresh_index.pop(old.refresh_token_hash, None)
             self.save(record)
 
+    @traced
     def get_by_session_id(self, session_id: str) -> AuthSessionRecord | None:
         with self._lock:
             return self._records.get(session_id)
 
+    @traced
     def get_by_access_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
         with self._lock:
             session_id = self._access_index.get(token_hash)
             return self._records.get(session_id) if session_id else None
 
+    @traced
     def get_by_refresh_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
         with self._lock:
             session_id = self._refresh_index.get(token_hash)
             return self._records.get(session_id) if session_id else None
 
+    @traced
     def revoke(self, session_id: str, *, now: datetime) -> AuthSessionRecord | None:
         with self._lock:
             record = self._records.get(session_id)

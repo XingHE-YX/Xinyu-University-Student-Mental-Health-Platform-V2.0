@@ -13,6 +13,7 @@ from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryVersionConflict,
 )
+from app.infra.logger.common import traced
 
 
 class InMemoryDocumentRepository:
@@ -23,6 +24,7 @@ class InMemoryDocumentRepository:
                 str(document["_id"]): deepcopy(dict(document)) for document in documents
             }
 
+    @traced
     def query(
         self,
         collection: str,
@@ -47,6 +49,7 @@ class InMemoryDocumentRepository:
         next_cursor = self._encode_cursor(next_offset) if next_offset < len(matched) else None
         return DocumentPage(tuple(deepcopy(item) for item in page), next_cursor)
 
+    @traced
     def conditional_update(
         self,
         collection: str,
@@ -66,6 +69,7 @@ class InMemoryDocumentRepository:
         document["updated_at"] = datetime.now(UTC).isoformat()
         return deepcopy(document)
 
+    @traced
     def logical_delete(
         self,
         collection: str,
@@ -84,6 +88,7 @@ class InMemoryDocumentRepository:
             document["updated_at"] = document["deleted_at"]
         return deepcopy(document)
 
+    @traced
     def _get(self, collection: str, document_id: str) -> JsonDocument:
         document = self._collections.get(collection, {}).get(document_id)
         if document is None:
@@ -91,10 +96,12 @@ class InMemoryDocumentRepository:
         return document
 
     @staticmethod
+    @traced
     def _encode_cursor(offset: int) -> str:
         return base64.urlsafe_b64encode(str(offset).encode("ascii")).decode("ascii")
 
     @staticmethod
+    @traced
     def _decode_cursor(cursor: str | None) -> int:
         if not cursor:
             return 0

@@ -10,6 +10,7 @@ from app.infra.database.memory.audit import (
     AuditRepository,
     InMemoryAuditRepository,
 )
+from app.infra.logger.common import traced
 
 # Only these facts are safe to keep in the first audit projection. Full answers,
 # post bodies and identity values are intentionally absent from the allowlist.
@@ -44,6 +45,7 @@ class AuditWriter:
         self.repository = repository or InMemoryAuditRepository()
         self.environment_id = environment_id
 
+    @traced
     def write(
         self,
         *,
@@ -79,10 +81,12 @@ class AuditWriter:
         return self.repository.append(event)
 
 
+@traced
 def _safe_details(facts: Mapping[str, Any]) -> dict[str, Any]:
     return {key: _safe_value(value) for key, value in facts.items() if key in SAFE_DETAIL_KEYS}
 
 
+@traced
 def _safe_value(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {key: _safe_value(item) for key, item in value.items() if key in SAFE_DETAIL_KEYS}

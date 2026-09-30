@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import UTC, datetime, timedelta
 
 from pydantic import ValidationError
@@ -17,6 +16,7 @@ from app.infra.database.common import (
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import (
@@ -56,7 +56,7 @@ from app.services.v2.rules.assessment import (
     score_questionnaire,
 )
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AssessmentService:
@@ -81,6 +81,7 @@ class AssessmentService:
         self.audit = audit_writer
         self.ai_assist = ai_assist_service
 
+    @traced
     async def attach_ai_assist(self, access_token: str, *, result_id: str) -> None:
         if self.ai_assist is None:
             return
@@ -122,6 +123,7 @@ class AssessmentService:
             expected_version=latest.version,
         )
 
+    @traced
     def start_session(
         self,
         access_token: str,
@@ -224,6 +226,7 @@ class AssessmentService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def list_modules(self, access_token: str) -> AssessmentModuleListResponse:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
@@ -260,6 +263,7 @@ class AssessmentService:
             )
         return AssessmentModuleListResponse(modules=modules)
 
+    @traced
     def abandon_session(
         self,
         access_token: str,
@@ -341,6 +345,7 @@ class AssessmentService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def get_result(self, access_token: str, *, result_id: str) -> AssessmentResultProjection:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
@@ -359,6 +364,7 @@ class AssessmentService:
         )
         return _result_projection(result, ai_assist=ai_assist)
 
+    @traced
     def list_results(
         self,
         access_token: str,
@@ -396,6 +402,7 @@ class AssessmentService:
             next_cursor=next_cursor,
         )
 
+    @traced
     def delete_result(
         self,
         access_token: str,
@@ -465,6 +472,7 @@ class AssessmentService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def complete_session(
         self,
         access_token: str,
@@ -740,6 +748,7 @@ class AssessmentService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def _create_safety_tasks(
         self,
         *,
@@ -802,6 +811,7 @@ class AssessmentService:
             )
         )
 
+    @traced
     def _resource_categories(self) -> list[str]:
         if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
             return []
@@ -812,6 +822,7 @@ class AssessmentService:
         )
         return sorted({resource.category for resource in resources})
 
+    @traced
     def _load_published_questionnaire(
         self,
         module_code: str,
@@ -831,6 +842,7 @@ class AssessmentService:
         return module, questionnaire, questions
 
     @staticmethod
+    @traced
     def _validate_questionnaire(
         module: AssessmentModuleDocument,
         questionnaire: AssessmentQuestionnaireDocument,
@@ -846,6 +858,7 @@ class AssessmentService:
         except AssessmentValidationError as error:
             raise ApiException(404, "NOT_FOUND") from error
 
+    @traced
     def _ensure_assessment_access(self, user_id: str) -> None:
         user = self.repository.get_user(user_id)
         if user.status != "active":
@@ -861,6 +874,7 @@ class AssessmentService:
         if identity.user_id != user.document_id or identity.verification_status != "verified":
             raise ApiException(403, "IDENTITY_REQUIRED")
 
+    @traced
     def _audit(
         self,
         *,
@@ -889,6 +903,7 @@ class AssessmentService:
         except Exception:
             logger.warning("audit_write_failed")
 
+    @traced
     def _decode_start_response(self, response_digest: str | None) -> StartAssessmentSessionResponse:
         if response_digest is None:
             raise ApiException(500, "INTERNAL_ERROR")
@@ -897,6 +912,7 @@ class AssessmentService:
             raise error
         return StartAssessmentSessionResponse.model_validate_json(response_digest)
 
+    @traced
     def _decode_complete_response(
         self, response_digest: str | None
     ) -> CompleteAssessmentSessionResponse:
@@ -908,6 +924,7 @@ class AssessmentService:
         return CompleteAssessmentSessionResponse.model_validate_json(response_digest)
 
 
+@traced
 def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
@@ -921,12 +938,14 @@ def _complete_failure(
     )
 
 
+@traced
 def _repository_failure(error: RepositoryError) -> ApiException:
     if isinstance(error, RepositoryNotFound):
         return ApiException(404, "NOT_FOUND")
     return ApiException(503, "DEPENDENCY_UNAVAILABLE")
 
 
+@traced
 def _safety_support_dimension_summary(
     session: AssessmentSessionDocument,
     *,
@@ -942,6 +961,7 @@ def _safety_support_dimension_summary(
     }
 
 
+@traced
 def _session_state(session: AssessmentSessionDocument) -> AssessmentSessionStateResponse:
     return AssessmentSessionStateResponse(
         session_id=session.document_id,
@@ -951,6 +971,7 @@ def _session_state(session: AssessmentSessionDocument) -> AssessmentSessionState
     )
 
 
+@traced
 def _result_projection(
     result: AssessmentResultDocument,
     *,
@@ -980,6 +1001,7 @@ def _result_projection(
     )
 
 
+@traced
 def _decode_assessment_cursor(cursor: str | None) -> int:
     if cursor is None:
         return 0
@@ -992,6 +1014,7 @@ def _decode_assessment_cursor(cursor: str | None) -> int:
     return value
 
 
+@traced
 def _decode_result_delete_response(value: str | None) -> AssessmentResultDeleteResponse:
     if value is None:
         raise ApiException(500, "INTERNAL_ERROR")
@@ -1004,6 +1027,7 @@ def _decode_result_delete_response(value: str | None) -> AssessmentResultDeleteR
         raise ApiException(500, "INTERNAL_ERROR") from exc
 
 
+@traced
 def _decode_session_state_response(value: str | None) -> AssessmentSessionStateResponse:
     if value is None:
         raise ApiException(500, "INTERNAL_ERROR")

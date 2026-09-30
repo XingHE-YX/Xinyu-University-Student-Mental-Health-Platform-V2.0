@@ -6,6 +6,7 @@ from app.infra.database.common import RepositoryError, RepositoryNotFound
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import traced
 from app.infra.security.tokens import AuthenticatedSubject, TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import IdentityAccessRequestDocument
@@ -43,6 +44,7 @@ class IdentityAccessService:
         self.audit = audit_writer
         self.identity = identity_service
 
+    @traced
     def create_request(
         self,
         access_token: str,
@@ -111,6 +113,7 @@ class IdentityAccessService:
             _complete_failure(self.idempotency, reservation, failure)
             raise failure from error
 
+    @traced
     def get_request(self, access_token: str, *, request_id: str) -> IdentityAccessRequestProjection:
         subject = self._admin(access_token)
         try:
@@ -127,6 +130,7 @@ class IdentityAccessService:
             raise ApiException(403, "FORBIDDEN")
         return _request_projection(request)
 
+    @traced
     def read_identity(
         self,
         access_token: str,
@@ -184,6 +188,7 @@ class IdentityAccessService:
             object_version=request.version,
         )
 
+    @traced
     def decide_request(
         self,
         access_token: str,
@@ -223,12 +228,14 @@ class IdentityAccessService:
         except RepositoryNotFound as error:
             raise ApiException(404, "NOT_FOUND") from error
 
+    @traced
     def _admin(self, access_token: str) -> AuthenticatedSubject:
         subject = self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "admin" or subject.capability != "super_admin":
             raise ApiException(403, "FORBIDDEN")
         return subject
 
+    @traced
     def _audit(
         self, request_id: str, actor_id: str, action: str, resource_id: str, outcome: str
     ) -> None:
@@ -251,6 +258,7 @@ class IdentityAccessService:
             pass
 
 
+@traced
 def _request_projection(request: IdentityAccessRequestDocument) -> IdentityAccessRequestProjection:
     return IdentityAccessRequestProjection(
         request_id=request.document_id,
@@ -264,6 +272,7 @@ def _request_projection(request: IdentityAccessRequestDocument) -> IdentityAcces
     )
 
 
+@traced
 def _decode_request(value: str | None) -> IdentityAccessRequestProjection:
     if value is None:
         raise ApiException(500, "INTERNAL_ERROR")
@@ -276,6 +285,7 @@ def _decode_request(value: str | None) -> IdentityAccessRequestProjection:
         raise ApiException(500, "INTERNAL_ERROR") from exc
 
 
+@traced
 def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,

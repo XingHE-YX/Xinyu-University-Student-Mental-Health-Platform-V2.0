@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
@@ -21,6 +20,7 @@ from app.infra.ai.prompt.templates.common import (
 from app.infra.config.settings import Settings
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.logger.audit import AuditWriter
+from app.infra.logger.common import get_logger, traced
 from app.services.v2.rules.ai_policy import (
     PolicyViolation,
     project_assessment_input,
@@ -29,10 +29,11 @@ from app.services.v2.rules.ai_policy import (
 )
 
 TaskType = Literal["assessment_explanation", "treehole_review_assist"]
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AiClient(Protocol):
+    @traced
     async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]: ...
 
 
@@ -96,6 +97,7 @@ class AiAssistService:
         self.repository = repository
         self.snapshots: dict[str, AiAssistSnapshot] = {}
 
+    @traced
     def snapshot_projection(self, snapshot_id: str | None) -> dict[str, Any] | None:
         if not snapshot_id:
             return None
@@ -112,6 +114,7 @@ class AiAssistService:
             ),
         }
 
+    @traced
     async def assessment_explanation(
         self,
         *,
@@ -141,6 +144,7 @@ class AiAssistService:
             fixed_band=str(projected["fixed_band"]),
         )
 
+    @traced
     async def treehole_review_assist(
         self,
         *,
@@ -169,12 +173,15 @@ class AiAssistService:
             projected=projected,
         )
 
+    @traced
     async def assist_assessment(self, **kwargs: Any) -> AiAssistResult:
         return await self.assessment_explanation(**kwargs)
 
+    @traced
     async def assist_treehole(self, **kwargs: Any) -> AiAssistResult:
         return await self.treehole_review_assist(**kwargs)
 
+    @traced
     async def run(
         self,
         task_type: TaskType,
@@ -195,6 +202,7 @@ class AiAssistService:
             input_data=input_data,
         )
 
+    @traced
     async def _run(
         self,
         *,
@@ -240,6 +248,7 @@ class AiAssistService:
             fixed_band=fixed_band,
         )
 
+    @traced
     def _fallback(
         self,
         *,
@@ -282,6 +291,7 @@ class AiAssistService:
             visibility_state="pending_confirmation",
         )
 
+    @traced
     def _adopt(
         self,
         *,
@@ -319,6 +329,7 @@ class AiAssistService:
             recommended_route=route if isinstance(route, str) else None,
         )
 
+    @traced
     def _snapshot(
         self,
         *,
@@ -357,6 +368,7 @@ class AiAssistService:
                 logger.warning("ai_snapshot_write_failed")
         return snapshot
 
+    @traced
     def _load_snapshot(self, snapshot_id: str) -> AiAssistSnapshot | None:
         if self.repository is None:
             return None
@@ -373,6 +385,7 @@ class AiAssistService:
             logger.warning("ai_snapshot_read_failed")
         return None
 
+    @traced
     def _audit(self, task_type: TaskType, outcome: str, reason: str | None) -> None:
         self.audit.write(
             request_id=f"ai_{uuid4().hex}",
@@ -396,6 +409,7 @@ class AiAssistService:
         )
 
     @staticmethod
+    @traced
     def _project_assessment(data: Mapping[str, Any]) -> dict[str, Any] | None:
         try:
             return project_assessment_input(data)
@@ -403,6 +417,7 @@ class AiAssistService:
             return None
 
     @staticmethod
+    @traced
     def _project_treehole(data: Mapping[str, Any]) -> dict[str, Any] | None:
         try:
             return project_treehole_input(data)

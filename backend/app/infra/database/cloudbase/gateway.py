@@ -20,6 +20,7 @@ from app.infra.database.common import (
     RepositoryUnavailable,
     RepositoryVersionConflict,
 )
+from app.infra.logger.common import traced
 
 __all__ = [
     "CloudBaseGateway",
@@ -53,6 +54,7 @@ class CloudBaseGateway:
             timeout=timeout,
         )
 
+    @traced
     async def query(
         self,
         collection: str,
@@ -75,6 +77,7 @@ class CloudBaseGateway:
         )
         return DocumentPage(tuple(documents), next_cursor)
 
+    @traced
     async def conditional_update(
         self,
         collection: str,
@@ -97,6 +100,7 @@ class CloudBaseGateway:
         await asyncio.to_thread(self.store.replace, collection, updated, expected_version)
         return updated
 
+    @traced
     async def logical_delete(
         self,
         collection: str,
@@ -112,15 +116,18 @@ class CloudBaseGateway:
         )
 
 
+@traced
 def _version(document: Mapping[str, Any]) -> int | None:
     value = document.get("version")
     return value if isinstance(value, int) else None
 
 
+@traced
 def _encode_cursor(offset: int) -> str:
     return base64.urlsafe_b64encode(str(offset).encode("ascii")).decode("ascii")
 
 
+@traced
 def _decode_cursor(cursor: str | None) -> int:
     if not cursor:
         return 0
