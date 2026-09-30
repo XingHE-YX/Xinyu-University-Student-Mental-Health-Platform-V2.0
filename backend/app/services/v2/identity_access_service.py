@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 from app.infra.database.common import RepositoryError, RepositoryNotFound
@@ -8,6 +9,7 @@ from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import traced
 from app.infra.security.tokens import AuthenticatedSubject, TokenManager
 from app.infra.serializer.error.common import ApiException
+from app.infra.serializer.error.database import RepositoryCommitUncertain
 from app.models.v2.documents import IdentityAccessRequestDocument
 from app.models.v2.requests.identity_access import IdentityAccessRequestCreate
 from app.models.v2.responses.identity_access import (
@@ -105,6 +107,11 @@ class IdentityAccessService:
                     )
                 )
                 return response
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
             (await _complete_failure(self.idempotency, reservation, failure))

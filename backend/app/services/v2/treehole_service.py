@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import re
 from datetime import UTC, datetime
@@ -16,6 +17,7 @@ from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import traced
 from app.infra.security.tokens import AuthenticatedSubject, TokenManager
 from app.infra.serializer.error.common import ApiException
+from app.infra.serializer.error.database import RepositoryCommitUncertain
 from app.models.v2.documents import TreeholePostDocument, TreeholeResponseDocument, WorkTaskDocument
 from app.models.v2.responses.treehole import (
     TreeholeDeleteResponse,
@@ -344,6 +346,11 @@ class TreeholeService:
                     )
                 )
                 return response
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
             (await _complete_failure(self.idempotency, reservation, failure))
@@ -435,6 +442,11 @@ class TreeholeService:
                     )
                 )
                 return response
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
             (await _complete_failure(self.idempotency, reservation, failure))
@@ -559,6 +571,11 @@ class TreeholeService:
                     )
                 )
                 return projection
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
             (await _complete_failure(self.idempotency, reservation, failure))
@@ -626,6 +643,11 @@ class TreeholeService:
                     )
                 )
                 return result
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
             (await _complete_failure(self.idempotency, reservation, failure))
@@ -688,6 +710,11 @@ class TreeholeService:
                     )
                 )
                 return result
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
             (await _complete_failure(self.idempotency, reservation, failure))

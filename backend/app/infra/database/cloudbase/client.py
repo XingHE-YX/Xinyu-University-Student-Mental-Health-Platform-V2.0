@@ -9,6 +9,7 @@ from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
 from typing import Any
 
+import anyio
 import httpx
 
 from app.infra.config.types import DatabaseConfig
@@ -57,7 +58,7 @@ class CloudBaseStore:
             transport=transport,
             follow_redirects=False,
         )
-        self._transaction: ContextVar[str | None] = ContextVar(
+        self._transaction: ContextVar[tuple[str, int] | None] = ContextVar(
             "cloudbase_transaction", default=None
         )
 
@@ -76,7 +77,7 @@ class CloudBaseStore:
         in_transaction: bool = True,
     ) -> dict[str, Any]:
         data, query = dict(body or {}), dict(params or {})
-        transaction_id = self._transaction.get() if in_transaction else None
+        transaction_id = self.transaction_id() if in_transaction else None
         if transaction_id:
             if method in {"GET", "DELETE"}:
                 query["transactionId"] = transaction_id
@@ -115,6 +116,15 @@ class CloudBaseStore:
 
     def transaction(self) -> AbstractAsyncContextManager[None]:
         return transaction(self)
+
+    def transaction_id(self) -> str | None:
+        state = self._transaction.get()
+        if state is None:
+            return None
+        transaction_id, owner_id = state
+        if owner_id != anyio.get_current_task().id:
+            raise RepositoryUnavailable("CloudBase transactions cannot be shared across tasks")
+        return transaction_id
 
     @staticmethod
     @traced

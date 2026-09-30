@@ -7,12 +7,15 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
+import anyio
+
 from app.infra.database.memory.idempotency import (
     IdempotencyRecord,
     InMemoryIdempotencyRepository,
 )
-from app.infra.logger.common import traced
+from app.infra.logger.common import get_logger, traced
 from app.infra.serializer.error.common import ApiError, ApiException
+from app.infra.serializer.error.database import CommitOutcomeUnknownCancellation
 from app.services.v2.repositories import IdempotencyRepository
 
 
@@ -27,6 +30,26 @@ class IdempotencyService:
 
     def __init__(self, repository: IdempotencyRepository | None = None) -> None:
         self.repository = repository or InMemoryIdempotencyRepository()
+
+    async def cancel(self, reservation: IdempotencyReservation, error: BaseException) -> None:
+        if isinstance(error, CommitOutcomeUnknownCancellation):
+            get_logger(__name__).error("idempotency.commit_unknown", outcome="unknown")
+            return
+        # Business transactions have rolled back before this bounded cleanup starts.
+        with anyio.CancelScope(shield=True):
+            with anyio.move_on_after(5) as cleanup:
+                try:
+                    failure = ApiException(503, "DEPENDENCY_UNAVAILABLE", retryable=True)
+                    await self.complete(
+                        reservation,
+                        status_code=failure.status_code,
+                        response_digest=serialize_api_error(failure),
+                        outcome="failure",
+                    )
+                except Exception:
+                    get_logger(__name__).error("idempotency.cancel_cleanup_failed")
+            if cleanup.cancel_called:
+                get_logger(__name__).error("idempotency.cancel_cleanup_timeout")
 
     @traced
     async def begin(

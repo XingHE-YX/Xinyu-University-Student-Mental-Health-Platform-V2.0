@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -30,6 +31,7 @@ from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
+from app.infra.serializer.error.database import RepositoryCommitUncertain
 from app.models.v2.documents import (
     AnonymousIdentityDocument,
     IdentityRecordDocument,
@@ -346,6 +348,11 @@ class IdentityService:
                         },
                     )
                 )
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryVersionConflict as error:
             conflict = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
             (await _complete_failure(self.idempotency, reservation, conflict))

@@ -22,6 +22,7 @@ from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
+from app.infra.serializer.error.database import RepositoryCommitUncertain
 from app.models.v2.documents import WorkTaskDocument
 from app.models.v2.responses.admin_workbench import (
     AuditEvent,
@@ -70,14 +71,28 @@ def task_mutation(
                     reservation, status_code=200, response_digest=result.model_dump_json()
                 )
                 return result
-        except ApiException as error:
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
+        except Exception as error:
+            failure = (
+                error
+                if isinstance(error, ApiException)
+                else ApiException(503, "DEPENDENCY_UNAVAILABLE")
+                if isinstance(error, RepositoryError)
+                else ApiException(500, "INTERNAL_ERROR")
+            )
             await self.idempotency.complete(
                 reservation,
-                status_code=error.status_code,
-                response_digest=serialize_api_error(error),
+                status_code=failure.status_code,
+                response_digest=serialize_api_error(failure),
                 outcome="failure",
             )
-            raise
+            if failure is error:
+                raise
+            raise failure from error
 
     return mutate
 
@@ -243,7 +258,7 @@ class AdminWorkbenchService:
         )
         (await self._save_task(task, expected_version=object_version))
         result = self._result(task, request_id)
-        (await self._write_audit(request_id, task, "task_claim", "success"))
+        (await self._write_audit(request_id, task, "task_claim", "success", admin_id))
         return result
 
     @task_mutation
@@ -270,7 +285,7 @@ class AdminWorkbenchService:
         )
         (await self._save_task(task, expected_version=object_version))
         result = self._result(task, request_id)
-        (await self._write_audit(request_id, task, "task_release", "success"))
+        (await self._write_audit(request_id, task, "task_release", "success", admin_id))
         return result
 
     @task_mutation
@@ -333,10 +348,12 @@ class AdminWorkbenchService:
             raise ApiException(
                 409, "VERSION_CONFLICT", current_version=error.current_version
             ) from error
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryError as error:
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE") from error
         result = self._result(task, request_id)
-        (await self._write_audit(request_id, task, action, "success"))
+        (await self._write_audit(request_id, task, action, "success", admin_id))
         return result
 
     @traced
@@ -689,13 +706,13 @@ class AdminWorkbenchService:
 
     @traced
     async def _write_audit(
-        self, request_id: str, task: dict[str, Any], action: str, outcome: str
+        self, request_id: str, task: dict[str, Any], action: str, outcome: str, admin_id: str
     ) -> None:
         (
             await self.audit.write(
                 request_id=request_id,
                 actor_type="admin",
-                actor_id=str(task.get("assigned_admin_id") or "admin"),
+                actor_id=admin_id,
                 capability="super_admin",
                 action=action,
                 resource_type="task",

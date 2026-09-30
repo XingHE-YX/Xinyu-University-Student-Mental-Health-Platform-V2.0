@@ -84,6 +84,7 @@ REGISTRY: dict[str, CollectionSpec] = {
         + (
             field("subject_type", "string", required=True),
             field("subject_id", "string", required=True),
+            field("capability", "string", required=False),
             field("access_token_hash", "hash_string", required=True),
             field("refresh_token_hash", "hash_string", required=False),
             field("status", "string", required=True),

@@ -1,5 +1,7 @@
 """Persistence failures shared by all database implementations."""
 
+import asyncio
+
 from app.infra.serializer.error.common import AppError, ErrorCode
 
 
@@ -32,7 +34,5 @@ class RepositoryCommitUncertain(RepositoryUnavailable):
     code = ErrorCode.REPOSITORY_COMMIT_UNKNOWN
 
 
-class RepositoryCommitUnknown(RepositoryUnavailable):
-    """Commit was sent but its result could not be confirmed."""
-
-    code = ErrorCode.REPOSITORY_COMMIT_UNKNOWN
+class CommitOutcomeUnknownCancellation(asyncio.CancelledError):
+    """Preserve cancellation when the commit response could not be received."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 from pydantic import ValidationError
@@ -18,6 +19,7 @@ from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
+from app.infra.serializer.error.database import RepositoryCommitUncertain
 from app.models.v2.documents import (
     AssessmentAnswerModel,
     AssessmentModuleDocument,
@@ -224,6 +226,11 @@ class AssessmentService:
                     )
                 )
                 return response
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
             (await _complete_failure(self.idempotency, reservation, failure))
@@ -354,6 +361,11 @@ class AssessmentService:
                     )
                 )
                 return response
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
             (await _complete_failure(self.idempotency, reservation, failure))
@@ -488,6 +500,11 @@ class AssessmentService:
                     )
                 )
                 return response
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
             (await _complete_failure(self.idempotency, reservation, failure))
@@ -789,6 +806,11 @@ class AssessmentService:
                     )
                 )
                 return response
+        except asyncio.CancelledError as error:
+            await self.idempotency.cancel(reservation, error)
+            raise
+        except RepositoryCommitUncertain:
+            raise
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
             (await _complete_failure(self.idempotency, reservation, failure))

@@ -13,7 +13,10 @@ from app.infra.database.common import (
     RepositoryVersionConflict,
 )
 from app.infra.logger.common import get_logger
-from app.infra.serializer.error.database import RepositoryCommitUncertain
+from app.infra.serializer.error.database import (
+    CommitOutcomeUnknownCancellation,
+    RepositoryCommitUncertain,
+)
 
 if TYPE_CHECKING:
     from app.infra.database.cloudbase.client import CloudBaseStore
@@ -21,19 +24,21 @@ if TYPE_CHECKING:
 
 @asynccontextmanager
 async def transaction(store: CloudBaseStore) -> AsyncIterator[None]:
-    if store._transaction.get() is not None:
+    if store.transaction_id() is not None:
         yield
         return
     data = await store.request("POST", "/transactions", in_transaction=False)
     transaction_id = data.get("transactionId")
     if not isinstance(transaction_id, str) or not transaction_id:
         raise RepositoryUnavailable("CloudBase transaction ID is missing")
-    token = store._transaction.set(transaction_id)
+    token = store._transaction.set((transaction_id, anyio.get_current_task().id))
     path = f"/transactions/{quote(transaction_id, safe='')}"
     try:
         yield
         try:
             await store.request("POST", path + "/commit", in_transaction=False)
+        except anyio.get_cancelled_exc_class():
+            raise CommitOutcomeUnknownCancellation() from None
         except RepositoryUnavailable:
             raise RepositoryCommitUncertain("CloudBase commit outcome is unknown") from None
     except BaseException:
