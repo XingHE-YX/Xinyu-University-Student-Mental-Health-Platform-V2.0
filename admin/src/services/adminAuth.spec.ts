@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { loginAdmin } from "./adminAuth";
 
 describe("admin authentication URLs", () => {
-  it("appends admin routes once to an API base ending in /api/v1", async () => {
+  it("appends admin routes once to an API base ending in /api/v2", async () => {
     const fetcher = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(

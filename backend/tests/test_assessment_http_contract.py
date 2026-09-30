@@ -23,7 +23,7 @@ async def test_assessment_catalog_start_and_abandon_are_enveloped_and_owner_scop
     client, token = await build_client()
     headers = {"Authorization": f"Bearer {token}"}
 
-    catalog = client.get("/api/v1/assessment-modules", headers=headers)
+    catalog = client.get("/api/v2/assessment-modules", headers=headers)
     assert catalog.status_code == 200
     assert [item["module_code"] for item in catalog.json()["data"]["modules"]] == [
         "phq9",
@@ -32,7 +32,7 @@ async def test_assessment_catalog_start_and_abandon_are_enveloped_and_owner_scop
     ]
 
     started = client.post(
-        "/api/v1/assessment-sessions",
+        "/api/v2/assessment-sessions",
         headers=headers,
         json={"module_code": "phq9", "client_start_key": "start-http-1"},
     )
@@ -40,7 +40,7 @@ async def test_assessment_catalog_start_and_abandon_are_enveloped_and_owner_scop
     session = started.json()["data"]
 
     abandoned = client.post(
-        f"/api/v1/assessment-sessions/{session['session_id']}/abandon",
+        f"/api/v2/assessment-sessions/{session['session_id']}/abandon",
         headers={**headers, "Idempotency-Key": "abandon-http-1"},
         json={"object_version": session["object_version"]},
     )
@@ -52,7 +52,7 @@ async def test_assessment_complete_rejects_client_owned_score_and_safety_fields(
     client, token = await build_client()
     headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": "complete-http-1"}
     response = client.post(
-        "/api/v1/assessment-sessions/session-does-not-matter/complete",
+        "/api/v2/assessment-sessions/session-does-not-matter/complete",
         headers=headers,
         json={
             "answers": [],
@@ -71,7 +71,7 @@ async def test_assessment_result_delete_reads_object_version_from_request_body()
 
     response = client.request(
         "DELETE",
-        "/api/v1/assessment-results/missing-result",
+        "/api/v2/assessment-results/missing-result",
         headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "delete-http-1"},
         json={"object_version": 1},
     )

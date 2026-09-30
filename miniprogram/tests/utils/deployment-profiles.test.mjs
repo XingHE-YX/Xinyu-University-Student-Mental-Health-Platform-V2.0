@@ -6,7 +6,7 @@ import { deploymentProfileForAppId } from '../../src/infra/config/deployment-pro
 test('selects the deployed demo API from the running mini-program AppID', () => {
   assert.deepEqual(deploymentProfileForAppId('wx22f399558d68bc7f'), {
     apiBaseUrl:
-      'https://xinyu-v2-demo-d3g8qbyfu11a452ff-1489915847.ap-shanghai.app.tcloudbase.com/api/v1',
+      'https://xinyu-v2-demo-d3g8qbyfu11a452ff-1489915847.ap-shanghai.app.tcloudbase.com/api/v2',
     cloudbaseEnvId: 'xinyu-v2-demo-d3g8qbyfu11a452ff',
     environmentKind: 'demo',
   })

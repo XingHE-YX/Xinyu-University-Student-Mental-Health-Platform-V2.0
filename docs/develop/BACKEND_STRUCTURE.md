@@ -8,7 +8,7 @@
 - HTTP 框架：FastAPI 0.128.8
 - 部署形态：CloudBase Python 3.11 HTTP 云函数
 - 数据库：CloudBase 文档型数据库
-- API 前缀：/api/v1
+- API 前缀：/api/v2
 - 文档用途：与后端实现共同维护的接口合同；路由标题供契约测试读取
 
 本文定义数据库集合、字段类型、关系、权限、认证和接口契约。客户端不得通过猜测字段、修改请求体或伪造状态绕过本文规则。
@@ -666,13 +666,13 @@ source_result_id 与 source_session_id 必须二选一且互斥：uncertain 必�
 
 ### 6.1 健康和会话
 
-#### GET /api/v1/health
+#### GET /api/v2/health
 
 无需认证。返回服务版本、环境类型和依赖状态摘要，不返回密钥、数据库连接串或真实环境 ID。
 
 响应 data：service 为 string、version 为 string、environment_kind 为 demo 或 authorized、status 为 ok 或 degraded。
 
-#### POST /api/v1/auth/wechat/session
+#### POST /api/v2/auth/wechat/session
 
 请求：code 为 string，必填；client_version 为 string，必填。
 
@@ -680,29 +680,29 @@ source_result_id 与 source_session_id 必须二选一且互斥：uncertain 必�
 
 响应 data：access_token、refresh_token、access_expires_at、refresh_expires_at、account_status、base_consent_status、community_consent_status、identity_status。
 
-#### POST /api/v1/auth/refresh
+#### POST /api/v2/auth/refresh
 
 请求：refresh_token 为 string。服务端校验轮换令牌，撤销旧刷新令牌并返回新的一对令牌。
 
-#### POST /api/v1/auth/logout
+#### POST /api/v2/auth/logout
 
 请求：无业务字段。撤销当前会话，返回 success 为 true。重复退出视为成功。
 
 ### 6.2 初始化和同意
 
-#### GET /api/v1/app/bootstrap
+#### GET /api/v2/app/bootstrap
 
 需要有效学生会话。基础同意已完成时返回完整初始化投影；基础同意未完成时只返回非敏感的首次使用配置，不返回私密记录或社区作者内容。
 
 响应 data：account_status、base_consent、community_consent、identity_status、anonymous_identity_summary、today_summary、module_summaries、feature_flags。today_summary 只含启用短句和今日心情摘要，不含完整历史。
 
-#### POST /api/v1/consents/base
+#### POST /api/v2/consents/base
 
 请求：document_version 为 string、action 固定为 accepted。
 
 服务端记录 consent_records，并更新 user_accounts 的基础同意。没有基础同意时拒绝需要账户的数据接口。
 
-#### POST /api/v1/consents/community
+#### POST /api/v2/consents/community
 
 请求：document_version 为 string、action 固定为 accepted 或 withdrawn。
 
@@ -710,62 +710,62 @@ accepted 恢复发布和回应能力；withdrawn 允许浏览公开树洞，但�
 
 ### 6.3 账户和身份
 
-#### GET /api/v1/me
+#### GET /api/v2/me
 
 返回 account_status、同意状态、identity_status、anonymous_identity_summary 和可用功能摘要。绝不返回姓名、学号或后台任务。
 
-#### POST /api/v1/identity/verifications
+#### POST /api/v2/identity/verifications
 
 请求：student_name 为 string、student_number 为 string、client_request_key 为 string。只在 HTTPS 请求体传输，服务端不记录原文日志。
 
 响应：verification_id、status、next_poll_after_seconds。核验成功返回 verified；不可用返回 unavailable；不匹配返回 failed，不泄露正确值。
 
-#### GET /api/v1/identity/verifications/{verification_id}
+#### GET /api/v2/identity/verifications/{verification_id}
 
 只返回当前用户自己的 pending、verified、failed 或 unavailable 状态。核验成功不会返回姓名学号。
 
-#### GET /api/v1/me/anonymous-identity
+#### GET /api/v2/me/anonymous-identity
 
 返回 display_name、display_scope 固定为 treehole_only、generation_version 和 status。
 
 ### 6.4 今日和心情
 
-#### GET /api/v1/today
+#### GET /api/v2/today
 
 需要有效学生会话、基础服务同意和 verified 身份状态；身份未完成时只允许回到身份核验流程。
 
 返回 quote、mood_today、assessment_shortcuts、support_entry。quote 只返回 quote_text、author_text、work_text 和 library_version。
 
-#### PUT /api/v1/moods/today
+#### PUT /api/v2/moods/today
 
 请求：record_date 为用户本地当天日期、mood_code 为固定枚举、object_version 为 integer、idempotency_key 在请求头。
 
 服务端校验日期只能是当天；同一用户同一天只能首次保存一条记录，重复请求返回已有记录事实，不覆盖当天已经保存的选择。响应返回 record_id、record_date、mood_code、saved_at 和 version。
 
-#### GET /api/v1/moods
+#### GET /api/v2/moods
 
 查询：from_date、to_date、cursor、limit。只返回当前用户未删除记录的 record_date、mood_code、created_at、updated_at、version。
 
-#### DELETE /api/v1/moods/{record_id}
+#### DELETE /api/v2/moods/{record_id}
 
 请求：object_version，Idempotency-Key 在请求头。只允许本人逐条删除；同键同请求重放同一 DeletedMoodFact，不重复写入或审计；同键不同 record_id/object_version 返回 IDEMPOTENCY_CONFLICT。返回 deleted_at 和 record_id，不支持批量或一键清空。
 
 ### 6.5 自测会话和结果
 
-#### GET /api/v1/assessment-modules
+#### GET /api/v2/assessment-modules
 
 需要有效学生会话、基础服务同意和 verified 身份状态。
 
 返回三个固定模块的 module_code、title、description、expected_minutes、current_questionnaire_version、enabled 和最近记录摘要。
 
-#### POST /api/v1/assessment-sessions
+#### POST /api/v2/assessment-sessions
 
 请求：module_code、client_start_key。服务端读取当前启用题卷并冻结 questionnaire_version。
 
 响应：session_id、module_code、questionnaire_version、questions、state、expires_at。questions 只包含题目、选项标签和顺序，不包含服务端计分规则。
 
 
-#### POST /api/v1/assessment-sessions/{session_id}/complete
+#### POST /api/v2/assessment-sessions/{session_id}/complete
 
 请求：answers 为 array[object]，每项只有 question_key 和 option_key；object_version。客户端不得提交分数、结果状态或安全状态。服务端在内存中校验题目版本、题目顺序、答案枚举和用户归属。
 
@@ -775,13 +775,13 @@ accepted 恢复发布和回应能力；withdrawn 允许浏览公开树洞，但�
 
 如果最终提交的 PHQ-9 第 9 题为零，服务端清除旧的安全触发临时状态并按普通或较高分数规则完成；如果最终提交为非零且会话没有 can_be_safe 或 uncertain 确认，返回 422 SAFETY_CONFIRMATION_REQUIRED，不生成结果；如果状态为 cannot_be_safe，返回 safety_support_blocked，不生成结果。
 
-#### POST /api/v1/assessment-sessions/{session_id}/support-resource-ack
+#### POST /api/v2/assessment-sessions/{session_id}/support-resource-ack
 
 请求：resource_context 固定为 safety；resource_version 为 string；object_version。服务端记录当前安全资源已经展示给用户的版本和时间，不保存用户的安全判断。
 
 响应：resource_version、acknowledged_at 和 version。安全确认选择 uncertain 后，用户必须先完成该接口，再主动继续答题；最终 complete 请求必须存在同一会话的资源确认记录。can_be_safe 不要求该记录；cannot_be_safe 直接进入支持资源流程。
 
-#### POST /api/v1/assessment-sessions/{session_id}/safety-confirmation
+#### POST /api/v2/assessment-sessions/{session_id}/safety-confirmation
 
 请求：state 只能是 can_be_safe、uncertain、cannot_be_safe；answers 为截至 PHQ-9 第 9 题的部分 array[object]；object_version。answers 只在本次请求内校验，不在安全确认完成前持久化。
 
@@ -791,27 +791,27 @@ accepted 恢复发布和回应能力；withdrawn 允许浏览公开树洞，但�
 
 响应：next_step 只能是 continue_assessment、show_support_resources 或 support_only；result_id 固定为 null；support_required、task_created 和 visible_projection 按当前分支返回。visible_projection 只返回当前分支允许的最小字段。
 
-#### POST /api/v1/assessment-sessions/{session_id}/abandon
+#### POST /api/v2/assessment-sessions/{session_id}/abandon
 
 放弃操作只作用于没有最终结果的会话。in_progress、未完成安全确认和 expired 会话均不保存完整答案。
 
 请求：object_version。标记未完成，不创建结果，重复放弃返回当前状态。
 
-#### GET /api/v1/assessment-results/{result_id}
+#### GET /api/v2/assessment-results/{result_id}
 
 只允许本人访问。ordinary 和 higher_score 返回固定分数或观察摘要、fixed_summary、reference_band、boundary_notice、支持入口和可选 ai_assist 投影；safety_support 只返回安全分支允许的受限投影，ai_assist 必须为 null。
 
-#### GET /api/v1/assessment-results
+#### GET /api/v2/assessment-results
 
 查询：module_code、from_date、to_date、cursor、limit。返回本人的结果摘要；不会返回其他用户、后台任务或 AI 运行记录。
 
-#### DELETE /api/v1/assessment-results/{result_id}
+#### DELETE /api/v2/assessment-results/{result_id}
 
 只允许本人逐条删除。删除结果不重新计算其他结果，不删除审计必要事实。
 
 ### 6.6 支持资源
 
-#### GET /api/v1/support-resources
+#### GET /api/v2/support-resources
 
 查询：context 为 normal 或 safety。返回当前环境启用、未过期资源的 title、description、action_type、action_target、availability_text、source_text、verified_at 和 version。
 
@@ -819,11 +819,11 @@ accepted 恢复发布和回应能力；withdrawn 允许浏览公开树洞，但�
 
 ### 6.7 树洞
 
-#### GET /api/v1/treehole/posts
+#### GET /api/v2/treehole/posts
 
 查询：sort 只能是 latest 或 confirmed；cursor、limit。只返回 published 或 protected 的 body_sanitized、display_name_snapshot、状态、时间和允许展示的回应数量。
 
-#### POST /api/v1/treehole/posts
+#### POST /api/v2/treehole/posts
 
 前置：基础同意、社区同意、必要身份核验和账户 active。
 
@@ -831,41 +831,41 @@ accepted 恢复发布和回应能力；withdrawn 允许浏览公开树洞，但�
 
 响应：post_id、visibility_state、review_state、display_projection。checking、pending_confirmation、unpublished、safety_priority 时不返回给公共列表的正文。
 
-#### GET /api/v1/treehole/posts/{post_id}
+#### GET /api/v2/treehole/posts/{post_id}
 
 公开状态只返回公开投影；作者访问自己的非公开帖子时返回状态和允许的摘要，不返回内部理由、完整审核备注或其他人的身份。
 
-#### GET /api/v1/me/treehole/posts
+#### GET /api/v2/me/treehole/posts
 
 返回当前用户作为作者的帖子摘要、状态、创建时间和允许的正文摘要。列表可以包含 checking、published、protected、pending_confirmation、unpublished、safety_priority、deleted。
 
-#### POST /api/v1/treehole/posts/{post_id}/withdraw
+#### POST /api/v2/treehole/posts/{post_id}/withdraw
 
 只允许作者在状态允许时撤回。请求带 object_version；服务端校验作者、社区状态和当前版本。
 
-#### DELETE /api/v1/treehole/posts/{post_id}
+#### DELETE /api/v2/treehole/posts/{post_id}
 
 只允许作者逐条删除；请求带 object_version。删除后公开接口不再返回正文，审计保留必要的对象引用和结果。
 
-#### POST /api/v1/treehole/posts/{post_id}/responses
+#### POST /api/v2/treehole/posts/{post_id}/responses
 
 前置：作者社区同意有效、帖子为 published 或 protected 且接受回应。请求：body 为 string、object_version、client_idempotency_key。回应经过同一固定检查流程，不保证立即公开。
 
-#### DELETE /api/v1/treehole/responses/{response_id}
+#### DELETE /api/v2/treehole/responses/{response_id}
 
 只允许回应作者逐条删除，服务端校验回应状态和对象版本。
 
 ## 7. 账户停止使用和恢复 API
 
-### POST /api/v1/account/stop
+### POST /api/v2/account/stop
 
 请求：confirmation_text 为固定确认词、object_version。服务端将账户设为 recovery_pending，计算 recovery_deadline_at 为当前时间加 30 天，并拒绝新观察、发帖和回应。
 
-### POST /api/v1/account/recover
+### POST /api/v2/account/recover
 
 只允许 recovery_pending 状态的本人在截止时间前恢复。成功后恢复 active，但不恢复已经删除的数据和已经结束的内容审核决定。
 
-### GET /api/v1/account/status
+### GET /api/v2/account/status
 
 返回 status、recovery_deadline_at、可用功能和是否可以恢复。stopped 或 purged 状态不返回私密历史正文。
 
@@ -873,7 +873,7 @@ accepted 恢复发布和回应能力；withdrawn 允许浏览公开树洞，但�
 
 ### 8.1 后台认证
 
-#### POST /api/v1/admin/auth/login
+#### POST /api/v2/admin/auth/login
 
 请求：login_name、password。服务端匹配当前环境配置的固定账号，页面显示名称固定为心理健康中心工作人员，能力固定为超级管理员，不接受客户端 role。
 
@@ -881,39 +881,39 @@ accepted 恢复发布和回应能力；withdrawn 允许浏览公开树洞，但�
 
 错误时统一返回 AUTH_REQUIRED 或 FORBIDDEN，不透露账号是否存在、密码是否正确或后台数据库状态。
 
-#### POST /api/v1/admin/auth/refresh
+#### POST /api/v2/admin/auth/refresh
 
 按后台会话规则轮换刷新令牌。
 
-#### POST /api/v1/admin/auth/logout
+#### POST /api/v2/admin/auth/logout
 
 撤销当前后台会话。
 
-#### GET /api/v1/admin/me
+#### GET /api/v2/admin/me
 
 返回 display_name、capability_label、session_expires_at 和 environment_kind，不返回密码哈希或内部密钥。
 
 ### 8.2 工作台
 
-#### GET /api/v1/admin/workbench
+#### GET /api/v2/admin/workbench
 
 查询：section 只能是 needs_action、waiting_other、recent、all；cursor、limit。返回三个区块的任务摘要。
 
 任务摘要字段固定为 task_id、task_kind、state、created_at、updated_at、assigned_admin_display、safe_summary、object_version。不得返回完整正文、完整答案或身份字段。
 
-#### GET /api/v1/admin/tasks/{task_id}
+#### GET /api/v2/admin/tasks/{task_id}
 
 返回任务详情的最小必要事实、脱敏内容、当前对象版本、允许动作和已发生的事实性处理记录。内容审核、安全支持、身份授权和跟进分别返回对应字段投影。
 
-#### POST /api/v1/admin/tasks/{task_id}/claim
+#### POST /api/v2/admin/tasks/{task_id}/claim
 
 请求：object_version。只有 needs_action 状态可以认领；成功后 state 为 claimed，assigned_admin_id 为当前账号。
 
-#### POST /api/v1/admin/tasks/{task_id}/release
+#### POST /api/v2/admin/tasks/{task_id}/release
 
 请求：object_version。只有当前认领人可以释放；成功后回到 needs_action 或 waiting_other。
 
-#### POST /api/v1/admin/tasks/{task_id}/decision
+#### POST /api/v2/admin/tasks/{task_id}/decision
 
 内容审核请求字段：action 只能是 publish、protect、unpublish、safety_review；object_version；internal_reason 为事实性说明。
 
@@ -927,25 +927,25 @@ accepted 恢复发布和回应能力；withdrawn 允许浏览公开树洞，但�
 
 ### 8.3 身份读取
 
-#### POST /api/v1/admin/identity-access-requests
+#### POST /api/v2/admin/identity-access-requests
 
 创建身份授权申请。请求包含 user_reference_id、requested_fields 和 reason_fact。申请创建后进入等待或需要处理状态，不立即返回身份字段。
 
-#### GET /api/v1/admin/identity-access-requests/{request_id}
+#### GET /api/v2/admin/identity-access-requests/{request_id}
 
 返回申请状态、范围、有效期和事实性理由。只有 approved 且当前有效时才可以进行限定字段读取。
 
-#### GET /api/v1/admin/identity-access-requests/{request_id}/identity
+#### GET /api/v2/admin/identity-access-requests/{request_id}/identity
 
 服务端再次校验当前账号能力、授权状态、字段范围和有效期，然后只返回被批准的 student_name 或 student_number。每次成功或拒绝读取都写入 audit_events；读取结果不写入浏览器持久化存储。
 
 ### 8.4 审计和演示
 
-#### GET /api/v1/admin/audit-events
+#### GET /api/v2/admin/audit-events
 
 查询：from、to、resource_type、action、outcome、cursor、limit。返回 request_id、actor、resource、data_scope、outcome、reason_code、occurred_at。接口只读，不提供编辑和删除。
 
-#### POST /api/v1/admin/demo/reset
+#### POST /api/v2/admin/demo/reset
 
 仅 DEMO_MODE 为 true 且 CloudBase 环境 ID 命中演示白名单时可用。请求：confirmation_text 固定确认词、reset_scope 为固定集合白名单。
 

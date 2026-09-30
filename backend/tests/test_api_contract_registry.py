@@ -25,13 +25,13 @@ def _declared_contract() -> set[tuple[str, str]]:
         .read_text()
     )
     entries = re.findall(
-        r"^####?\s+(GET|POST|PUT|DELETE|PATCH)\s+`?(/api/v1[^`\s]+)`?",
+        r"^####?\s+(GET|POST|PUT|DELETE|PATCH)\s+`?(/api/v2[^`\s]+)`?",
         document,
         re.MULTILINE,
     )
     entries.extend(
         re.findall(
-            r"^###\s+(GET|POST|PUT|DELETE|PATCH)\s+(/api/v1[^\s]+)",
+            r"^###\s+(GET|POST|PUT|DELETE|PATCH)\s+(/api/v2[^\s]+)",
             document,
             re.MULTILINE,
         )
@@ -44,7 +44,7 @@ def test_fastapi_routes_match_backend_structure_contract() -> None:
     actual = {
         (method, _normalize_route(route.path))
         for route in app.routes
-        if isinstance(route, APIRoute) and route.path.startswith("/api/v1")
+        if isinstance(route, APIRoute) and route.path.startswith("/api/v2")
         for method in route.methods
     }
 
@@ -61,7 +61,7 @@ async def test_wechat_login_provisions_a_domain_user_for_follow_up_services() ->
     client = TestClient(app)
 
     response = client.post(
-        "/api/v1/auth/wechat/session",
+        "/api/v2/auth/wechat/session",
         json={"code": "one-time-code", "client_version": "0.1.0"},
     )
 
@@ -69,3 +69,14 @@ async def test_wechat_login_provisions_a_domain_user_for_follow_up_services() ->
     user = await repository.get_user_by_auth_subject_hash("student-subject-hash")
     assert user is not None
     assert user.status == "active"
+
+
+def test_business_routes_have_one_v2_parent_prefix() -> None:
+    app = create_app()
+    routes = [route for route in app.routes if isinstance(route, APIRoute)]
+    assert routes
+    assert all(route.path.startswith("/api/v2/") for route in routes)
+    assert all(route.path.count("/api/v2") == 1 for route in routes)
+    with TestClient(app) as client:
+        assert client.get("/api/v2/health").status_code == 200
+        assert client.get("/api/v1/health").status_code == 404

@@ -27,7 +27,7 @@ async def test_safety_confirmation_api_rejects_client_state_tampering() -> None:
     )
 
     response = client.post(
-        f"/api/v1/assessment-sessions/{started.session_id}/safety-confirmation",
+        f"/api/v2/assessment-sessions/{started.session_id}/safety-confirmation",
         headers={
             "Authorization": f"Bearer {access_token.access_token}",
             "Idempotency-Key": "api-safe-tampered",
@@ -66,7 +66,7 @@ async def test_safety_confirmation_and_resource_ack_api_return_enveloped_minimal
     )
 
     confirmation = client.post(
-        f"/api/v1/assessment-sessions/{started.session_id}/safety-confirmation",
+        f"/api/v2/assessment-sessions/{started.session_id}/safety-confirmation",
         headers={
             "Authorization": f"Bearer {access_token.access_token}",
             "Idempotency-Key": "api-uncertain",
@@ -87,7 +87,7 @@ async def test_safety_confirmation_and_resource_ack_api_return_enveloped_minimal
     assert "user_id" not in data["visible_projection"]
 
     ack = client.post(
-        f"/api/v1/assessment-sessions/{started.session_id}/support-resource-ack",
+        f"/api/v2/assessment-sessions/{started.session_id}/support-resource-ack",
         headers={
             "Authorization": f"Bearer {access_token.access_token}",
             "Idempotency-Key": "api-ack",

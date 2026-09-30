@@ -57,7 +57,7 @@ async def test_identity_access_request_requires_admin_and_reads_only_approved_fi
     client, token, _ = await build_client()
     headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": "identity-request-1"}
     created = client.post(
-        "/api/v1/admin/identity-access-requests",
+        "/api/v2/admin/identity-access-requests",
         headers=headers,
         json={
             "user_reference_id": "user-1",
@@ -68,7 +68,7 @@ async def test_identity_access_request_requires_admin_and_reads_only_approved_fi
     assert created.status_code == 200
     request_id = created.json()["data"]["request_id"]
     denied = client.get(
-        f"/api/v1/admin/identity-access-requests/{request_id}/identity",
+        f"/api/v2/admin/identity-access-requests/{request_id}/identity",
         headers={"Authorization": f"Bearer {token}"},
     )
     assert denied.status_code == 403
@@ -78,7 +78,7 @@ async def test_identity_access_request_requires_admin_and_reads_only_approved_fi
 async def test_identity_access_request_rejects_client_scope_expansion() -> None:
     client, token, _ = await build_client()
     response = client.post(
-        "/api/v1/admin/identity-access-requests",
+        "/api/v2/admin/identity-access-requests",
         headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "identity-request-2"},
         json={
             "user_reference_id": "user-1",

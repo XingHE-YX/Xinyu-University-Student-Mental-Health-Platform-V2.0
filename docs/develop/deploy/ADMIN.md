@@ -17,7 +17,7 @@ npm run test
 npm run build
 ```
 
-构建前注入 `VITE_API_BASE_URL=https://<api-origin>/api/v1` 和
+构建前注入 `VITE_API_BASE_URL=https://<api-origin>/api/v2` 和
 `VITE_ENVIRONMENT_KIND=demo`（真实授权环境使用对应值）。`admin/src/config/runtime.ts`
 会拒绝非 HTTPS 或路径不完整的地址，未配置时后台只显示未配置/不可用状态。
 

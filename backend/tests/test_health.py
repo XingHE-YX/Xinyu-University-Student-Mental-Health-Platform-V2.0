@@ -9,7 +9,7 @@ client = TestClient(create_app(Settings.from_environment({})))
 
 
 def test_health_returns_public_service_status() -> None:
-    response = client.get("/api/v1/health")
+    response = client.get("/api/v2/health")
 
     assert response.status_code == 200
     payload = response.json()

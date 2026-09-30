@@ -53,7 +53,7 @@ def test_existing_pbkdf2_admin_can_still_login() -> None:
     )
     with TestClient(create_app(settings)) as client:
         response = client.post(
-            "/api/v1/admin/auth/login",
+            "/api/v2/admin/auth/login",
             json={
                 "login_name": "心理健康中心工作人员",
                 "password": "correct-password",
@@ -69,7 +69,7 @@ def test_password_redeployment_invalidates_existing_admin_sessions() -> None:
     )
     with TestClient(create_app(settings, session_repository=sessions)) as client:
         login = client.post(
-            "/api/v1/admin/auth/login",
+            "/api/v2/admin/auth/login",
             json={
                 "login_name": "心理健康中心工作人员",
                 "password": "correct-password",
@@ -77,13 +77,13 @@ def test_password_redeployment_invalidates_existing_admin_sessions() -> None:
         ).json()["data"]
     with TestClient(create_app(configured_settings(), session_repository=sessions)) as client:
         me = client.get(
-            "/api/v1/admin/me",
+            "/api/v2/admin/me",
             headers={
                 "Authorization": f"Bearer {login['access_token']}",
             },
         )
         refresh = client.post(
-            "/api/v1/admin/auth/refresh",
+            "/api/v2/admin/auth/refresh",
             json={
                 "refresh_token": login["refresh_token"],
             },

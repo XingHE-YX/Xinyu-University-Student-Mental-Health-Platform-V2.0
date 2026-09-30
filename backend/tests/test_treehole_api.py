@@ -115,7 +115,7 @@ async def test_treehole_hides_unpublished_body_from_public_list_and_supports_own
     client, repository, token = await build_client()
     headers = {"Authorization": f"Bearer {token}"}
     created = client.post(
-        "/api/v1/treehole/posts",
+        "/api/v2/treehole/posts",
         headers=headers,
         json={"body": "一段只想先放下的心事", "client_idempotency_key": "post-1"},
     )
@@ -123,8 +123,8 @@ async def test_treehole_hides_unpublished_body_from_public_list_and_supports_own
     post_id = created.json()["data"]["post_id"]
     assert created.json()["data"]["display_projection"]["body_sanitized"] is None
     assert created.json()["data"]["review_state"] == "automated_checked"
-    assert client.get("/api/v1/treehole/posts", headers=headers).json()["data"]["items"] == []
-    assert client.get(f"/api/v1/treehole/posts/{post_id}", headers=headers).json()["data"]["mine"]
+    assert client.get("/api/v2/treehole/posts", headers=headers).json()["data"]["items"] == []
+    assert client.get(f"/api/v2/treehole/posts/{post_id}", headers=headers).json()["data"]["mine"]
     assert await repository.extra_collection("content_review_tasks")
     work_tasks = await repository.extra_collection("work_tasks")
     assert len(work_tasks) == 1
@@ -134,22 +134,22 @@ async def test_treehole_hides_unpublished_body_from_public_list_and_supports_own
     assert len(await repository.extra_collection("ai_assist_snapshots")) == 1
 
     login = client.post(
-        "/api/v1/admin/auth/login",
+        "/api/v2/admin/auth/login",
         json={"login_name": "心理健康中心工作人员", "password": "correct-password"},
     )
     admin_headers = {"Authorization": f"Bearer {login.json()['data']['access_token']}"}
     task_id = f"content_review_{post_id}"
-    detail = client.get(f"/api/v1/admin/tasks/{task_id}", headers=admin_headers)
+    detail = client.get(f"/api/v2/admin/tasks/{task_id}", headers=admin_headers)
     assert detail.status_code == 200
     assert detail.json()["data"]["redacted_content"] == "一段只想先放下的心事"
     assert "publish" in detail.json()["data"]["allowed_actions"]
     claimed = client.post(
-        f"/api/v1/admin/tasks/{task_id}/claim",
+        f"/api/v2/admin/tasks/{task_id}/claim",
         headers={**admin_headers, "Idempotency-Key": "claim-live-post"},
         json={"object_version": detail.json()["data"]["object_version"]},
     )
     decided = client.post(
-        f"/api/v1/admin/tasks/{task_id}/decision",
+        f"/api/v2/admin/tasks/{task_id}/decision",
         headers={**admin_headers, "Idempotency-Key": "publish-live-post"},
         json={
             "object_version": claimed.json()["data"]["new_object_version"],
@@ -162,7 +162,7 @@ async def test_treehole_hides_unpublished_body_from_public_list_and_supports_own
     published = await repository.get_treehole_post(post_id)
     assert published.visibility_state == "published"
     assert published.review_state == "decided"
-    public_items = client.get("/api/v1/treehole/posts", headers=headers).json()["data"]["items"]
+    public_items = client.get("/api/v2/treehole/posts", headers=headers).json()["data"]["items"]
     assert public_items[0]["body_sanitized"] == "一段只想先放下的心事"
 
 
@@ -170,7 +170,7 @@ async def test_treehole_response_persists_ai_snapshot_without_auto_publishing() 
     client, repository, token = await build_client()
     headers = {"Authorization": f"Bearer {token}"}
     created = client.post(
-        "/api/v1/treehole/posts",
+        "/api/v2/treehole/posts",
         headers=headers,
         json={"body": "一段普通的演示内容", "client_idempotency_key": "post-response"},
     )
@@ -181,7 +181,7 @@ async def test_treehole_response_persists_ai_snapshot_without_auto_publishing() 
     )
 
     response = client.post(
-        f"/api/v1/treehole/posts/{published.document_id}/responses",
+        f"/api/v2/treehole/posts/{published.document_id}/responses",
         headers=headers,
         json={
             "body": "谢谢你愿意分享这些感受",
@@ -204,7 +204,7 @@ async def test_treehole_post_rejects_client_visibility_and_cross_user_mutation()
     client, _, token = await build_client()
     headers = {"Authorization": f"Bearer {token}"}
     tampered = client.post(
-        "/api/v1/treehole/posts",
+        "/api/v2/treehole/posts",
         headers=headers,
         json={
             "body": "内容",
@@ -221,14 +221,14 @@ async def test_treehole_create_requires_idempotency_header_for_withdraw_and_dele
     client, _, token = await build_client()
     headers = {"Authorization": f"Bearer {token}"}
     created = client.post(
-        "/api/v1/treehole/posts",
+        "/api/v2/treehole/posts",
         headers=headers,
         json={"body": "内容", "client_idempotency_key": "post-3"},
     )
     post_id = created.json()["data"]["post_id"]
     version = created.json()["data"]["object_version"]
     missing = client.post(
-        f"/api/v1/treehole/posts/{post_id}/withdraw",
+        f"/api/v2/treehole/posts/{post_id}/withdraw",
         headers=headers,
         json={"object_version": version},
     )
@@ -273,7 +273,7 @@ async def test_treehole_confirmed_sort_prioritizes_protected_posts() -> None:
             )
         )
 
-    response = client.get("/api/v1/treehole/posts?sort=confirmed", headers=headers)
+    response = client.get("/api/v2/treehole/posts?sort=confirmed", headers=headers)
 
     assert response.status_code == 200
     assert response.json()["data"]["items"][0]["visibility_state"] == "protected"

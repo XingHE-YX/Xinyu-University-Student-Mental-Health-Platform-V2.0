@@ -14,7 +14,7 @@ from app.main import create_app
 def test_invalid_request_id_returns_the_standard_error_envelope() -> None:
     client = TestClient(create_app(Settings.from_environment({})))
 
-    response = client.get("/api/v1/health", headers={"X-Request-Id": "not valid"})
+    response = client.get("/api/v2/health", headers={"X-Request-Id": "not valid"})
 
     assert response.status_code == 400
     payload = response.json()
@@ -30,7 +30,7 @@ def test_invalid_request_id_returns_the_standard_error_envelope() -> None:
 def test_unknown_routes_are_wrapped_without_internal_details() -> None:
     client = TestClient(create_app(Settings.from_environment({})))
 
-    response = client.get("/api/v1/does-not-exist")
+    response = client.get("/api/v2/does-not-exist")
 
     assert response.status_code == 404
     payload = response.json()

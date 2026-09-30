@@ -9,7 +9,7 @@ let definition
 beforeEach(() => {
   configureLogger({ sink: () => {} })
   sessionStore.clear()
-  globalThis.getApp = () => ({ globalData: { apiBaseUrl: 'https://example.test/api/v1', environmentKind: 'authorized' } })
+  globalThis.getApp = () => ({ globalData: { apiBaseUrl: 'https://example.test/api/v2', environmentKind: 'authorized' } })
   globalThis.wx = { request(options) { definition = options } }
 })
 

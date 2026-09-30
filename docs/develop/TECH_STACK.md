@@ -111,7 +111,7 @@ Python 项目使用 uv 管理。运行依赖与开发依赖统一声明在 `back
 
 ### 3.2 项目业务 API
 
-业务 API 的公共前缀为 /api/v1，传输格式为 HTTPS JSON。完整端点、字段和错误码见 [后端结构文档](BACKEND_STRUCTURE.md)。
+业务 API 的公共前缀为 /api/v2，传输格式为 HTTPS JSON。完整端点、字段和错误码见 [后端结构文档](BACKEND_STRUCTURE.md)。
 
 统一响应格式为：
 

@@ -34,7 +34,7 @@ def test_student_login_and_me_use_the_server_subject_not_client_identity_fields(
     client = TestClient(app)
 
     login = client.post(
-        "/api/v1/auth/wechat/session",
+        "/api/v2/auth/wechat/session",
         json={"code": "one-time-code", "client_version": "0.1.0", "user_id": "attacker"},
     )
 
@@ -42,14 +42,14 @@ def test_student_login_and_me_use_the_server_subject_not_client_identity_fields(
     assert login.json()["error"]["code"] == "VALIDATION_FAILED"
 
     valid_login = client.post(
-        "/api/v1/auth/wechat/session",
+        "/api/v2/auth/wechat/session",
         json={"code": "one-time-code", "client_version": "0.1.0"},
     )
     assert valid_login.status_code == 200
     access_token = valid_login.json()["data"]["access_token"]
 
     me = client.get(
-        "/api/v1/me",
+        "/api/v2/me",
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
@@ -74,7 +74,7 @@ def test_student_login_is_not_blocked_by_unrelated_unconfigured_integrations() -
 
     app = create_app(settings, wechat_client=FakeWechatClient())
     response = TestClient(app).post(
-        "/api/v1/auth/wechat/session",
+        "/api/v2/auth/wechat/session",
         json={"code": "one-time-code", "client_version": "0.1.0"},
     )
 
@@ -92,7 +92,7 @@ def test_student_login_requires_a_stable_session_secret() -> None:
 
     app = create_app(settings, wechat_client=FakeWechatClient())
     response = TestClient(app).post(
-        "/api/v1/auth/wechat/session",
+        "/api/v2/auth/wechat/session",
         json={"code": "one-time-code", "client_version": "0.1.0"},
     )
 
@@ -105,7 +105,7 @@ def test_admin_login_uses_fixed_account_and_refresh_rotation() -> None:
     client = TestClient(app)
 
     login = client.post(
-        "/api/v1/admin/auth/login",
+        "/api/v2/admin/auth/login",
         json={"login_name": "心理健康中心工作人员", "password": "correct-password"},
     )
 
@@ -115,21 +115,21 @@ def test_admin_login_uses_fixed_account_and_refresh_rotation() -> None:
     assert data["capability_label"] == "超级管理员"
 
     refresh = client.post(
-        "/api/v1/admin/auth/refresh",
+        "/api/v2/admin/auth/refresh",
         json={"refresh_token": data["refresh_token"]},
     )
     assert refresh.status_code == 200
     rotated = refresh.json()["data"]
 
     old_refresh = client.post(
-        "/api/v1/admin/auth/refresh",
+        "/api/v2/admin/auth/refresh",
         json={"refresh_token": data["refresh_token"]},
     )
     assert old_refresh.status_code == 401
     assert old_refresh.json()["error"]["code"] == "SESSION_EXPIRED"
 
     me = client.get(
-        "/api/v1/admin/me",
+        "/api/v2/admin/me",
         headers={"Authorization": f"Bearer {rotated['access_token']}"},
     )
     assert me.status_code == 200
@@ -140,7 +140,7 @@ def test_admin_login_reports_invalid_credentials_instead_of_missing_session() ->
     client = TestClient(create_app(configured_settings(), wechat_client=FakeWechatClient()))
 
     response = client.post(
-        "/api/v1/admin/auth/login",
+        "/api/v2/admin/auth/login",
         json={"login_name": "心理健康中心工作人员", "password": "wrong-password"},
     )
 
@@ -153,17 +153,17 @@ def test_student_and_admin_refresh_endpoints_cannot_cross_subject_types() -> Non
     app = create_app(configured_settings(), wechat_client=FakeWechatClient())
     client = TestClient(app)
     login = client.post(
-        "/api/v1/admin/auth/login",
+        "/api/v2/admin/auth/login",
         json={"login_name": "心理健康中心工作人员", "password": "correct-password"},
     )
     refresh_token = login.json()["data"]["refresh_token"]
 
     wrong_endpoint = client.post(
-        "/api/v1/auth/refresh",
+        "/api/v2/auth/refresh",
         json={"refresh_token": refresh_token},
     )
     correct_endpoint = client.post(
-        "/api/v1/admin/auth/refresh",
+        "/api/v2/admin/auth/refresh",
         json={"refresh_token": refresh_token},
     )
 
@@ -176,15 +176,15 @@ def test_student_logout_revokes_access_and_repeated_logout_is_safe() -> None:
     app = create_app(configured_settings(), wechat_client=FakeWechatClient())
     client = TestClient(app)
     login = client.post(
-        "/api/v1/auth/wechat/session",
+        "/api/v2/auth/wechat/session",
         json={"code": "one-time-code", "client_version": "0.1.0"},
     )
     access_token = login.json()["data"]["access_token"]
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    first_logout = client.post("/api/v1/auth/logout", headers=headers)
-    second_logout = client.post("/api/v1/auth/logout", headers=headers)
-    me = client.get("/api/v1/me", headers=headers)
+    first_logout = client.post("/api/v2/auth/logout", headers=headers)
+    second_logout = client.post("/api/v2/auth/logout", headers=headers)
+    me = client.get("/api/v2/me", headers=headers)
 
     assert first_logout.status_code == 200
     assert second_logout.status_code == 200

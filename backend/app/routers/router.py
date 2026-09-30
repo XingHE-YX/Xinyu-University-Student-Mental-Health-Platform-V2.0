@@ -22,7 +22,7 @@ from app.routers.controller.v2.today import router as today_router
 from app.routers.controller.v2.treehole import router as treehole_router
 from app.routers.controller.v2.treehole import student_router
 
-router = APIRouter(prefix="/api/v1")
+router = APIRouter(prefix="/api/v2")
 router.include_router(health_router)
 router.include_router(auth_router)
 router.include_router(me_router)

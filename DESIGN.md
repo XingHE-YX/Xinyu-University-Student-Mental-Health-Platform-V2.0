@@ -8,7 +8,7 @@
 ```text
 微信客户端                           桌面浏览器
   └─ miniprogram/                      └─ admin/（独立 SPA）
-       └─ HTTPS /api/v1                     └─ HTTPS /api/v1
+       └─ HTTPS /api/v2                     └─ HTTPS /api/v2
                   └─ backend/（FastAPI）
                        ├─ 认证、同意、身份与能力检查
                        ├─ 自测、心情、树洞和后台任务服务
@@ -50,7 +50,7 @@
 | `integrations/` | 微信、学校身份与 AI 等外部接口 |
 | `security/`、`audit/`、`config/` | 会话、审计和配置 |
 
-接口使用 `/api/v1` 前缀。数据库集合、索引、字段及完整路由契约集中在
+接口使用 `/api/v2` 前缀。数据库集合、索引、字段及完整路由契约集中在
 [后端规范](docs/develop/BACKEND_STRUCTURE.md)，契约测试读取该文档并与实际路由比较。
 
 ### 管理后台

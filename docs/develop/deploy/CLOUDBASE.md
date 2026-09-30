@@ -9,7 +9,7 @@
 3. 按平台规范另行准备 Python 3.11 HTTP 函数包及启动文件，监听 9000 端口。仓库不提供函数打包工具，函数名称和变量按环境分别配置。
 4. 只在函数的加密环境变量或 CloudBase 密钥管理中填写 API Key、微信密钥、后台会话秘密和密码哈希；不要写入小程序、`admin/dist`、日志或 Git 跟踪文件。
 5. 构建 `admin/dist` 后分别发布到两个环境的静态网站托管，配置 HTTPS 根来源（不能带路径）、SPA fallback `/index.html`，并将来源加入后端 CORS/会话允许列表。
-6. 发布前使用后端 `validate_deployment_config` 检查 EnvID、命名空间和来源；先访问 `/api/v1/health`，再执行接口契约测试。
+6. 发布前使用后端 `validate_deployment_config` 检查 EnvID、命名空间和来源；先访问 `/api/v2/health`，再执行接口契约测试。
 
 当前文档型数据库使用官方 NoSQL REST API：
 `https://<env-id>.api.tcloudbasegateway.com/v1/database/instances/(default)/databases/(default)`，
@@ -47,7 +47,7 @@ uv run --locked python -m scripts.initialize_cloudbase .env.demo.local
 必需密钥与可选 DeepSeek 密钥应分别在平台登记，并检查对应环境的密钥是否已创建。
 核心配置齐全时，缺少 AI Key 不阻断登录和固定规则流程，AI 调用使用已有回退。
 
-`/api/v1/health` 的 `status=ok` 当前仅表明配置就绪，并未探测 CloudBase、微信、
+`/api/v2/health` 的 `status=ok` 当前仅表明配置就绪，并未探测 CloudBase、微信、
 学校或 DeepSeek 的真实连通性。数据库持久化与真实接口仍需在后续步骤逐项验收。
 
 ## 环境隔离

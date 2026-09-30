@@ -170,12 +170,12 @@ def test_default_app_startup_reads_registry_and_allows_admin_login_without_ai(mo
     with patch.dict("os.environ", environment, clear=True):
         app = create_app()
     with TestClient(app) as client:
-        response = client.get("/api/v1/health")
+        response = client.get("/api/v2/health")
         assert response.status_code == 200
         assert response.json()["data"]["status"] == "ok"
         assert response.json()["data"]["environment_kind"] == mode
         login = client.post(
-            "/api/v1/admin/auth/login",
+            "/api/v2/admin/auth/login",
             json={"login_name": "心理健康中心工作人员", "password": "test-password"},
         )
         assert login.status_code == 200

@@ -14,7 +14,7 @@ def test_lifespan_closes_all_pooled_clients() -> None:
     app.state.container.identity_service.school = school
     ai = app.state.container.ai_assist_service.client
     with TestClient(app) as client:
-        assert client.get("/api/v1/health").status_code == 200
+        assert client.get("/api/v2/health").status_code == 200
         assert not wechat._client.is_closed
         assert not school._client.is_closed
         assert not ai._client.is_closed
