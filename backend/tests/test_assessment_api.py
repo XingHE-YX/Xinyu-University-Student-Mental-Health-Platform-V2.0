@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.infra.security.tokens import TokenManager
 from app.main import create_app
-from app.security.tokens import TokenManager
 
 from .test_safety_service import build_services, phq9_safety_answers
 

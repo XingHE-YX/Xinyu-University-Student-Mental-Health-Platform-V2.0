@@ -3,12 +3,12 @@ import json
 import httpx
 import pytest
 
-from app.repositories.cloudbase_gateway import (
+from app.infra.database.cloudbase.gateway import (
     CloudBaseGateway,
     RepositoryUnavailable,
     RepositoryVersionConflict,
 )
-from app.repositories.in_memory import InMemoryDocumentRepository
+from app.infra.database.memory.documents import InMemoryDocumentRepository
 
 
 def test_in_memory_repository_supports_cursor_query_versioned_update_and_logical_delete() -> None:

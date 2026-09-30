@@ -7,24 +7,24 @@ from typing import Any
 import httpx
 import pytest
 
-from app.audit.writer import AuditWriter
-from app.config.settings import Settings
-from app.domain.models import UserAccountDocument
-from app.main import create_app
-from app.repositories.admin_task_repository import CloudBaseAdminTaskRepository
-from app.repositories.cloudbase_domain_repository import CloudBaseDomainDataRepository
-from app.repositories.cloudbase_security_repositories import (
+from app.infra.config.settings import Settings
+from app.infra.database.cloudbase.client import CloudBaseStore, decode_ejson, encode_ejson
+from app.infra.database.cloudbase.domain import CloudBaseDomainDataRepository
+from app.infra.database.cloudbase.security import (
     CloudBaseAuditRepository,
     CloudBaseIdempotencyRepository,
     CloudBaseSessionRepository,
 )
-from app.repositories.cloudbase_store import CloudBaseStore, decode_ejson, encode_ejson
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.repositories.protocols import RepositoryUnavailable, RepositoryVersionConflict
-from app.repositories.session_repository import AuthSessionRecord
-from app.schemas.errors import ApiException
-from app.services.admin_workbench_service import AdminWorkbenchService
-from app.services.idempotency_service import IdempotencyService
+from app.infra.database.cloudbase.tasks import CloudBaseAdminTaskRepository
+from app.infra.database.common import RepositoryUnavailable, RepositoryVersionConflict
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.database.memory.session import AuthSessionRecord
+from app.infra.logger.audit import AuditWriter
+from app.infra.serializer.error.common import ApiException
+from app.main import create_app
+from app.models.v2.documents import UserAccountDocument
+from app.services.v2.admin_workbench_service import AdminWorkbenchService
+from app.services.v2.idempotency_service import IdempotencyService
 
 
 def cloudbase_settings() -> Settings:
@@ -136,7 +136,7 @@ class MemoryStore:
         try:
             return dict(self.collections[collection][document_id])
         except KeyError:
-            from app.repositories.protocols import RepositoryNotFound
+            from app.infra.database.common import RepositoryNotFound
 
             raise RepositoryNotFound("not found") from None
 

@@ -8,8 +8,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from app.config.environments import EnvironmentKind
-from app.domain.models import (
+from app.infra.config.validation import EnvironmentKind
+from app.models.v2.documents import (
     AssessmentModuleDocument,
     AssessmentQuestionnaireDocument,
 )
@@ -22,7 +22,7 @@ def load_module(module_name: str) -> Any:
 
 
 def test_fixed_assessment_catalog_matches_frozen_spec() -> None:
-    rules = load_module("app.domain.assessment_rules")
+    rules = load_module("app.services.v2.rules.assessment")
 
     modules = rules.build_seed_documents()["assessment_modules"]
     questionnaires = rules.build_seed_documents()["assessment_questionnaires"]
@@ -189,7 +189,7 @@ def test_phq9_scoring_boundaries_and_impact_question_exclusion(
     answers: list[tuple[str, str]],
     expected: dict[str, object],
 ) -> None:
-    rules = load_module("app.domain.assessment_rules")
+    rules = load_module("app.services.v2.rules.assessment")
 
     outcome = rules.score_questionnaire("phq9", answers)
 
@@ -255,7 +255,7 @@ def test_phq9_scoring_boundaries_and_impact_question_exclusion(
 def test_gad7_scoring_boundaries(
     answers: list[tuple[str, str]], expected: dict[str, object]
 ) -> None:
-    rules = load_module("app.domain.assessment_rules")
+    rules = load_module("app.services.v2.rules.assessment")
 
     outcome = rules.score_questionnaire("gad7", answers)
 
@@ -407,7 +407,7 @@ def test_fixed_standard_result_copy_matches_the_frozen_design(
     answers: list[tuple[str, str]],
     expected_summary: str,
 ) -> None:
-    rules = load_module("app.domain.assessment_rules")
+    rules = load_module("app.services.v2.rules.assessment")
 
     outcome = rules.score_questionnaire(module_code, answers)
 
@@ -416,7 +416,7 @@ def test_fixed_standard_result_copy_matches_the_frozen_design(
 
 
 def test_sleep_observation_returns_three_dimensions_without_total_score() -> None:
-    rules = load_module("app.domain.assessment_rules")
+    rules = load_module("app.services.v2.rules.assessment")
 
     outcome = rules.score_questionnaire(
         "sleep_observation",
@@ -447,7 +447,7 @@ def test_sleep_observation_returns_three_dimensions_without_total_score() -> Non
 
 
 def test_sleep_question_8_refusal_is_mutually_exclusive() -> None:
-    rules = load_module("app.domain.assessment_rules")
+    rules = load_module("app.services.v2.rules.assessment")
 
     with pytest.raises(rules.AssessmentValidationError) as error:
         rules.score_questionnaire(
@@ -509,7 +509,7 @@ def test_seed_assessments_is_deterministic_and_safe() -> None:
 
 
 def test_complete_assessment_request_rejects_client_supplied_server_fields() -> None:
-    schemas = load_module("app.schemas.assessment")
+    schemas = load_module("app.models.v2.assessment")
 
     with pytest.raises(ValidationError):
         schemas.CompleteAssessmentSessionRequest.model_validate(

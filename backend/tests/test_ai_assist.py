@@ -6,18 +6,18 @@ from typing import Any
 import httpx
 import pytest
 
-from app.audit.writer import AuditWriter
-from app.config.settings import Settings
-from app.domain.ai_policy import (
+from app.infra.ai.client.deepseek import DeepSeekClient, DeepSeekUnavailable
+from app.infra.config.settings import Settings
+from app.infra.database.memory.audit import InMemoryAuditRepository
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.logger.audit import AuditWriter
+from app.services.v2.ai_assist_service import AiAssistService
+from app.services.v2.rules.ai_policy import (
     PolicyViolation,
     project_assessment_input,
     project_treehole_input,
     validate_ai_output,
 )
-from app.integrations.deepseek_client import DeepSeekClient, DeepSeekUnavailable
-from app.repositories.audit_repository import InMemoryAuditRepository
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.services.ai_assist_service import AiAssistService
 
 
 def settings_for(*, api_key: str | None = "deepseek-secret") -> Settings:

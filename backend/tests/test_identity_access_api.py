@@ -4,10 +4,10 @@ from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 
-from app.domain.models import IdentityRecordDocument, UserAccountDocument
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.main import create_app
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.services.identity_service import HmacIdentityCipher
+from app.models.v2.documents import IdentityRecordDocument, UserAccountDocument
+from app.services.v2.identity_service import HmacIdentityCipher
 
 from .test_assessment_service import configured_settings
 

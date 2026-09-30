@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from app.config.environments import EnvironmentKind
+from app.infra.config.validation import EnvironmentKind
 
 EXPECTED_COLLECTIONS = {
     "user_accounts",
@@ -55,8 +55,8 @@ def sample_metadata() -> dict[str, object]:
 
 
 def test_collection_registry_covers_all_fixed_collections_and_serializes_indexes() -> None:
-    registry = load_module("app.repositories.collection_registry")
-    models = load_module("app.domain.models")
+    registry = load_module("app.infra.database.collections")
+    models = load_module("app.models.v2.documents")
 
     collection_names = set(registry.COLLECTIONS)
     assert collection_names == EXPECTED_COLLECTIONS
@@ -120,7 +120,7 @@ def test_collection_registry_covers_all_fixed_collections_and_serializes_indexes
 
 
 def test_consent_and_audit_records_require_fixed_version_one() -> None:
-    models = load_module("app.domain.models")
+    models = load_module("app.models.v2.documents")
 
     consent = models.ConsentEventDocument(
         **sample_metadata(),
@@ -182,7 +182,7 @@ def test_consent_and_audit_records_require_fixed_version_one() -> None:
 
 
 def test_quote_entry_model_blocks_enabled_copyright_pending_records() -> None:
-    models = load_module("app.domain.models")
+    models = load_module("app.models.v2.documents")
 
     with pytest.raises(ValidationError):
         models.QuoteEntryDocument(
@@ -204,7 +204,7 @@ def test_quote_entry_model_blocks_enabled_copyright_pending_records() -> None:
 
 
 def test_daily_mood_model_requires_a_calendar_date_string() -> None:
-    models = load_module("app.domain.models")
+    models = load_module("app.models.v2.documents")
 
     with pytest.raises(ValidationError):
         models.DailyMoodRecordDocument(
@@ -218,7 +218,7 @@ def test_daily_mood_model_requires_a_calendar_date_string() -> None:
 
 
 def test_assessment_session_requires_answers_only_for_completed_state() -> None:
-    models = load_module("app.domain.models")
+    models = load_module("app.models.v2.documents")
 
     completed = models.AssessmentSessionDocument(
         **sample_metadata(),
@@ -274,7 +274,7 @@ def test_assessment_session_requires_answers_only_for_completed_state() -> None:
 
 
 def test_assessment_session_enforces_state_timestamp_combinations() -> None:
-    models = load_module("app.domain.models")
+    models = load_module("app.models.v2.documents")
 
     with pytest.raises(ValidationError):
         models.AssessmentSessionDocument(
@@ -418,7 +418,7 @@ def test_assessment_session_enforces_state_timestamp_combinations() -> None:
 
 
 def test_safety_support_result_rejects_full_answers_score_and_ai_snapshot() -> None:
-    models = load_module("app.domain.models")
+    models = load_module("app.models.v2.documents")
 
     with pytest.raises(ValidationError):
         models.AssessmentResultDocument(
@@ -474,7 +474,7 @@ def test_safety_support_result_rejects_full_answers_score_and_ai_snapshot() -> N
 
 
 def test_assessment_result_rejects_cannot_be_safe_and_invalid_state_combinations() -> None:
-    models = load_module("app.domain.models")
+    models = load_module("app.models.v2.documents")
 
     with pytest.raises(ValidationError):
         models.AssessmentResultDocument(
@@ -558,7 +558,7 @@ def test_assessment_result_rejects_cannot_be_safe_and_invalid_state_combinations
 
 
 def test_safety_support_task_source_reference_matches_safety_fact() -> None:
-    models = load_module("app.domain.models")
+    models = load_module("app.models.v2.documents")
     snapshot = [
         {
             "resource_id": "resource-campus",
@@ -635,7 +635,7 @@ def test_safety_support_task_source_reference_matches_safety_fact() -> None:
 
 def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> None:
     seed_demo = load_module("scripts.seed_demo")
-    models = load_module("app.domain.models")
+    models = load_module("app.models.v2.documents")
 
     with pytest.raises(ValueError):
         seed_demo.build_demo_seed_bundle(EnvironmentKind.AUTHORIZED)
@@ -703,7 +703,7 @@ def test_seed_demo_is_deterministic_and_restricted_to_demo_environments() -> Non
 
 
 def test_create_indexes_script_serializes_registry_indexes() -> None:
-    registry = load_module("app.repositories.collection_registry")
+    registry = load_module("app.infra.database.collections")
     create_indexes = load_module("scripts.create_indexes")
 
     expected = registry.build_index_projection()

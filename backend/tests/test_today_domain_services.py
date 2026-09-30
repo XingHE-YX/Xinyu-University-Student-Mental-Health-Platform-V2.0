@@ -5,9 +5,15 @@ from typing import Any, Literal, cast
 
 import pytest
 
-from app.audit.writer import AuditWriter
-from app.config.settings import Settings
-from app.domain.models import (
+from app.infra.config.settings import Settings
+from app.infra.database.memory.audit import InMemoryAuditRepository
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.database.memory.idempotency import InMemoryIdempotencyRepository
+from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.logger.audit import AuditWriter
+from app.infra.security.tokens import TokenManager
+from app.infra.serializer.error.common import ApiException
+from app.models.v2.documents import (
     AssessmentAnswerModel,
     AssessmentResultDocument,
     DailyMoodRecordDocument,
@@ -16,17 +22,11 @@ from app.domain.models import (
     SupportResourceDocument,
     UserAccountDocument,
 )
-from app.repositories.audit_repository import InMemoryAuditRepository
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.repositories.idempotency_repository import InMemoryIdempotencyRepository
-from app.repositories.session_repository import InMemorySessionRepository
-from app.schemas.errors import ApiException
-from app.security.tokens import TokenManager
-from app.services.idempotency_service import IdempotencyService
-from app.services.mood_service import MoodService
-from app.services.quote_service import QuoteService
-from app.services.support_resource_service import SupportResourceService
-from app.services.today_service import TodayService
+from app.services.v2.idempotency_service import IdempotencyService
+from app.services.v2.mood_service import MoodService
+from app.services.v2.quote_service import QuoteService
+from app.services.v2.support_resource_service import SupportResourceService
+from app.services.v2.today_service import TodayService
 
 FIXED_NOW = datetime(2026, 9, 1, 1, 30, tzinfo=UTC)
 
@@ -676,7 +676,9 @@ def test_quote_service_uses_enabled_seed_pool_window_and_never_exposes_candidate
     seed_quotes = [
         QuoteEntryDocument(**entry)
         for entry in seed_demo.build_demo_seed_bundle(
-            __import__("app.config.environments", fromlist=["EnvironmentKind"]).EnvironmentKind.DEMO
+            __import__(
+                "app.infra.config.validation", fromlist=["EnvironmentKind"]
+            ).EnvironmentKind.DEMO
         )["collections"]["quote_entries"]
     ]
     repository = build_repository(quote_entries=seed_quotes)

@@ -4,8 +4,8 @@ from typing import cast
 
 from fastapi.testclient import TestClient
 
-from app.config.settings import Settings
-from app.integrations.wechat_auth import WechatIdentity
+from app.infra.config.settings import Settings
+from app.infra.integrations.wechat import WechatIdentity
 from app.main import create_app
 
 

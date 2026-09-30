@@ -5,57 +5,57 @@ from typing import Any
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 
-from app.api.admin_auth import router as admin_auth_router
-from app.api.admin_identity import router as admin_identity_router
-from app.api.admin_workbench import router as admin_workbench_router
-from app.api.assessment import contract_router as assessment_contract_router
-from app.api.assessment import router as assessment_router
-from app.api.auth import me_router
-from app.api.auth import router as auth_router
-from app.api.dependencies import (
-    _error_response,
-    register_exception_handlers,
-    resolve_request_id,
-)
-from app.api.student_core import router as student_core_router
-from app.api.treehole import router as treehole_router
-from app.api.treehole import student_router as treehole_student_router
-from app.audit.writer import AuditWriter
-from app.config.settings import Settings
-from app.repositories.admin_task_repository import CloudBaseAdminTaskRepository
-from app.repositories.audit_repository import AuditRepository, InMemoryAuditRepository
-from app.repositories.cloudbase_domain_repository import CloudBaseDomainDataRepository
-from app.repositories.cloudbase_security_repositories import (
+from app.infra.config.settings import Settings
+from app.infra.database.cloudbase.client import CloudBaseStore
+from app.infra.database.cloudbase.domain import CloudBaseDomainDataRepository
+from app.infra.database.cloudbase.security import (
     CloudBaseAuditRepository,
     CloudBaseIdempotencyRepository,
     CloudBaseSessionRepository,
 )
-from app.repositories.cloudbase_store import CloudBaseStore
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.repositories.idempotency_repository import (
+from app.infra.database.cloudbase.tasks import CloudBaseAdminTaskRepository
+from app.infra.database.memory.audit import AuditRepository, InMemoryAuditRepository
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.database.memory.idempotency import (
     IdempotencyRepository,
     InMemoryIdempotencyRepository,
 )
-from app.repositories.session_repository import InMemorySessionRepository
-from app.schemas.envelope import ApiEnvelope
-from app.schemas.errors import ApiException
-from app.security.tokens import TokenManager
-from app.services.account_service import AccountService
-from app.services.admin_workbench_service import AdminWorkbenchService
-from app.services.ai_assist_service import AiAssistService
-from app.services.assessment_service import AssessmentService
-from app.services.auth_service import AuthService, WechatClient
-from app.services.bootstrap_service import BootstrapService
-from app.services.consent_service import ConsentService
-from app.services.idempotency_service import IdempotencyService
-from app.services.identity_access_service import IdentityAccessService
-from app.services.identity_service import IdentityService
-from app.services.mood_service import MoodService
-from app.services.quote_service import QuoteService
-from app.services.safety_service import SafetyService
-from app.services.support_resource_service import SupportResourceService
-from app.services.today_service import TodayService
-from app.services.treehole_service import TreeholeService
+from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.logger.audit import AuditWriter
+from app.infra.security.tokens import TokenManager
+from app.infra.serializer.envelope import ApiEnvelope
+from app.infra.serializer.error.common import ApiException
+from app.routers.controller.v2.admin.auth import router as admin_auth_router
+from app.routers.controller.v2.admin.identity import router as admin_identity_router
+from app.routers.controller.v2.admin.workbench import router as admin_workbench_router
+from app.routers.controller.v2.assessment import contract_router as assessment_contract_router
+from app.routers.controller.v2.assessment import router as assessment_router
+from app.routers.controller.v2.auth import me_router
+from app.routers.controller.v2.auth import router as auth_router
+from app.routers.controller.v2.student_core import router as student_core_router
+from app.routers.controller.v2.treehole import router as treehole_router
+from app.routers.controller.v2.treehole import student_router as treehole_student_router
+from app.routers.dependencies import (
+    _error_response,
+    register_exception_handlers,
+    resolve_request_id,
+)
+from app.services.v2.account_service import AccountService
+from app.services.v2.admin_workbench_service import AdminWorkbenchService
+from app.services.v2.ai_assist_service import AiAssistService
+from app.services.v2.assessment_service import AssessmentService
+from app.services.v2.auth_service import AuthService, WechatClient
+from app.services.v2.bootstrap_service import BootstrapService
+from app.services.v2.consent_service import ConsentService
+from app.services.v2.idempotency_service import IdempotencyService
+from app.services.v2.identity_access_service import IdentityAccessService
+from app.services.v2.identity_service import IdentityService
+from app.services.v2.mood_service import MoodService
+from app.services.v2.quote_service import QuoteService
+from app.services.v2.safety_service import SafetyService
+from app.services.v2.support_resource_service import SupportResourceService
+from app.services.v2.today_service import TodayService
+from app.services.v2.treehole_service import TreeholeService
 
 
 class HealthData(BaseModel):

@@ -6,8 +6,8 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from app.config.environments import EnvironmentKind
-from app.repositories.collection_registry import COLLECTIONS
+from app.infra.config.validation import EnvironmentKind
+from app.infra.database.collections import COLLECTIONS
 
 SEED_TIMESTAMP = datetime(2026, 8, 29, 0, 0, tzinfo=UTC)
 LIBRARY_VERSION = "quote-library-v1"

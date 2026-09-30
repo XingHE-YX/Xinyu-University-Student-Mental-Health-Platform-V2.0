@@ -9,11 +9,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from app.config.environments import EnvironmentKind
-from app.config.settings import Settings
-from app.repositories.cloudbase_store import CloudBaseStore
-from app.repositories.collection_registry import COLLECTIONS, build_index_projection
-from app.repositories.protocols import RepositoryVersionConflict
+from app.infra.config.settings import Settings
+from app.infra.config.validation import EnvironmentKind
+from app.infra.database.cloudbase.client import CloudBaseStore
+from app.infra.database.collections import COLLECTIONS, build_index_projection
+from app.infra.database.common import RepositoryVersionConflict
 from scripts.seed_assessments import build_assessment_seed_bundle
 from scripts.seed_demo import build_demo_seed_bundle
 

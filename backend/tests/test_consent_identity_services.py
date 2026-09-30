@@ -6,34 +6,34 @@ from typing import Literal, cast
 import httpx
 import pytest
 
-from app.audit.writer import AuditWriter
-from app.config.settings import Settings
-from app.domain.models import (
-    AnonymousIdentityDocument,
-    ConsentEventDocument,
-    IdentityRecordDocument,
-    UserAccountDocument,
+from app.infra.config.settings import Settings
+from app.infra.database.common import (
+    RepositoryNotFound,
+    RepositoryUnavailable,
+    RepositoryVersionConflict,
 )
-from app.integrations.school_identity import (
+from app.infra.database.memory.audit import InMemoryAuditRepository
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.database.memory.idempotency import InMemoryIdempotencyRepository
+from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.integrations.school_identity import (
     DemoSchoolIdentityProvider,
     HttpSchoolIdentityProvider,
     SchoolIdentityVerificationResult,
     UnavailableSchoolIdentityProvider,
 )
-from app.repositories.audit_repository import InMemoryAuditRepository
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.repositories.idempotency_repository import InMemoryIdempotencyRepository
-from app.repositories.protocols import (
-    RepositoryNotFound,
-    RepositoryUnavailable,
-    RepositoryVersionConflict,
+from app.infra.logger.audit import AuditWriter
+from app.infra.security.tokens import TokenManager
+from app.infra.serializer.error.common import ApiException
+from app.models.v2.documents import (
+    AnonymousIdentityDocument,
+    ConsentEventDocument,
+    IdentityRecordDocument,
+    UserAccountDocument,
 )
-from app.repositories.session_repository import InMemorySessionRepository
-from app.schemas.errors import ApiException
-from app.security.tokens import TokenManager
-from app.services.consent_service import ConsentService
-from app.services.idempotency_service import IdempotencyService
-from app.services.identity_service import HmacIdentityCipher, IdentityService
+from app.services.v2.consent_service import ConsentService
+from app.services.v2.idempotency_service import IdempotencyService
+from app.services.v2.identity_service import HmacIdentityCipher, IdentityService
 
 
 class FakeSchoolIdentityProvider:

@@ -6,8 +6,8 @@ from pathlib import Path
 from fastapi.routing import APIRoute
 from fastapi.testclient import TestClient
 
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.main import create_app
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
 
 from .test_auth_api import FakeWechatClient, configured_settings
 

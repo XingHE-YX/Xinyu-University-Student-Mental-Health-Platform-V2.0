@@ -38,7 +38,7 @@ line-length = 100
 select = ["E", "F", "I", "UP"]
 
 [tool.ruff.lint.per-file-ignores]
-"app/config/ai_prompt.py" = ["E501"]
+"app/infra/ai/prompt/templates/*.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.14"

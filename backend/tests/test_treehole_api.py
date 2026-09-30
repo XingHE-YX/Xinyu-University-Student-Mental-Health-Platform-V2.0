@@ -7,16 +7,16 @@ from typing import Any, Literal, cast
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
-from app.domain.models import (
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.password.common import hash_password
+from app.main import create_app
+from app.models.v2.documents import (
     AnonymousIdentityDocument,
     IdentityRecordDocument,
     TreeholePostDocument,
     UserAccountDocument,
 )
-from app.main import create_app
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.security.passwords import hash_password
-from app.services.ai_assist_service import AiAssistService
+from app.services.v2.ai_assist_service import AiAssistService
 
 from .test_assessment_service import configured_settings
 

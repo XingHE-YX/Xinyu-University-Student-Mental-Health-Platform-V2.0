@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
-from app.security.passwords import hash_password
+from app.infra.password.common import hash_password
 from scripts.initialize_cloudbase import read_environment
 
 FORM = """<!doctype html>

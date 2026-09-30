@@ -5,22 +5,22 @@ from typing import Any
 
 import pytest
 
-from app.audit.writer import AuditWriter
-from app.config.settings import Settings
-from app.domain.models import (
+from app.infra.config.settings import Settings
+from app.infra.database.memory.audit import InMemoryAuditRepository
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.database.memory.idempotency import InMemoryIdempotencyRepository
+from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.logger.audit import AuditWriter
+from app.infra.security.tokens import TokenManager
+from app.infra.serializer.error.common import ApiException
+from app.models.v2.documents import (
     IdentityRecordDocument,
     SupportResourceDocument,
     UserAccountDocument,
 )
-from app.repositories.audit_repository import InMemoryAuditRepository
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.repositories.idempotency_repository import InMemoryIdempotencyRepository
-from app.repositories.session_repository import InMemorySessionRepository
-from app.schemas.errors import ApiException
-from app.security.tokens import TokenManager
-from app.services.assessment_service import AssessmentService
-from app.services.idempotency_service import IdempotencyService
-from app.services.safety_service import SafetyService
+from app.services.v2.assessment_service import AssessmentService
+from app.services.v2.idempotency_service import IdempotencyService
+from app.services.v2.safety_service import SafetyService
 
 
 def settings_for(kind: str = "demo") -> Settings:
@@ -65,7 +65,7 @@ def build_user(**overrides: Any) -> UserAccountDocument:
 
 
 def build_repository(*, kind: str = "demo") -> InMemoryDomainDataRepository:
-    rules = pytest.importorskip("app.domain.assessment_rules")
+    rules = pytest.importorskip("app.services.v2.rules.assessment")
     seed_documents = rules.build_seed_documents()
     return InMemoryDomainDataRepository(
         users=[build_user()],

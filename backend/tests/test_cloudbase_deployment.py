@@ -1,4 +1,4 @@
-from app.config.deployment import validate_deployment_config
+from app.infra.config.deployment import validate_deployment_config
 
 
 def complete_values() -> dict[str, str]:

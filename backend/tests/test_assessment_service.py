@@ -6,22 +6,22 @@ from typing import Any
 
 import pytest
 
-from app.audit.writer import AuditWriter
-from app.config.settings import Settings
-from app.domain.models import (
+from app.infra.config.settings import Settings
+from app.infra.database.common import RepositoryNotFound
+from app.infra.database.memory.audit import InMemoryAuditRepository
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.database.memory.idempotency import InMemoryIdempotencyRepository
+from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.logger.audit import AuditWriter
+from app.infra.security.tokens import TokenManager
+from app.infra.serializer.error.common import ApiException
+from app.models.v2.documents import (
     AssessmentQuestionnaireDocument,
     IdentityRecordDocument,
     UserAccountDocument,
 )
-from app.repositories.audit_repository import InMemoryAuditRepository
-from app.repositories.domain_data_repository import InMemoryDomainDataRepository
-from app.repositories.idempotency_repository import InMemoryIdempotencyRepository
-from app.repositories.protocols import RepositoryNotFound
-from app.repositories.session_repository import InMemorySessionRepository
-from app.schemas.errors import ApiException
-from app.security.tokens import TokenManager
-from app.services.ai_assist_service import AiAssistService
-from app.services.idempotency_service import IdempotencyService
+from app.services.v2.ai_assist_service import AiAssistService
+from app.services.v2.idempotency_service import IdempotencyService
 
 
 def configured_settings() -> Settings:
@@ -78,7 +78,7 @@ def seed_rules_repository(
     questionnaire_updates: dict[tuple[str, str], dict[str, Any]] | None = None,
     extra_questionnaires: list[AssessmentQuestionnaireDocument] | None = None,
 ) -> InMemoryDomainDataRepository:
-    rules = pytest.importorskip("app.domain.assessment_rules")
+    rules = pytest.importorskip("app.services.v2.rules.assessment")
     seed_documents = rules.build_seed_documents()
     modules = [
         module.model_copy(update=(module_updates or {}).get(module.module_code, {}))
@@ -117,7 +117,7 @@ def seed_rules_repository(
 
 
 def build_service(repository: InMemoryDomainDataRepository) -> object:
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     return service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -149,7 +149,7 @@ async def test_completed_assessment_persists_and_returns_ai_assist() -> None:
     sessions = InMemorySessionRepository()
     settings = configured_settings()
     ai_assist = AiAssistService(settings, client=StubClient(), repository=repository)
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=settings,
         repository=repository,
@@ -190,7 +190,7 @@ async def test_completed_assessment_persists_and_returns_ai_assist() -> None:
 def test_start_session_freezes_enabled_questionnaire_version_without_score_rules() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -223,7 +223,7 @@ def test_assessment_audit_events_use_allowed_assessment_resource_type() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
     audit_repository = InMemoryAuditRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -250,7 +250,7 @@ def test_assessment_audit_events_use_allowed_assessment_resource_type() -> None:
 def test_start_session_rejects_disabled_module_from_repository() -> None:
     repository = seed_rules_repository(module_updates={"phq9": {"enabled": False}})
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -278,7 +278,7 @@ def test_start_session_rejects_disabled_questionnaire_from_repository() -> None:
         questionnaire_updates={("phq9", "phq9-cn-v1"): {"enabled": False}}
     )
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -300,7 +300,7 @@ def test_start_session_rejects_disabled_questionnaire_from_repository() -> None:
 
 
 def test_start_session_uses_repository_current_version_and_question_projection() -> None:
-    rules = pytest.importorskip("app.domain.assessment_rules")
+    rules = pytest.importorskip("app.services.v2.rules.assessment")
     seed_documents = rules.build_seed_documents()
     phq9_v1 = next(
         questionnaire
@@ -324,7 +324,7 @@ def test_start_session_uses_repository_current_version_and_question_projection()
         extra_questionnaires=[phq9_v2],
     )
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -351,7 +351,7 @@ def test_start_session_rejects_missing_current_questionnaire() -> None:
         module_updates={"phq9": {"current_questionnaire_version": "phq9-cn-v2"}}
     )
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -373,7 +373,7 @@ def test_start_session_rejects_missing_current_questionnaire() -> None:
 
 
 def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
-    rules = pytest.importorskip("app.domain.assessment_rules")
+    rules = pytest.importorskip("app.services.v2.rules.assessment")
     repository = seed_rules_repository()
     gad7 = next(
         questionnaire
@@ -394,7 +394,7 @@ def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
 
     repository.get_assessment_questionnaire = get_mismatched_questionnaire  # type: ignore[method-assign]
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -417,7 +417,7 @@ def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
 
 
 def test_completion_scores_from_the_session_questionnaire_document() -> None:
-    rules = pytest.importorskip("app.domain.assessment_rules")
+    rules = pytest.importorskip("app.services.v2.rules.assessment")
     seed_documents = rules.build_seed_documents()
     gad7_v1 = next(
         questionnaire
@@ -450,7 +450,7 @@ def test_completion_scores_from_the_session_questionnaire_document() -> None:
         extra_questionnaires=[gad7_v2],
     )
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -488,7 +488,7 @@ def test_completion_scores_from_the_session_questionnaire_document() -> None:
 def test_completion_persists_result_atomically_and_replays_duplicate_submit() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -559,7 +559,7 @@ def test_phq9_question_9_non_zero_requires_safety_confirmation_and_does_not_pers
 ):
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     audit_repository = InMemoryAuditRepository()
     service = service_module.AssessmentService(
         settings=configured_settings(),
@@ -617,7 +617,7 @@ def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result()
     sessions = InMemorySessionRepository()
     idempotency_repository = InMemoryIdempotencyRepository()
     audit_repository = InMemoryAuditRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -703,7 +703,7 @@ def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result()
 def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,
@@ -777,7 +777,7 @@ def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None
 def test_completion_rejects_version_conflict_expired_and_abandoned_sessions() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
-    service_module = pytest.importorskip("app.services.assessment_service")
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
     service = service_module.AssessmentService(
         settings=configured_settings(),
         repository=repository,

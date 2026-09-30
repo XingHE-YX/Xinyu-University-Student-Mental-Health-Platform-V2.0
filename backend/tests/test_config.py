@@ -3,10 +3,14 @@ from unittest.mock import patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config.environments import ConfigurationError, EnvironmentKind, EnvironmentMismatchError
-from app.config.settings import Settings
+from app.infra.config.settings import Settings
+from app.infra.config.validation import (
+    ConfigurationError,
+    EnvironmentKind,
+    EnvironmentMismatchError,
+)
+from app.infra.password.common import hash_password
 from app.main import create_app
-from app.security.passwords import hash_password
 
 
 def complete_environment() -> dict[str, str]:

@@ -2,9 +2,9 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from app.repositories.session_repository import InMemorySessionRepository
-from app.schemas.errors import ApiException
-from app.security.tokens import TokenManager
+from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.security.tokens import TokenManager
+from app.infra.serializer.error.common import ApiException
 
 
 def test_tokens_are_opaque_and_only_hashes_are_stored() -> None:

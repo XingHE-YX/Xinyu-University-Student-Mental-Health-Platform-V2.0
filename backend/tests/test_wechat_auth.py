@@ -1,8 +1,8 @@
 import httpx
 import pytest
 
-from app.integrations.wechat_auth import WechatAuthClient
-from app.schemas.errors import ApiException
+from app.infra.integrations.wechat import WechatAuthClient
+from app.infra.serializer.error.common import ApiException
 
 
 @pytest.mark.asyncio

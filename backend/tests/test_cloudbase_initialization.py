@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from app.repositories.collection_registry import COLLECTIONS, build_index_projection
-from app.repositories.protocols import RepositoryVersionConflict
+from app.infra.database.collections import COLLECTIONS, build_index_projection
+from app.infra.database.common import RepositoryVersionConflict
 from scripts.initialize_cloudbase import (
     demo_seed_collections,
     initialize_demo,

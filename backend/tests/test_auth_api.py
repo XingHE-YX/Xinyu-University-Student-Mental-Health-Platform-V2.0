@@ -1,9 +1,9 @@
 from fastapi.testclient import TestClient
 
-from app.config.settings import Settings
-from app.integrations.wechat_auth import WechatIdentity
+from app.infra.config.settings import Settings
+from app.infra.integrations.wechat import WechatIdentity
+from app.infra.password.common import hash_password
 from app.main import create_app
-from app.security.passwords import hash_password
 
 
 class FakeWechatClient:

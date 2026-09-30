@@ -2,11 +2,11 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.audit.writer import AuditWriter
-from app.repositories.audit_repository import InMemoryAuditRepository
-from app.repositories.idempotency_repository import InMemoryIdempotencyRepository
-from app.schemas.errors import ApiException
-from app.services.idempotency_service import IdempotencyService
+from app.infra.database.memory.audit import InMemoryAuditRepository
+from app.infra.database.memory.idempotency import InMemoryIdempotencyRepository
+from app.infra.logger.audit import AuditWriter
+from app.infra.serializer.error.common import ApiException
+from app.services.v2.idempotency_service import IdempotencyService
 
 
 def test_same_idempotency_request_is_replayed_without_a_second_reservation() -> None:

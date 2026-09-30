@@ -2,7 +2,7 @@ import re
 
 from fastapi.testclient import TestClient
 
-from app.config.settings import Settings
+from app.infra.config.settings import Settings
 from app.main import create_app
 
 client = TestClient(create_app(Settings.from_environment({})))

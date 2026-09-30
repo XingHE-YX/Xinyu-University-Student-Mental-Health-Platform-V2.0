@@ -1,14 +1,14 @@
 from fastapi.testclient import TestClient
 from starlette.requests import Request
 
-from app.config.settings import Settings
-from app.main import create_app
-from app.repositories.protocols import (
+from app.infra.config.settings import Settings
+from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryUnavailable,
     RepositoryVersionConflict,
 )
-from app.schemas.errors import ApiException
+from app.infra.serializer.error.common import ApiException
+from app.main import create_app
 
 
 def test_invalid_request_id_returns_the_standard_error_envelope() -> None:
@@ -91,7 +91,7 @@ def test_repository_failures_are_mapped_to_stable_api_errors() -> None:
 
 
 def test_required_idempotency_header_is_validated_at_the_boundary() -> None:
-    from app.api.dependencies import require_idempotency_key
+    from app.routers.dependencies import require_idempotency_key
 
     request = Request({"type": "http", "headers": []})
     try:
