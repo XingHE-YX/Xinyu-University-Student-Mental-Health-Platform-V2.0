@@ -42,10 +42,13 @@ class TokenManager:
     ADMIN_ACCESS_TTL = timedelta(minutes=15)
     ADMIN_REFRESH_TTL = timedelta(hours=8)
 
-    def __init__(self, secret: str) -> None:
+    def __init__(self, secret: str, *, admin_password_hash: str | None = None) -> None:
         if not secret:
             raise ValueError("token secret cannot be empty")
         self._secret = secret.encode("utf-8")
+        self._credential_version = (
+            self.hash_token(admin_password_hash) if admin_password_hash else None
+        )
 
     @traced
     def issue(
@@ -81,6 +84,7 @@ class TokenManager:
                 status="active",
                 created_at=issued_at,
                 updated_at=issued_at,
+                credential_version=self._credential_version if subject_type == "admin" else None,
             )
         )
         return pair
@@ -99,6 +103,7 @@ class TokenManager:
             raise ApiException(401, "AUTH_REQUIRED")
         if record.status != "active" or record.access_expires_at <= current:
             raise ApiException(401, "SESSION_EXPIRED")
+        self._check_credential(record)
         return AuthenticatedSubject(
             session_id=record.session_id,
             subject_type=record.subject_type,
@@ -122,6 +127,7 @@ class TokenManager:
             raise ApiException(401, "SESSION_EXPIRED")
         if expected_subject_type is not None and record.subject_type != expected_subject_type:
             raise ApiException(401, "AUTH_REQUIRED")
+        self._check_credential(record)
 
         access_token = secrets.token_urlsafe(32)
         new_refresh_token = secrets.token_urlsafe(32)
@@ -147,6 +153,7 @@ class TokenManager:
                 created_at=record.created_at,
                 updated_at=current,
                 version=record.version + 1,
+                credential_version=record.credential_version,
             )
         )
         return pair
@@ -170,6 +177,11 @@ class TokenManager:
     @traced
     def hash_token(self, token: str) -> str:
         return hmac.new(self._secret, token.encode("utf-8"), hashlib.sha256).hexdigest()
+
+    @traced
+    def _check_credential(self, record: AuthSessionRecord) -> None:
+        if record.subject_type == "admin" and record.credential_version != self._credential_version:
+            raise ApiException(401, "SESSION_EXPIRED")
 
     @classmethod
     @traced

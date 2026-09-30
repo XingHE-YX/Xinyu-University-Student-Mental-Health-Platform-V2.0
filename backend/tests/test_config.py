@@ -9,8 +9,8 @@ from app.infra.config.validation import (
     EnvironmentKind,
     EnvironmentMismatchError,
 )
-from app.infra.password.common import hash_password
 from app.main import create_app
+from tests.password_fixtures import TEST_HASH
 
 
 def complete_environment() -> dict[str, str]:
@@ -162,7 +162,7 @@ def test_optional_ai_key_does_not_disable_core_services(mode: str, api_key: str 
 def test_default_app_startup_reads_registry_and_allows_admin_login_without_ai(mode: str) -> None:
     environment = complete_environment()
     environment.pop("DEEPSEEK_API_KEY")
-    environment["ADMIN_PASSWORD_HASH"] = hash_password("test-password", salt=b"test-salt")
+    environment["ADMIN_PASSWORD_HASH"] = TEST_HASH
     environment["CLOUDBASE_ENV_ID"] = f"{mode}-env"
     environment["CLOUDBASE_ENV_ID_DEMO"] = "demo-env"
     environment["CLOUDBASE_ENV_ID_AUTHORIZED"] = "authorized-env"

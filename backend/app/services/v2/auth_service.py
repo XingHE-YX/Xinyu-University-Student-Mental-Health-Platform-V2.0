@@ -9,7 +9,7 @@ from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.integrations.wechat import WechatAuthClient, WechatIdentity
 from app.infra.logger.common import traced
-from app.infra.password.common import verify_password
+from app.infra.password.common import PasswordManager
 from app.infra.security.tokens import (
     AuthenticatedSubject,
     TokenManager,
@@ -42,9 +42,11 @@ class AuthService:
         domain_repository: InMemoryDomainDataRepository | None = None,
     ) -> None:
         self.settings = settings
+        self.passwords = PasswordManager(settings.password)
         self.sessions = session_repository or InMemorySessionRepository()
         self.tokens = token_manager or TokenManager(
-            settings.session_secret or secrets.token_urlsafe(32)
+            settings.session_secret or secrets.token_urlsafe(32),
+            admin_password_hash=settings.password_hash,
         )
         self.wechat = wechat_client or WechatAuthClient(
             appid=settings.wechat_appid,
@@ -72,11 +74,11 @@ class AuthService:
         )
 
     @traced
-    def login_admin(self, login_name: str, password: str) -> AdminSessionData:
+    async def login_admin(self, login_name: str, password: str) -> AdminSessionData:
         self._require_ready()
         if login_name != self.ADMIN_LOGIN_NAME or not self.settings.password_hash:
             raise ApiException(401, "INVALID_CREDENTIALS")
-        if not verify_password(password, self.settings.password_hash):
+        if not await self.passwords.verify(password, self.settings.password_hash):
             raise ApiException(401, "INVALID_CREDENTIALS")
         pair = self.tokens.issue(
             "admin",

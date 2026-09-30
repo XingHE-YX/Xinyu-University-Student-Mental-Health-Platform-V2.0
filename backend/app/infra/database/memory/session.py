@@ -25,6 +25,7 @@ class AuthSessionRecord:
     created_at: datetime
     updated_at: datetime
     version: int = 1
+    credential_version: str | None = None
 
 
 class InMemorySessionRepository:

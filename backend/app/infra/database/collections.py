@@ -91,6 +91,7 @@ REGISTRY: dict[str, CollectionSpec] = {
             field("refresh_expires_at", "datetime", required=False),
             field("last_seen_at", "datetime", required=True),
             field("device_hash", "hash_string", required=False),
+            field("credential_version", "hash_string", required=False),
         ),
         indexes=(
             IndexSpec(("access_token_hash",), unique=True),

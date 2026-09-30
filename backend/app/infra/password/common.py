@@ -1,53 +1,44 @@
-"""Password hashing helpers for the single fixed admin account."""
+"""Async password operations with bounded CPU and memory consumption."""
 
-import base64
-import hashlib
-import hmac
-import secrets
+from functools import partial
 
+import anyio
+
+from app.infra.config.types import PasswordConfig
 from app.infra.logger.common import traced
-
-PASSWORD_SCHEME = "pbkdf2_sha256"
-PASSWORD_ITERATIONS = 310_000
+from app.infra.password.algorithm import argon2id, pbkdf2_sha256
 
 
-@traced
-def hash_password(password: str, *, salt: bytes | None = None) -> str:
-    if not password:
-        raise ValueError("password cannot be empty")
-    actual_salt = salt or secrets.token_bytes(16)
-    digest = hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode("utf-8"),
-        actual_salt,
-        PASSWORD_ITERATIONS,
-    )
+class PasswordManager:
+    def __init__(self, config: PasswordConfig | None = None) -> None:
+        self.config = config or PasswordConfig()
+        self._limiter = anyio.CapacityLimiter(self.config.max_concurrency)
 
     @traced
-    def encode(value: bytes) -> str:
-        return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+    async def hash(self, password: str) -> str:
+        return await anyio.to_thread.run_sync(
+            partial(argon2id.hash_password, password, self.config), limiter=self._limiter
+        )
 
-    return f"{PASSWORD_SCHEME}${PASSWORD_ITERATIONS}${encode(actual_salt)}${encode(digest)}"
-
-
-@traced
-def verify_password(password: str, encoded_hash: str) -> bool:
-    try:
-        scheme, iteration_text, salt_text, digest_text = encoded_hash.split("$", 3)
-        if scheme != PASSWORD_SCHEME:
+    @traced
+    async def verify(self, password: str, encoded_hash: str) -> bool:
+        if not password or len(password.encode("utf-8")) > 4096:
             return False
-        iterations = int(iteration_text)
-        salt = _decode(salt_text)
-        expected = _decode(digest_text)
-    except AttributeError, ValueError:
-        return False
-    if iterations < 100_000 or not salt or not expected:
-        return False
-    actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
-    return hmac.compare_digest(actual, expected)
+        verifier = (
+            argon2id.verify_password
+            if encoded_hash.startswith("$argon2id$")
+            else pbkdf2_sha256.verify_password
+        )
+        return await anyio.to_thread.run_sync(
+            partial(verifier, password, encoded_hash, self.config), limiter=self._limiter
+        )
+
+    @traced
+    def needs_rehash(self, encoded_hash: str) -> bool:
+        return argon2id.needs_rehash(encoded_hash, self.config)
 
 
-@traced
-def _decode(value: str) -> bytes:
-    padding = "=" * (-len(value) % 4)
-    return base64.urlsafe_b64decode(value + padding)
+_passwords = PasswordManager()
+hash_password = _passwords.hash
+verify_password = _passwords.verify
+needs_rehash = _passwords.needs_rehash

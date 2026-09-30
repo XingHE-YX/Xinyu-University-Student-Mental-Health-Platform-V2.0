@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 
 from app.infra.config.settings import Settings
-from app.infra.password.common import hash_password
 from app.main import create_app
+from tests.password_fixtures import ADMIN_HASH
 
 
 def settings_for(environment: str = "demo") -> Settings:
@@ -13,7 +13,7 @@ def settings_for(environment: str = "demo") -> Settings:
             "CLOUDBASE_ENV_ID": f"{environment}-env",
             "CLOUDBASE_API_KEY": "cloudbase-secret",
             "DEEPSEEK_API_KEY": "deepseek-secret",
-            "ADMIN_PASSWORD_HASH": hash_password("correct-password", salt=b"test-salt"),
+            "ADMIN_PASSWORD_HASH": ADMIN_HASH,
             "ADMIN_SESSION_SECRET": "admin-session-secret",
             "SCHOOL_IDENTITY_PROVIDER_URL": "https://identity.example.test",
             "SUPPORT_RESOURCE_VERSION": "support-v1",

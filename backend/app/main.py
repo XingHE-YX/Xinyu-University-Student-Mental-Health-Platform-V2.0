@@ -121,7 +121,8 @@ def create_app(
         runtime_idempotency_repository = idempotency_repository or InMemoryIdempotencyRepository()
         runtime_audit_repository = audit_repository or InMemoryAuditRepository()
     runtime_tokens = token_manager or TokenManager(
-        runtime_settings.session_secret or "local-development-session-secret"
+        runtime_settings.session_secret or "local-development-session-secret",
+        admin_password_hash=runtime_settings.password_hash,
     )
     runtime_idempotency = IdempotencyService(runtime_idempotency_repository)
     runtime_audit = AuditWriter(

@@ -10,7 +10,6 @@ from pydantic import SecretStr
 from app.infra.ai.client.abstract import AIClient
 from app.infra.ai.client.types import AIRequest, AIResponse
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.password.common import hash_password
 from app.main import create_app
 from app.models.v2.documents import (
     AnonymousIdentityDocument,
@@ -19,6 +18,7 @@ from app.models.v2.documents import (
     UserAccountDocument,
 )
 from app.services.v2.ai_assist_service import AiAssistService
+from tests.password_fixtures import ADMIN_HASH
 
 from .test_assessment_service import configured_settings
 
@@ -92,11 +92,7 @@ def build_client() -> tuple[TestClient, InMemoryDomainDataRepository, str]:
         users=[user], identities=[identity], anonymous_identities=[anonymous]
     )
     settings = configured_settings().model_copy(
-        update={
-            "admin_password_hash": SecretStr(
-                hash_password("correct-password", salt=b"treehole-admin-test")
-            )
-        }
+        update={"admin_password_hash": SecretStr(ADMIN_HASH)}
     )
     app = create_app(
         settings,

@@ -35,6 +35,7 @@ class AuthSessionDocument(DocumentModel):
     refresh_expires_at: datetime | None = None
     last_seen_at: datetime
     device_hash: str | None = None
+    credential_version: str | None = None
 
 
 class AdminAccountDocument(DocumentModel):

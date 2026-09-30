@@ -32,7 +32,9 @@ def parse_record[R: (AuthSessionRecord, IdempotencyRecord, AuditEventRecord)](
     model: type[R], data: dict[str, Any]
 ) -> R:
     try:
-        return TypeAdapter(model).validate_python({f.name: data[f.name] for f in fields(model)})
+        return TypeAdapter(model).validate_python(
+            {f.name: data[f.name] for f in fields(model) if f.name in data}
+        )
     except KeyError, ValidationError:
         raise RepositoryUnavailable("stored security record is invalid") from None
 
