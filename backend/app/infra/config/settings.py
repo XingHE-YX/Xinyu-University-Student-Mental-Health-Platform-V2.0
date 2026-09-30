@@ -4,8 +4,9 @@ import os
 from collections.abc import Iterable, Mapping
 from typing import Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import SecretStr
 
+from app.infra.config.types import RuntimeConfig
 from app.infra.config.validation import (
     EnvironmentKind,
     parse_demo_mode,
@@ -13,37 +14,12 @@ from app.infra.config.validation import (
 )
 
 
-class Settings(BaseModel):
+class Settings(RuntimeConfig):
     """Runtime settings.
 
     Secret values are kept in memory for integrations, but public status output is
     deliberately assembled by :meth:`public_snapshot` instead of serializing this model.
     """
-
-    model_config = ConfigDict(extra="forbid")
-
-    wechat_appid: str | None = None
-    wechat_appsecret: SecretStr | None = Field(default=None, exclude=True)
-    cloudbase_env_id: str | None = Field(default=None, exclude=True)
-    cloudbase_api_key: SecretStr | None = Field(default=None, exclude=True)
-    deepseek_api_key: SecretStr | None = Field(default=None, exclude=True)
-    admin_password_hash: SecretStr | None = Field(default=None, exclude=True)
-    admin_session_secret: SecretStr | None = Field(default=None, exclude=True)
-    school_identity_provider_url: str | None = None
-    support_resource_version: str | None = None
-    demo_mode: bool | None = None
-    persistence_backend: Literal["memory", "cloudbase"] = "memory"
-
-    demo_env_ids: tuple[str, ...] = Field(default=(), exclude=True)
-    authorized_env_ids: tuple[str, ...] = Field(default=(), exclude=True)
-    declared_environment_kind: EnvironmentKind = EnvironmentKind.UNCONFIGURED
-    persistence_environment_kind: EnvironmentKind = Field(
-        default=EnvironmentKind.UNCONFIGURED, exclude=True
-    )
-    environment_kind: EnvironmentKind = EnvironmentKind.UNCONFIGURED
-    configuration_status: Literal["ready", "unconfigured"] = "unconfigured"
-    missing_requirements: tuple[str, ...] = ()
-    demo_reset_allowed: bool = False
 
     @classmethod
     def from_environment(
@@ -126,6 +102,9 @@ class Settings(BaseModel):
             configuration_status="ready" if ready else "unconfigured",
             missing_requirements=tuple(sorted(set(missing))),
             demo_reset_allowed=environment_kind is EnvironmentKind.DEMO,
+            admin_web_origins=tuple(
+                value for key in ("ADMIN_WEB_ORIGIN",) if (value := source.get(key))
+            ),
         )
 
     def public_snapshot(self) -> dict[str, object]:
