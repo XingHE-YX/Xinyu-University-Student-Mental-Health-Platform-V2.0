@@ -32,6 +32,7 @@
 | npm | `10.9.4`，见两个前端的 `package.json`；依赖由锁文件记录 |
 | Python | `>=3.11,<3.12`，见 `backend/pyproject.toml` |
 | uv | 管理 Python、`backend/.venv` 与依赖；清单为 `pyproject.toml`，锁文件为 `uv.lock` |
+| just | 根目录命令编排：`just init`、`just venv`、`just run backend` / `admin`、`just check`、`just test` |
 | 微信开发者工具 | 小程序预览、真机调试与上传 |
 | TypeScript、Vite | 前端类型检查与后台构建 |
 | Vitest、Node test runner | 后台与小程序测试 |

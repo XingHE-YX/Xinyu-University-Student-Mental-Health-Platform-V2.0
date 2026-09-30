@@ -18,8 +18,8 @@
 
 ## 开始使用
 
-1. 按 [贡献指南](CONTRIBUTING.md) 准备 Node.js、npm、Python 3.11 和前端依赖。
-2. 按贡献指南分别启动业务后端和管理后台；缺少环境配置时服务保持未配置状态。
+1. 按 [贡献指南](CONTRIBUTING.md) 准备 uv、just、Node.js、npm 和前端依赖，运行 `just init` 初始化后端。
+2. 在两个终端分别执行 `just run backend`、`just run admin`；缺少环境配置时服务保持未配置状态。
 3. 使用微信开发者工具打开 `miniprogram/`；管理后台和业务后端分别运行，不能把后台当作小程序页面。
 4. 联网部署前阅读 [环境配置](docs/develop/CONFIGURATION_REGISTRY.md) 和 [CloudBase 部署](docs/develop/deploy/CLOUDBASE.md)。
 
