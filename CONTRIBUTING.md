@@ -13,7 +13,7 @@
 | just | 根目录 `Justfile` 的开发命令编排 |
 | 微信开发者工具 | 小程序预览、真机调试与上传 |
 
-依赖以各模块的清单和锁文件为准；本仓库没有根目录统一的 npm 安装入口。
+依赖以各模块的清单和锁文件为准；在根目录运行 `just init` 统一安装三个模块的依赖。
 工具链兼容性说明见 [排错文档](docs/develop/TROUBLESHOOTING.md)。
 
 ## 根目录快捷命令
@@ -23,9 +23,9 @@
 | 命令 | 用途 |
 | --- | --- |
 | `just venv` | 仅创建 `backend/.venv`，不安装依赖；环境已存在时使用 `just init` |
-| `just init` | 创建或同步后端环境，按锁文件安装运行和开发依赖；不安装前端依赖 |
+| `just init` | 按锁文件安装后端、小程序和管理后台的运行与开发依赖，创建或同步后端环境 |
 | `just run backend` | 启动后端开发服务，开启 reload，默认 `127.0.0.1:9000` |
-| `just run admin` | 启动管理后台 Vite 服务，需先安装后台 npm 依赖 |
+| `just run admin` | 启动管理后台 Vite 服务，需先执行 `just init` |
 | `just check backend` | Ruff、格式和 mypy 检查；省略 backend 效果相同 |
 | `just test backend` | 后端 pytest；省略 backend 效果相同 |
 
@@ -37,7 +37,14 @@ uv 命令不需要激活环境；需要交互使用时，在当前 shell 执行
 
 ## 安装依赖
 
-后端在项目根目录执行：
+在项目根目录统一安装：
+
+```bash
+just init
+```
+
+该命令依次同步后端环境、安装小程序和管理后台的 npm 依赖；任一步骤失败都会停止。
+也可以按模块单独安装。后端在项目根目录执行：
 
 ```bash
 uv python install 3.11.11

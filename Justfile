@@ -9,9 +9,11 @@ default:
 venv:
     uv venv --project backend backend/.venv
 
-# Create or sync the backend environment, including development dependencies.
+# Install backend, miniprogram and admin dependencies from their lockfiles.
 init:
     uv sync --project backend --locked
+    npm --prefix miniprogram ci
+    npm --prefix admin ci --legacy-peer-deps
 
 # Start a development service: backend or admin.
 run target:
