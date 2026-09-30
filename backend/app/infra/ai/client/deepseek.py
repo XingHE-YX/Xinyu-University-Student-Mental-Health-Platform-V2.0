@@ -7,24 +7,23 @@ The adapter has no business policy: callers must project and validate fields usi
 from __future__ import annotations
 
 import asyncio
-import json
-from collections.abc import Mapping
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
+from app.infra.ai.client.abstract import AIClient
+from app.infra.ai.client.types import AIRequest, AIResponse
 from app.infra.ai.prompt.templates.common import (
     DEEPSEEK_CHAT_URL,
     DEEPSEEK_MAX_CONCURRENCY,
     DEEPSEEK_TIMEOUT_SECONDS,
-    REQUEST_MODEL,
-    SYSTEM_PROMPT,
 )
 from app.infra.logger.common import traced
 from app.infra.serializer.error.ai import DeepSeekUnavailable as DeepSeekUnavailable
 
 
-class DeepSeekClient:
+class DeepSeekClient(AIClient):
     def __init__(
         self,
         *,
@@ -32,52 +31,49 @@ class DeepSeekClient:
         endpoint: str = DEEPSEEK_CHAT_URL,
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = DEEPSEEK_TIMEOUT_SECONDS,
+        max_concurrency: int = DEEPSEEK_MAX_CONCURRENCY,
     ) -> None:
         self._api_key = api_key.strip() if api_key else None
         self._endpoint = endpoint
-        self._transport = transport
-        self._timeout = timeout
-        self._semaphore = asyncio.Semaphore(DEEPSEEK_MAX_CONCURRENCY)
+        self._semaphore = asyncio.Semaphore(max_concurrency)
+        self._client = httpx.AsyncClient(
+            timeout=timeout, transport=transport, follow_redirects=False
+        )
 
     @traced
-    async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    async def complete(self, request: AIRequest) -> AIResponse:
         if not self._api_key:
             raise DeepSeekUnavailable("DeepSeek 未配置")
         request_body = {
-            "model": REQUEST_MODEL,
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": json.dumps(dict(payload), ensure_ascii=False)},
-            ],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"},
+            "model": request.model,
+            "messages": [message.model_dump() for message in request.messages],
+            "temperature": request.temperature,
             "stream": False,
         }
+        if request.response_format == "json_object":
+            request_body["response_format"] = {"type": "json_object"}
         try:
             async with self._semaphore:
-                async with httpx.AsyncClient(
-                    timeout=self._timeout,
-                    transport=self._transport,
-                ) as client:
-                    response = await client.post(
-                        self._endpoint,
-                        headers={"Authorization": f"Bearer {self._api_key}"},
-                        json=request_body,
-                    )
-                    response.raise_for_status()
-                    body = response.json()
-        except (httpx.HTTPError, ValueError, TypeError) as error:
-            raise DeepSeekUnavailable("DeepSeek 请求失败") from error
+                response = await self._client.post(
+                    self._endpoint,
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    json=request_body,
+                )
+                response.raise_for_status()
+                body = response.json()
+        except httpx.HTTPError, ValueError, TypeError:
+            raise DeepSeekUnavailable("DeepSeek 请求失败") from None
         content = _extract_content(body)
         if not content:
             raise DeepSeekUnavailable("DeepSeek 返回为空")
         try:
-            parsed = json.loads(content)
-        except (TypeError, json.JSONDecodeError) as error:
-            raise DeepSeekUnavailable("DeepSeek 返回不是合法 JSON") from error
-        if not isinstance(parsed, dict) or parsed.get("task_type") != task_type:
-            raise DeepSeekUnavailable("DeepSeek 返回结构不匹配")
-        return parsed
+            return AIResponse(content=content, model=body.get("model"), usage=body.get("usage"))
+        except ValidationError:
+            raise DeepSeekUnavailable("DeepSeek 返回结构不匹配") from None
+
+    @traced
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
 
 @traced

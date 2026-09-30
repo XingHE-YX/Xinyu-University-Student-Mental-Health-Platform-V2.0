@@ -1,13 +1,16 @@
 import asyncio
 import json
-from collections.abc import Mapping
 from typing import Any
 
 import httpx
 import pytest
 
+from app.infra.ai.client.abstract import AIClient
 from app.infra.ai.client.deepseek import DeepSeekClient, DeepSeekUnavailable
+from app.infra.ai.client.types import AIRequest, AIResponse
+from app.infra.ai.prompt.manager import PromptManager
 from app.infra.config.settings import Settings
+from app.infra.config.types import AIConfig
 from app.infra.database.memory.audit import InMemoryAuditRepository
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.logger.audit import AuditWriter
@@ -124,12 +127,13 @@ def test_deepseek_client_sends_fixed_json_contract_without_retry() -> None:
     client = DeepSeekClient(api_key="secret", transport=transport)
     result = asyncio.run(
         client.complete(
-            task_type="assessment_explanation",
-            payload={"task_type": "assessment_explanation"},
+            PromptManager().request(
+                "assessment_explanation", {"task_type": "assessment_explanation"}, AIConfig()
+            ),
         )
     )
 
-    assert result == {"task_type": "assessment_explanation"}
+    assert json.loads(result.content) == {"task_type": "assessment_explanation"}
     assert len(requests) == 1
     assert requests[0].url == "https://api.deepseek.com/chat/completions"
     assert requests[0].headers["authorization"] == "Bearer secret"
@@ -143,7 +147,11 @@ def test_deepseek_client_sends_fixed_json_contract_without_retry() -> None:
 def test_missing_key_is_explicit_unavailable() -> None:
     client = DeepSeekClient(api_key=None)
     with pytest.raises(DeepSeekUnavailable, match="未配置"):
-        asyncio.run(client.complete(task_type="assessment_explanation", payload=ASSESSMENT_INPUT))
+        asyncio.run(
+            client.complete(
+                PromptManager().request("assessment_explanation", ASSESSMENT_INPUT, AIConfig())
+            )
+        )
 
 
 def test_service_falls_back_and_audits_without_blocking_fixed_result() -> None:
@@ -187,11 +195,16 @@ def test_service_adopts_valid_output_but_does_not_change_fixed_band() -> None:
         "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
     }
 
-    class StubClient:
-        async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    class StubClient(AIClient):
+        async def complete(self, request: AIRequest) -> AIResponse:
+            payload = json.loads(request.messages[-1].content)
+            task_type = payload["task_type"]
             assert task_type == "assessment_explanation"
             assert payload == ASSESSMENT_INPUT
-            return output
+            return AIResponse(content=json.dumps(output, ensure_ascii=False), model="fake-model")
+
+        async def aclose(self) -> None:
+            pass
 
     service = AiAssistService(settings_for(), client=StubClient())
     result = asyncio.run(
@@ -226,20 +239,31 @@ def test_treehole_failure_requests_manual_review_and_never_publishes() -> None:
 
 
 def test_needs_fallback_model_response_is_not_adopted() -> None:
-    class FallbackClient:
-        async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    class FallbackClient(AIClient):
+        async def complete(self, request: AIRequest) -> AIResponse:
+            payload = json.loads(request.messages[-1].content)
+            task_type = payload["task_type"]
             del task_type, payload
-            return {
-                "task_type": "assessment_explanation",
-                "status": "needs_fallback",
-                "summary": (
-                    "这段说明帮助你阅读已经完成的固定结果，内容保持平静并只基于本次记录，"
-                    "不改变固定分层，也不替代你对下一步的自主决定。"
+            return AIResponse(
+                content=json.dumps(
+                    {
+                        "task_type": "assessment_explanation",
+                        "status": "needs_fallback",
+                        "summary": (
+                            "这段说明帮助你阅读已经完成的固定结果，内容保持平静并只基于本次记录，"
+                            "不改变固定分层，也不替代你对下一步的自主决定。"
+                        ),
+                        "observations": [],
+                        "practical_steps": ["可以按自己的节奏查看支持资源。"],
+                        "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
+                    },
+                    ensure_ascii=False,
                 ),
-                "observations": [],
-                "practical_steps": ["可以按自己的节奏查看支持资源。"],
-                "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
-            }
+                model="fake-model",
+            )
+
+        async def aclose(self) -> None:
+            pass
 
     service = AiAssistService(settings_for(), client=FallbackClient())
     result = asyncio.run(
@@ -258,20 +282,31 @@ def test_needs_fallback_model_response_is_not_adopted() -> None:
 def test_ai_snapshot_persists_and_can_be_reloaded() -> None:
     repository = InMemoryDomainDataRepository()
 
-    class StubClient:
-        async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    class StubClient(AIClient):
+        async def complete(self, request: AIRequest) -> AIResponse:
+            payload = json.loads(request.messages[-1].content)
+            task_type = payload["task_type"]
             del payload
-            return {
-                "task_type": task_type,
-                "status": "ok",
-                "summary": (
-                    "这段说明帮助你阅读已经完成的固定结果，并保持原有分层不变，"
-                    "你可以按自己的节奏决定是否查看支持资源。"
+            return AIResponse(
+                content=json.dumps(
+                    {
+                        "task_type": task_type,
+                        "status": "ok",
+                        "summary": (
+                            "这段说明帮助你阅读已经完成的固定结果，并保持原有分层不变，"
+                            "你可以按自己的节奏决定是否查看支持资源。"
+                        ),
+                        "observations": ["本次结果只作为自我观察参考。"],
+                        "practical_steps": ["可以先查看支持资源。"],
+                        "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
+                    },
+                    ensure_ascii=False,
                 ),
-                "observations": ["本次结果只作为自我观察参考。"],
-                "practical_steps": ["可以先查看支持资源。"],
-                "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
-            }
+                model="fake-model",
+            )
+
+        async def aclose(self) -> None:
+            pass
 
     first = AiAssistService(settings_for(), client=StubClient(), repository=repository)
     result = asyncio.run(

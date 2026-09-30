@@ -1,9 +1,9 @@
 from app.infra.serializer.error.common import AppError, ErrorCode
 
 
-class DeepSeekUnavailable(AppError):
+class AIUnavailable(AppError):
     code = ErrorCode.AI_UNAVAILABLE
 
 
-class AIUnavailable(DeepSeekUnavailable):
-    """Provider-independent AI failure, retained under a common public type."""
+class DeepSeekUnavailable(AIUnavailable):
+    """DeepSeek-specific failure with the common AI error contract."""

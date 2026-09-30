@@ -74,7 +74,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        await asyncio.to_thread(stop_logging)
+        try:
+            await app.state.ai_assist_service.aclose()
+        finally:
+            await asyncio.to_thread(stop_logging)
 
 
 def create_app(

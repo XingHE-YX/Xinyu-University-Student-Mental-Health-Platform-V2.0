@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+import json
 from datetime import UTC, datetime
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
+from app.infra.ai.client.abstract import AIClient
+from app.infra.ai.client.types import AIRequest, AIResponse
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.password.common import hash_password
 from app.main import create_app
@@ -22,25 +24,31 @@ from .test_assessment_service import configured_settings
 
 
 def build_client() -> tuple[TestClient, InMemoryDomainDataRepository, str]:
-    class StubTreeholeAiClient:
-        async def complete(
-            self,
-            *,
-            task_type: str,
-            payload: Mapping[str, Any],
-        ) -> dict[str, Any]:
+    class StubTreeholeAiClient(AIClient):
+        async def complete(self, request: AIRequest) -> AIResponse:
+            payload = json.loads(request.messages[-1].content)
+            task_type = payload["task_type"]
             source = str(payload["sanitized_text"])
-            return {
-                "task_type": task_type,
-                "status": "ok",
-                "content_safety": "clear",
-                "wellbeing_signal": "none",
-                "privacy_signal": "clear",
-                "community_issue": ["none"],
-                "evidence_spans": [source[:8]],
-                "recommended_route": "allow",
-                "review_note": "已完成受限辅助检查，最终状态仍由规则和人工决定。",
-            }
+            return AIResponse(
+                content=json.dumps(
+                    {
+                        "task_type": task_type,
+                        "status": "ok",
+                        "content_safety": "clear",
+                        "wellbeing_signal": "none",
+                        "privacy_signal": "clear",
+                        "community_issue": ["none"],
+                        "evidence_spans": [source[:8]],
+                        "recommended_route": "allow",
+                        "review_note": "已完成受限辅助检查，最终状态仍由规则和人工决定。",
+                    },
+                    ensure_ascii=False,
+                ),
+                model="fake-model",
+            )
+
+        async def aclose(self) -> None:
+            pass
 
     now = datetime(2026, 9, 2, tzinfo=UTC)
     user = UserAccountDocument(

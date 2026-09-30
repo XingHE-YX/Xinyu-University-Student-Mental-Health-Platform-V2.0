@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+import json
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
+from app.infra.ai.client.abstract import AIClient
+from app.infra.ai.client.types import AIRequest, AIResponse
 from app.infra.config.settings import Settings
 from app.infra.database.common import RepositoryNotFound
 from app.infra.database.memory.audit import InMemoryAuditRepository
@@ -130,20 +132,31 @@ def build_service(repository: InMemoryDomainDataRepository) -> object:
 
 @pytest.mark.asyncio
 async def test_completed_assessment_persists_and_returns_ai_assist() -> None:
-    class StubClient:
-        async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    class StubClient(AIClient):
+        async def complete(self, request: AIRequest) -> AIResponse:
+            payload = json.loads(request.messages[-1].content)
+            task_type = payload["task_type"]
             assert payload["module"] == "GAD7"
-            return {
-                "task_type": task_type,
-                "status": "ok",
-                "summary": (
-                    "这段说明帮助你阅读已经完成的固定结果，并保持原有分层不变，"
-                    "你可以按自己的节奏决定是否查看支持资源。"
+            return AIResponse(
+                content=json.dumps(
+                    {
+                        "task_type": task_type,
+                        "status": "ok",
+                        "summary": (
+                            "这段说明帮助你阅读已经完成的固定结果，并保持原有分层不变，"
+                            "你可以按自己的节奏决定是否查看支持资源。"
+                        ),
+                        "observations": ["本次结果只作为自我观察参考。"],
+                        "practical_steps": ["可以先查看支持资源。"],
+                        "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
+                    },
+                    ensure_ascii=False,
                 ),
-                "observations": ["本次结果只作为自我观察参考。"],
-                "practical_steps": ["可以先查看支持资源。"],
-                "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
-            }
+                model="fake-model",
+            )
+
+        async def aclose(self) -> None:
+            pass
 
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()

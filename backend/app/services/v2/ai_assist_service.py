@@ -6,12 +6,14 @@ import hashlib
 import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, TypedDict
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict
 
-from app.infra.ai.client.deepseek import DeepSeekClient
+from app.infra.ai.client.abstract import AIClient
+from app.infra.ai.client.factory import create_ai_client
+from app.infra.ai.prompt.manager import PromptManager
 from app.infra.ai.prompt.templates.common import (
     PROMPT_VERSION,
     REQUEST_MODEL,
@@ -32,9 +34,10 @@ TaskType = Literal["assessment_explanation", "treehole_review_assist"]
 logger = get_logger(__name__)
 
 
-class AiClient(Protocol):
-    @traced
-    async def complete(self, *, task_type: str, payload: Mapping[str, Any]) -> dict[str, Any]: ...
+class AIMetadata(TypedDict):
+    request_model: str
+    resolved_model_version: str
+    prompt_version: str
 
 
 class AiAssistResult(BaseModel):
@@ -81,15 +84,18 @@ class AiAssistService:
         self,
         settings: Settings,
         *,
-        client: AiClient | None = None,
+        client: AIClient | None = None,
+        prompts: PromptManager | None = None,
         audit_writer: AuditWriter | None = None,
         repository: InMemoryDomainDataRepository | None = None,
     ) -> None:
         self.settings = settings
-        self.client = client or DeepSeekClient(
+        self.prompts = prompts or PromptManager()
+        self.client = client or create_ai_client(
+            settings.ai,
             api_key=settings.deepseek_api_key.get_secret_value()
             if settings.deepseek_api_key
-            else None
+            else None,
         )
         self.audit = audit_writer or AuditWriter(
             environment_id=settings.cloudbase_env_id or settings.environment_kind.value
@@ -214,7 +220,10 @@ class AiAssistService:
         fixed_band: str | None = None,
     ) -> AiAssistResult:
         try:
-            raw = await self.client.complete(task_type=task_type, payload=projected)
+            response = await self.client.complete(
+                self.prompts.request(task_type, projected, self.settings.ai)
+            )
+            raw = json.loads(response.content)
             output = validate_ai_output(
                 task_type,
                 raw,
@@ -273,6 +282,7 @@ class AiAssistService:
         self._audit(task_type, "fallback", reason)
         if task_type == "assessment_explanation":
             return AiAssistResult(
+                **self._metadata(task_type),
                 task_type=task_type,
                 status="fallback",
                 fallback_copy="AI 辅助解读暂时不可用，当前使用固定规则说明",
@@ -281,6 +291,7 @@ class AiAssistService:
                 fixed_band_unchanged=fixed_band,
             )
         return AiAssistResult(
+            **self._metadata(task_type),
             task_type=task_type,
             status="fallback",
             fallback_copy="自动检查未完成，请进行人工处理",
@@ -321,6 +332,7 @@ class AiAssistService:
         self._audit(task_type, "adopted", None)
         route = output.get("recommended_route") if task_type == "treehole_review_assist" else None
         return AiAssistResult(
+            **self._metadata(task_type),
             task_type=task_type,
             status="adopted",
             output=output,
@@ -344,6 +356,7 @@ class AiAssistService:
     ) -> AiAssistSnapshot:
         now = datetime.now(UTC)
         snapshot = AiAssistSnapshot(
+            **self._metadata(task_type),
             snapshot_id=f"ai_{uuid4().hex}",
             task_type=task_type,
             resource_type=resource_type,
@@ -401,12 +414,24 @@ class AiAssistService:
             occurred_at=datetime.now(UTC),
             facts={
                 "task_kind": task_type,
-                "model_version": RESOLVED_MODEL_VERSION,
-                "prompt_version": PROMPT_VERSION,
+                "model_version": self.settings.ai.resolved_model_version,
+                "prompt_version": self.prompts.get(task_type).version,
                 "outcome_category": outcome,
                 "error_category": reason,
             },
         )
+
+    @traced
+    def _metadata(self, task_type: str) -> AIMetadata:
+        return {
+            "request_model": self.settings.ai.model,
+            "resolved_model_version": self.settings.ai.resolved_model_version,
+            "prompt_version": self.prompts.get(task_type).version,
+        }
+
+    @traced
+    async def aclose(self) -> None:
+        await self.client.aclose()
 
     @staticmethod
     @traced
