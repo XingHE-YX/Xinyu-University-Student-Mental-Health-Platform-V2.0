@@ -28,6 +28,7 @@ class UserAccountDocument(DocumentModel):
 class AuthSessionDocument(DocumentModel):
     subject_type: Literal["student", "admin"]
     subject_id: NonEmptyString
+    capability: str | None = None
     access_token_hash: NonEmptyString
     refresh_token_hash: str | None = None
     status: Literal["active", "revoked", "expired"]

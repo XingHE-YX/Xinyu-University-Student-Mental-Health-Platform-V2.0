@@ -224,6 +224,11 @@ async def test_domain_session_idempotency_and_audit_persist_across_instances() -
         updated_at=now,
     )
     (await sessions.save(session))
+    from app.models.v2.documents.account import AuthSessionDocument
+
+    document = AuthSessionDocument.model_validate(await store.get("auth_sessions", "sess-1"))
+    assert document.last_seen_at == now
+    assert document.capability is None
     assert (
         await CloudBaseSessionRepository(store).get_by_access_token_hash("access-hash")  # type: ignore[arg-type]
     ) == session

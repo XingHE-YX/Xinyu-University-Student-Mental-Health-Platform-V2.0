@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from app.infra.config.types import SessionConfig
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
@@ -64,3 +65,26 @@ async def test_expired_and_revoked_access_tokens_are_rejected() -> None:
             )
         )
     assert expired_error.value.code == "SESSION_EXPIRED"
+
+
+@pytest.mark.parametrize("subject_type,refresh_seconds", [("student", 7200), ("admin", 1800)])
+async def test_validated_session_settings_control_issue_and_refresh(
+    subject_type: str, refresh_seconds: int
+) -> None:
+    repository = InMemorySessionRepository()
+    manager = TokenManager(
+        "test-session-secret",
+        config=SessionConfig(
+            access_ttl_seconds=120,
+            student_refresh_ttl_seconds=7200,
+            admin_refresh_ttl_seconds=1800,
+        ),
+    )
+    now = datetime(2026, 9, 30, tzinfo=UTC)
+    pair = await manager.issue(subject_type, "subject", repository, now=now)  # type: ignore[arg-type]
+    assert pair.access_expires_at == now + timedelta(seconds=120)
+    assert pair.refresh_expires_at == now + timedelta(seconds=refresh_seconds)
+    refreshed_at = now + timedelta(seconds=60)
+    rotated = await manager.refresh(pair.refresh_token, repository, now=refreshed_at)
+    assert rotated.access_expires_at == refreshed_at + timedelta(seconds=120)
+    assert rotated.refresh_expires_at == refreshed_at + timedelta(seconds=refresh_seconds)

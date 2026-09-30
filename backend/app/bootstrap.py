@@ -129,6 +129,7 @@ def build_container(
     runtime_tokens = token_manager or TokenManager(
         runtime_settings.session_secret or "local-development-session-secret",
         admin_password_hash=runtime_settings.password_hash,
+        config=runtime_settings.session,
     )
     runtime_idempotency = IdempotencyService(runtime_idempotency_repository)
     runtime_audit = AuditWriter(

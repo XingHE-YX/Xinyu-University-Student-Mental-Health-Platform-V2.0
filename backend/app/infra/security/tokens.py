@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import uuid4
 
+from app.infra.config.types import SessionConfig
 from app.infra.database.records import AuthSessionRecord
 from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
@@ -35,15 +36,17 @@ class AuthenticatedSubject:
 
 
 class TokenManager:
-    STUDENT_ACCESS_TTL = timedelta(minutes=15)
-    STUDENT_REFRESH_TTL = timedelta(days=30)
-    ADMIN_ACCESS_TTL = timedelta(minutes=15)
-    ADMIN_REFRESH_TTL = timedelta(hours=8)
-
-    def __init__(self, secret: str, *, admin_password_hash: str | None = None) -> None:
+    def __init__(
+        self,
+        secret: str,
+        *,
+        admin_password_hash: str | None = None,
+        config: SessionConfig | None = None,
+    ) -> None:
         if not secret:
             raise ValueError("token secret cannot be empty")
         self._secret = secret.encode("utf-8")
+        self._config = config or SessionConfig()
         self._credential_version = (
             self.hash_token(admin_password_hash) if admin_password_hash else None
         )
@@ -187,12 +190,16 @@ class TokenManager:
         if record.subject_type == "admin" and record.credential_version != self._credential_version:
             raise ApiException(401, "SESSION_EXPIRED")
 
-    @classmethod
     @traced
-    def _ttls(cls, subject_type: TokenSubjectType) -> tuple[timedelta, timedelta]:
-        if subject_type == "student":
-            return cls.STUDENT_ACCESS_TTL, cls.STUDENT_REFRESH_TTL
-        return cls.ADMIN_ACCESS_TTL, cls.ADMIN_REFRESH_TTL
+    def _ttls(self, subject_type: TokenSubjectType) -> tuple[timedelta, timedelta]:
+        return (
+            timedelta(seconds=self._config.access_ttl_seconds),
+            timedelta(
+                seconds=self._config.student_refresh_ttl_seconds
+                if subject_type == "student"
+                else self._config.admin_refresh_ttl_seconds
+            ),
+        )
 
 
 @traced

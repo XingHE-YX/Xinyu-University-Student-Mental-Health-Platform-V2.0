@@ -24,6 +24,7 @@ from app.infra.database.records import (
 )
 from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
+from app.models.v2.documents.account import AuthSessionDocument
 
 
 @traced
@@ -42,22 +43,22 @@ class CloudBaseSessionRepository:
     def __init__(self, store: CloudBaseStore) -> None:
         self.store = store
 
-    @traced
-    async def save(self, record: AuthSessionRecord) -> None:
+    @staticmethod
+    def _document(record: AuthSessionRecord) -> dict[str, Any]:
         document = asdict(record)
         document.pop("session_id")
-        (await self.store.insert("auth_sessions", {"_id": record.session_id, **document}))
+        return AuthSessionDocument.model_validate(
+            {"_id": record.session_id, "last_seen_at": record.updated_at, **document}
+        ).model_dump(by_alias=True)
+
+    @traced
+    async def save(self, record: AuthSessionRecord) -> None:
+        await self.store.insert("auth_sessions", self._document(record))
 
     @traced
     async def replace(self, record: AuthSessionRecord) -> None:
         try:
-            document = asdict(record)
-            document.pop("session_id")
-            (
-                await self.store.replace(
-                    "auth_sessions", {"_id": record.session_id, **document}, record.version - 1
-                )
-            )
+            (await self.store.replace("auth_sessions", self._document(record), record.version - 1))
         except RepositoryVersionConflict:
             # A concurrent refresh/logout consumes or revokes the old token only once.
             raise ApiException(401, "SESSION_EXPIRED") from None
