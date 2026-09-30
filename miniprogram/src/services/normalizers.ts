@@ -1,3 +1,4 @@
+import { AppError } from '../infra/error'
 import { moodLabel } from './mood'
 import type { AssessmentModule, HistoryItem, TodayObservation, TreeholePost, TreeholeResponse } from '../infra/types/api'
 
@@ -7,7 +8,7 @@ const record = (value: unknown): UnknownRecord => value && typeof value === 'obj
 const listFrom = (value: unknown, key: string): UnknownRecord[] => {
   if (Array.isArray(value)) return value.filter((item): item is UnknownRecord => Boolean(item && typeof item === 'object'))
   const wrapped = record(value)[key]
-  if (!Array.isArray(wrapped)) throw new Error('内容暂时无法读取，请重新试试。')
+  if (!Array.isArray(wrapped)) throw new AppError('INVALID_RESPONSE', { userMessage: '内容暂时无法读取，请重新试试。' })
   return wrapped.filter((item): item is UnknownRecord => Boolean(item && typeof item === 'object'))
 }
 
@@ -15,7 +16,7 @@ export const normalizeAssessmentModules = (value: unknown): AssessmentModule[] =
   .filter((item) => item.enabled !== false)
   .map((item) => {
     const code = String(item.module_code ?? item.key)
-    if (!['phq9', 'gad7', 'sleep', 'sleep_observation'].includes(code)) throw new Error('自测目录暂时无法读取。')
+    if (!['phq9', 'gad7', 'sleep', 'sleep_observation'].includes(code)) throw new AppError('INVALID_RESPONSE', { userMessage: '自测目录暂时无法读取。' })
     const key = (code === 'sleep_observation' ? 'sleep' : code) as AssessmentModule['key']
     return {
       key,

@@ -1,3 +1,4 @@
+import { getUserMessage } from '../../../infra/error'
 import { loginWithWechat, recordBasicConsent } from '../../../services/auth'
 
 Page({
@@ -7,7 +8,7 @@ Page({
     if (!this.data.agreed) { this.setData({ error: '请先阅读并同意基础服务说明' }); return }
     this.setData({ loading: true, error: '' })
     try { const session = await loginWithWechat(); if (!session.basicConsent) await recordBasicConsent(); if (session.identityVerified) wx.switchTab({ url: '/ui/pages/today/index' }); else wx.redirectTo({ url: '/ui/pages/identity-verification/index?from=onboarding' }) }
-    catch (error) { this.setData({ error: error instanceof Error ? error.message : '暂时无法进入，请稍后重试' }) }
+    catch (error) { this.setData({ error: getUserMessage(error, '暂时无法进入，请稍后重试') }) }
     finally { this.setData({ loading: false }) }
   },
   leave() { wx.navigateBack({ fail: () => wx.switchTab({ url: '/ui/pages/today/index' }) }) },

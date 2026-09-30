@@ -1,3 +1,4 @@
+import { assertApiData } from '../infra/error'
 import { request } from '../infra/http'
 import { formatMoodTime, moodDateKey, moodLabel } from './mood'
 import { normalizeTodayObservations } from './normalizers'
@@ -5,7 +6,7 @@ import type { MoodRecord, TodayProjection } from '../infra/types/api'
 
 export const fetchToday = async (): Promise<TodayProjection> => {
   const result = await request<Record<string, unknown>>('/today')
-  if (result.error || !result.data) throw new Error(result.error?.message ?? '今日内容暂时不可用')
+  assertApiData(result, '今日内容暂时不可用')
   const data = result.data
   const quote = (data.quote ?? {}) as Record<string, unknown>
   const mood = (data.mood_today ?? data.mood ?? null) as Record<string, unknown> | null
@@ -16,7 +17,7 @@ export const fetchToday = async (): Promise<TodayProjection> => {
 export const saveMood = async (mood: string): Promise<MoodRecord> => {
   const recordDate = moodDateKey()
   const result = await request<Record<string, unknown>>('/moods/today', { method: 'PUT', data: { record_date: recordDate, mood_code: mood, object_version: 1 }, idempotencyKey: `mood-${recordDate}` })
-  if (result.error || !result.data) throw new Error(result.error?.message ?? '没有保存成功，请再试一次')
+  assertApiData(result, '没有保存成功，请再试一次')
   const data = result.data
   return { id: String(data.record_id ?? data.id ?? ''), mood: moodLabel(data.mood_code ?? data.mood ?? mood), recordedAt: formatMoodTime(data.saved_at ?? data.recordedAt ?? new Date().toISOString()) }
 }

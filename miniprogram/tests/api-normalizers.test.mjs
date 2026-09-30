@@ -17,8 +17,9 @@ test('normalizes paginated assessment modules from the backend contract', () => 
 })
 
 test('missing history and module containers are errors, not empty success states', () => {
-  assert.throws(() => normalizeAssessmentModules({}), /暂时/)
-  assert.throws(() => normalizeHistoryItems({ unexpected: [] }), /暂时/)
+  for (const run of [() => normalizeAssessmentModules({}), () => normalizeHistoryItems({ unexpected: [] })]) {
+    assert.throws(run, (error) => error.code === 'INVALID_RESPONSE' && /暂时/.test(error.userMessage))
+  }
 })
 
 test('today keeps three separate observations and preserves the support entry', () => {

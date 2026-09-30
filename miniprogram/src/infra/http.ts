@@ -1,6 +1,8 @@
 import type { ApiEnvelope, ApiError, EnvironmentKind } from './types/api'
 import { sessionStore } from './store/session'
 import { moodDateKey } from './date'
+import { AppError, fromApiError } from './error'
+import type { ApiResult } from './error'
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
@@ -119,30 +121,72 @@ const demoResponse = <T>(path: string, options: RequestOptions): ApiEnvelope<T> 
   return envelope<T>(null, apiError('UNAVAILABLE', '当前环境尚未配置学生端服务，请稍后重试。', true))
 }
 
-export const request = <T>(path: string, options: RequestOptions = {}): Promise<ApiEnvelope<T>> => {
+const isEnvelope = <T>(value: unknown): value is ApiEnvelope<T> => {
+  if (!value || typeof value !== 'object') return false
+  const result = value as Record<string, unknown>
+  if (typeof result.request_id !== 'string' || !('data' in result)) return false
+  if (result.error === null) return true
+  if (!result.error || typeof result.error !== 'object') return false
+  const error = result.error as Record<string, unknown>
+  return typeof error.code === 'string' && typeof error.message === 'string'
+    && (error.retryable === undefined || typeof error.retryable === 'boolean')
+}
+
+const failure = <T>(error: AppError, requestId: string): ApiResult<T> => ({
+  request_id: requestId,
+  clientRequestId: requestId,
+  statusCode: error.statusCode,
+  data: null,
+  error: apiError(error.category === 'network' ? 'NETWORK_ERROR' : 'UNAVAILABLE', error.userMessage, error.retryable),
+  clientError: error,
+})
+
+export const request = <T>(path: string, options: RequestOptions = {}): Promise<ApiResult<T>> => {
+  const requestId = newRequestId()
   const app = getApp<{ globalData: { apiBaseUrl?: string } }>()
   const baseUrl = app.globalData.apiBaseUrl ?? ''
   if (getEnvironment() === 'demo' && !baseUrl) {
-    return Promise.resolve(demoResponse<T>(path, options))
+    return Promise.resolve({ ...demoResponse<T>(path, options), clientRequestId: requestId })
   }
-  if (!baseUrl) return Promise.resolve(envelope<T>(null, apiError('UNAVAILABLE', '当前环境尚未配置学生端服务，请稍后重试。', true)))
+  if (!baseUrl) return Promise.resolve(failure<T>(new AppError('CONFIGURATION_ERROR', {
+    requestId, clientRequestId: requestId,
+  }), requestId))
   return new Promise((resolve) => {
-    wx.request<ApiEnvelope<T>>({
+    try { wx.request<ApiEnvelope<T>>({
       url: `${baseUrl}${path}`,
       method: options.method ?? 'GET',
       data: options.data,
       timeout: 8000,
       header: {
         Authorization: sessionStore.accessToken() ? `Bearer ${sessionStore.accessToken()}` : '',
-        'X-Request-ID': newRequestId(),
+        'X-Request-ID': requestId,
         ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
       },
       success: (response) => {
-        const result = response.data ?? envelope<T>(null, apiError('UNAVAILABLE', '服务返回暂时不可用，请稍后重试。', true))
-        if (result.error?.code === 'UNAUTHORIZED') sessionStore.clear()
-        resolve(result)
+        const statusCode = response.statusCode
+        const metadata = { requestId, clientRequestId: requestId, statusCode }
+        if (isEnvelope<T>(response.data) && response.data.error) {
+          const result = response.data
+          if (result.error?.code === 'UNAUTHORIZED') sessionStore.clear()
+          resolve({ ...result, clientRequestId: requestId, statusCode,
+            clientError: fromApiError(result.error!, { ...metadata, requestId: result.request_id }) })
+        } else if (statusCode >= 400) {
+          if (statusCode === 401) sessionStore.clear()
+          resolve(failure<T>(new AppError('HTTP_ERROR', { ...metadata,
+            retryable: statusCode >= 500 || statusCode === 408 || statusCode === 429,
+          }), requestId))
+        } else if (!isEnvelope<T>(response.data)) {
+          resolve(failure<T>(new AppError('INVALID_RESPONSE', metadata), requestId))
+        } else {
+          resolve({ ...response.data, clientRequestId: requestId, statusCode })
+        }
       },
-      fail: () => resolve(envelope<T>(null, apiError('NETWORK_ERROR', '网络暂时不可用，请稍后重试。', true))),
-    })
+      fail: (cause) => resolve(failure<T>(new AppError(
+        cause?.errMsg?.toLowerCase().includes('timeout') ? 'TIMEOUT' : 'NETWORK_ERROR',
+        { requestId, clientRequestId: requestId, cause },
+      ), requestId)),
+    }) } catch (cause) {
+      resolve(failure<T>(new AppError('WX_API_ERROR', { requestId, clientRequestId: requestId, cause }), requestId))
+    }
   })
 }

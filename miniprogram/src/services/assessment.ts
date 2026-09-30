@@ -1,3 +1,4 @@
+import { AppError, assertApiData, assertApiSuccess } from '../infra/error'
 import { request } from '../infra/http'
 import { normalizeAssessmentModules } from './normalizers'
 import type { AssessmentAiAssist, AssessmentModule, AssessmentResult, AssessmentSession, SupportResource } from '../infra/types/api'
@@ -7,7 +8,7 @@ let supportResourceVersion = ''
 
 const sessionContext = (id: string) => {
   const context = activeSessions.get(id)
-  if (!context) throw new Error('本次观察会话已失效，请重新开始')
+  if (!context) throw new AppError('STATE_ERROR', { userMessage: '本次观察会话已失效，请重新开始' })
   return context
 }
 
@@ -15,7 +16,7 @@ const answerPayload = (sessionId: string, answers: number[]) => {
   const { questions } = sessionContext(sessionId)
   return answers.map((option, index) => {
     const question = questions[index]
-    if (!question || !question.optionKeys?.[option]) throw new Error('请重新选择当前答案')
+    if (!question || !question.optionKeys?.[option]) throw new AppError('VALIDATION_ERROR', { userMessage: '请重新选择当前答案' })
     return { question_key: question.id, option_key: question.optionKeys[option] }
   })
 }
@@ -26,14 +27,14 @@ const displayModuleTitle = (module: AssessmentModule['key']): string => module =
 
 export const fetchModules = async (): Promise<AssessmentModule[]> => {
   const result = await request<Record<string, unknown> | Array<Record<string, unknown>>>('/assessment-modules')
-  if (result.error || !result.data) throw new Error(result.error?.message ?? '自测目录暂时不可用')
+  assertApiData(result, '自测目录暂时不可用')
   return normalizeAssessmentModules(result.data)
 }
 
 export const startAssessment = async (module: AssessmentModule['key']): Promise<AssessmentSession> => {
   const idempotencyKey = `assessment-start-${module}-${Date.now()}`
   const result = await request<Record<string, unknown>>('/assessment-sessions', { method: 'POST', data: { module_code: apiModuleCode(module), client_start_key: idempotencyKey }, idempotencyKey })
-  if (result.error || !result.data) throw new Error(result.error?.message ?? '暂时无法开始本次观察')
+  assertApiData(result, '暂时无法开始本次观察')
   const data = result.data
   const questions = Array.isArray(data.questions) ? data.questions as Array<Record<string, unknown>> : []
   const session: AssessmentSession = {
@@ -57,21 +58,21 @@ export const startAssessment = async (module: AssessmentModule['key']): Promise<
 export const submitAssessment = async (sessionId: string, module: AssessmentModule['key'], answers: number[], _safetyState?: string): Promise<AssessmentResult> => {
   const context = sessionContext(sessionId)
   const result = await request<Record<string, unknown>>(`/assessment-sessions/${sessionId}/complete`, { method: 'POST', data: { answers: answerPayload(sessionId, answers), object_version: context.version }, idempotencyKey: `assessment-submit-${sessionId}-${context.version}` })
-  if (result.error || !result.data) throw new Error(result.error?.message ?? '结果暂时没有保存成功，请稍后重试')
-  if (result.data.completion_state !== 'result_ready' || !result.data.result_id) throw new Error('请先完成安全确认并查看支持资源')
+  assertApiData(result, '结果暂时没有保存成功，请稍后重试')
+  if (result.data.completion_state !== 'result_ready' || !result.data.result_id) throw new AppError('STATE_ERROR', { userMessage: '请先完成安全确认并查看支持资源' })
   return fetchAssessmentResult(String(result.data.result_id), module)
 }
 
 export const fetchAssessmentResult = async (id: string, module: AssessmentModule['key'] = 'phq9'): Promise<AssessmentResult> => {
   const result = await request<Record<string, unknown>>(`/assessment-results/${id}`)
-  if (result.error || !result.data) throw new Error(result.error?.message ?? '本次记录暂时无法展示')
+  assertApiData(result, '本次记录暂时无法展示')
   return normalizeAssessmentResult(result.data, module)
 }
 
 export const abandonAssessment = async (sessionId: string): Promise<void> => {
   const context = sessionContext(sessionId)
   const result = await request(`/assessment-sessions/${sessionId}/abandon`, { method: 'POST', data: { object_version: context.version }, idempotencyKey: `abandon-${sessionId}` })
-  if (result.error) throw new Error(result.error.message)
+  assertApiSuccess(result)
   activeSessions.delete(sessionId)
 }
 
@@ -115,21 +116,21 @@ const normalizeAiAssist = (value: unknown): AssessmentAiAssist | undefined => {
 export const confirmSafety = async (sessionId: string, state: 'can_be_safe' | 'uncertain' | 'cannot_be_safe', answers: number[] = []): Promise<void> => {
   const context = sessionContext(sessionId)
   const result = await request<Record<string, unknown>>(`/assessment-sessions/${sessionId}/safety-confirmation`, { method: 'POST', data: { state, answers: answerPayload(sessionId, answers), object_version: context.version }, idempotencyKey: `safety-${sessionId}-${context.version}-${state}` })
-  if (result.error || !result.data) throw new Error(result.error?.message ?? '安全确认暂时不可用')
+  assertApiData(result, '安全确认暂时不可用')
   context.version = Number(result.data.version)
 }
 
 export const acknowledgeSupportResources = async (sessionId: string): Promise<void> => {
   const context = sessionContext(sessionId)
-  if (!supportResourceVersion) throw new Error('支持资源暂未配置，请稍后重试')
+  if (!supportResourceVersion) throw new AppError('CONFIGURATION_ERROR', { userMessage: '支持资源暂未配置，请稍后重试' })
   const result = await request<Record<string, unknown>>(`/assessment-sessions/${sessionId}/support-resource-ack`, { method: 'POST', data: { resource_context: 'safety', resource_version: supportResourceVersion, object_version: context.version }, idempotencyKey: `support-ack-${sessionId}-${context.version}` })
-  if (result.error || !result.data) throw new Error(result.error?.message ?? '资源确认暂时不可用')
+  assertApiData(result, '资源确认暂时不可用')
   context.version = Number(result.data.version)
 }
 
 export const fetchResources = async (context: 'ordinary' | 'safety' = 'ordinary'): Promise<SupportResource[]> => {
   const result = await request<Record<string, unknown> | SupportResource[]>('/support-resources', { data: { context: context === 'safety' ? 'safety' : 'normal' } })
-  if (result.error || !result.data) throw new Error(result.error?.message ?? '支持资源暂时不可用')
+  assertApiData(result, '支持资源暂时不可用')
   if (Array.isArray(result.data)) return result.data
   supportResourceVersion = String(result.data.resource_version ?? '')
   const resources = Array.isArray(result.data.resources) ? result.data.resources as Record<string, unknown>[] : []
