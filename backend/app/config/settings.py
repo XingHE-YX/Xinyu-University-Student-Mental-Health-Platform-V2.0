@@ -52,7 +52,7 @@ class Settings(BaseModel):
         *,
         demo_env_ids: Iterable[str] | None = None,
         authorized_env_ids: Iterable[str] | None = None,
-    ) -> "Settings":
+    ) -> Settings:
         """Build settings from server variables without exposing their raw values."""
 
         source = {

@@ -130,7 +130,7 @@ class CloudBaseStore:
         try:
             decoded: dict[str, Any] = decode_ejson(payload)
             return decoded
-        except (ValueError, TypeError, OverflowError):
+        except ValueError, TypeError, OverflowError:
             raise RepositoryUnavailable("CloudBase EJSON is invalid") from None
 
     @contextmanager
@@ -150,7 +150,7 @@ class CloudBaseStore:
         except BaseException:
             try:
                 self.request("POST", path + "/rollback", in_transaction=False)
-            except (RepositoryUnavailable, RepositoryNotFound, RepositoryVersionConflict):
+            except RepositoryUnavailable, RepositoryNotFound, RepositoryVersionConflict:
                 pass  # Preserve the original failure; never report a failed commit as success.
             raise
         finally:

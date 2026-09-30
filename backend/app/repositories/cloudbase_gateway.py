@@ -126,5 +126,5 @@ def _decode_cursor(cursor: str | None) -> int:
         return 0
     try:
         return max(0, int(base64.urlsafe_b64decode(cursor.encode("ascii")).decode("ascii")))
-    except (ValueError, UnicodeDecodeError, binascii.Error):
+    except ValueError, UnicodeDecodeError, binascii.Error:
         return 0

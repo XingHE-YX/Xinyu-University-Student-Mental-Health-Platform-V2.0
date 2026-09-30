@@ -6,7 +6,7 @@ import hashlib
 import json
 from dataclasses import asdict, fields, replace
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import Any
 
 from pydantic import TypeAdapter, ValidationError
 
@@ -25,13 +25,13 @@ from app.repositories.protocols import (
 from app.repositories.session_repository import AuthSessionRecord, InMemorySessionRepository
 from app.schemas.errors import ApiException
 
-R = TypeVar("R", AuthSessionRecord, IdempotencyRecord, AuditEventRecord)
 
-
-def parse_record(model: type[R], data: dict[str, Any]) -> R:
+def parse_record[R: (AuthSessionRecord, IdempotencyRecord, AuditEventRecord)](
+    model: type[R], data: dict[str, Any]
+) -> R:
     try:
         return TypeAdapter(model).validate_python({f.name: data[f.name] for f in fields(model)})
-    except (KeyError, ValidationError):
+    except KeyError, ValidationError:
         raise RepositoryUnavailable("stored security record is invalid") from None
 
 

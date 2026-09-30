@@ -130,7 +130,7 @@ def deserialize_api_error(response_digest: str | None) -> ApiException | None:
             )
         if "error_code" in data:
             return ApiException(int(data["status_code"]), str(data["error_code"]))
-    except (KeyError, TypeError, ValueError):
+    except KeyError, TypeError, ValueError:
         return None
     return None
 

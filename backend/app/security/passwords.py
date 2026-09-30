@@ -34,7 +34,7 @@ def verify_password(password: str, encoded_hash: str) -> bool:
         iterations = int(iteration_text)
         salt = _decode(salt_text)
         expected = _decode(digest_text)
-    except (AttributeError, ValueError):
+    except AttributeError, ValueError:
         return False
     if iterations < 100_000 or not salt or not expected:
         return False
