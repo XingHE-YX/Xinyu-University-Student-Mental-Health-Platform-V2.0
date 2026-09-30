@@ -32,7 +32,7 @@ async def list_posts(
     cursor: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> ApiEnvelope[TreeholePostListResponse]:
-    data = request.app.state.treehole_service.list_public(
+    data = await request.app.state.treehole_service.list_public(
         bearer_token(authorization), sort=sort, cursor=cursor, limit=limit
     )
     return ApiEnvelope.success(request_id(request), data=data)
@@ -45,7 +45,7 @@ async def create_post(
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeMutationResponse]:
     access_token = bearer_token(authorization)
-    data = request.app.state.treehole_service.create_post(
+    data = await request.app.state.treehole_service.create_post(
         access_token,
         body=body.body,
         request_id=request_id(request),
@@ -65,7 +65,9 @@ async def get_post(
     post_id: str,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholePostProjection]:
-    data = request.app.state.treehole_service.get_post(bearer_token(authorization), post_id=post_id)
+    data = await request.app.state.treehole_service.get_post(
+        bearer_token(authorization), post_id=post_id
+    )
     return ApiEnvelope.success(request_id(request), data=data)
 
 
@@ -76,7 +78,7 @@ async def list_my_posts(
     cursor: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> ApiEnvelope[TreeholePostListResponse]:
-    data = request.app.state.treehole_service.list_mine(
+    data = await request.app.state.treehole_service.list_mine(
         bearer_token(authorization), cursor=cursor, limit=limit
     )
     return ApiEnvelope.success(request_id(request), data=data)
@@ -89,7 +91,7 @@ async def withdraw_post(
     body: TreeholeObjectVersionRequest,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeMutationResponse]:
-    data = request.app.state.treehole_service.withdraw_post(
+    data = await request.app.state.treehole_service.withdraw_post(
         bearer_token(authorization),
         post_id=post_id,
         object_version=body.object_version,
@@ -106,7 +108,7 @@ async def delete_post(
     body: TreeholeObjectVersionRequest,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeDeleteResponse]:
-    data = request.app.state.treehole_service.delete_post(
+    data = await request.app.state.treehole_service.delete_post(
         bearer_token(authorization),
         post_id=post_id,
         object_version=body.object_version,
@@ -124,7 +126,7 @@ async def create_response(
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeResponseProjection]:
     access_token = bearer_token(authorization)
-    data = request.app.state.treehole_service.create_response(
+    data = await request.app.state.treehole_service.create_response(
         access_token,
         post_id=post_id,
         body=body.body,
@@ -147,7 +149,7 @@ async def delete_response(
     body: TreeholeObjectVersionRequest,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeDeleteResponse]:
-    data = request.app.state.treehole_service.delete_response(
+    data = await request.app.state.treehole_service.delete_response(
         bearer_token(authorization),
         response_id=response_id,
         object_version=body.object_version,

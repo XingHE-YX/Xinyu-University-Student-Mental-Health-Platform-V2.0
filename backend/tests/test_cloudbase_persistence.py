@@ -1,6 +1,6 @@
 import inspect
 import json
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -59,7 +59,7 @@ def test_ejson_round_trip_keeps_utc_datetimes_and_numbers() -> None:
     assert decoded == {"created_at": moment, "items": [1, True], "version": 2, "total": 9}
 
 
-def test_store_uses_current_gateway_bearer_auth_and_commits_transactions() -> None:
+async def test_store_uses_current_gateway_bearer_auth_and_commits_transactions() -> None:
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -82,12 +82,14 @@ def test_store_uses_current_gateway_bearer_auth_and_commits_transactions() -> No
         raise AssertionError(f"unexpected request {request.method} {request.url.path}")
 
     store = CloudBaseStore("demo-env", "secret", transport=httpx.MockTransport(handler))
-    with store.transaction():
-        store.insert(
-            "users",
-            {"_id": "user-1", "created_at": datetime(2026, 9, 17, tzinfo=UTC)},
+    async with store.transaction():
+        (
+            await store.insert(
+                "users",
+                {"_id": "user-1", "created_at": datetime(2026, 9, 17, tzinfo=UTC)},
+            )
         )
-        assert store.get("users", "user-1")["version"] == 1
+        assert (await store.get("users", "user-1"))["version"] == 1
 
     assert all(item.headers["authorization"] == "Bearer secret" for item in requests)
     insert_body = json.loads(requests[1].content)
@@ -97,7 +99,7 @@ def test_store_uses_current_gateway_bearer_auth_and_commits_transactions() -> No
     assert requests[-1].url.path.endswith("/transactions/txn-1/commit")
 
 
-def test_store_rolls_back_and_never_exposes_remote_error_or_key() -> None:
+async def test_store_rolls_back_and_never_exposes_remote_error_or_key() -> None:
     requests: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -110,8 +112,8 @@ def test_store_rolls_back_and_never_exposes_remote_error_or_key() -> None:
 
     store = CloudBaseStore("demo-env", "do-not-print-key", transport=httpx.MockTransport(handler))
     with pytest.raises(RepositoryUnavailable) as error:
-        with store.transaction():
-            store.insert("users", {"_id": "user-1"})
+        async with store.transaction():
+            (await store.insert("users", {"_id": "user-1"}))
 
     assert "secret remote detail" not in str(error.value)
     assert "do-not-print-key" not in str(error.value)
@@ -122,17 +124,17 @@ class MemoryStore:
     def __init__(self) -> None:
         self.collections: dict[str, dict[str, dict[str, Any]]] = {}
 
-    @contextmanager
-    def transaction(self):  # type: ignore[no-untyped-def]
+    @asynccontextmanager
+    async def transaction(self):  # type: ignore[no-untyped-def]
         yield
 
-    def insert(self, collection: str, document: dict[str, Any]) -> None:
+    async def insert(self, collection: str, document: dict[str, Any]) -> None:
         items = self.collections.setdefault(collection, {})
         if document["_id"] in items:
             raise RepositoryVersionConflict(items[document["_id"]].get("version"))
         items[str(document["_id"])] = dict(document)
 
-    def get(self, collection: str, document_id: str) -> dict[str, Any]:
+    async def get(self, collection: str, document_id: str) -> dict[str, Any]:
         try:
             return dict(self.collections[collection][document_id])
         except KeyError:
@@ -140,7 +142,7 @@ class MemoryStore:
 
             raise RepositoryNotFound("not found") from None
 
-    def query(
+    async def query(
         self,
         collection: str,
         where: dict[str, Any] | None = None,
@@ -160,11 +162,15 @@ class MemoryStore:
         items = sorted(self.collections.get(collection, {}).values(), key=lambda item: item["_id"])
         return [dict(item) for item in items if matches(item)][offset : offset + limit]
 
-    def all(self, collection: str, where: dict[str, Any] | None = None) -> list[dict[str, Any]]:
-        return self.query(collection, where, limit=10_000)
+    async def all(
+        self, collection: str, where: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
+        return await self.query(collection, where, limit=10_000)
 
-    def replace(self, collection: str, document: dict[str, Any], expected_version: int) -> None:
-        current = self.get(collection, str(document["_id"]))
+    async def replace(
+        self, collection: str, document: dict[str, Any], expected_version: int
+    ) -> None:
+        current = await self.get(collection, str(document["_id"]))
         if current.get("version") != expected_version:
             raise RepositoryVersionConflict(current.get("version"))
         self.collections[collection][str(document["_id"])] = dict(document)
@@ -181,7 +187,7 @@ def test_cloud_domain_repository_overrides_every_public_in_memory_operation() ->
     assert base_methods <= CloudBaseDomainDataRepository.__dict__.keys()
 
 
-def test_domain_session_idempotency_and_audit_persist_across_instances() -> None:
+async def test_domain_session_idempotency_and_audit_persist_across_instances() -> None:
     store = MemoryStore()
     domain = CloudBaseDomainDataRepository(store)  # type: ignore[arg-type]
     now = datetime(2026, 9, 17, tzinfo=UTC)
@@ -195,10 +201,10 @@ def test_domain_session_idempotency_and_audit_persist_across_instances() -> None
         updated_at=now,
         version=1,
     )
-    domain.create_user(user)
+    (await domain.create_user(user))
     second_domain = CloudBaseDomainDataRepository(store)  # type: ignore[arg-type]
-    assert second_domain.get_user_by_auth_subject_hash("hash-1") == user
-    saved = second_domain.save_user(
+    assert (await second_domain.get_user_by_auth_subject_hash("hash-1")) == user
+    saved = await second_domain.save_user(
         user.model_copy(update={"base_consent_status": "accepted"}), expected_version=1
     )
     assert saved.version == 2
@@ -217,36 +223,40 @@ def test_domain_session_idempotency_and_audit_persist_across_instances() -> None
         created_at=now,
         updated_at=now,
     )
-    sessions.save(session)
-    assert CloudBaseSessionRepository(store).get_by_access_token_hash("access-hash") == session  # type: ignore[arg-type]
+    (await sessions.save(session))
+    assert (
+        await CloudBaseSessionRepository(store).get_by_access_token_hash("access-hash")  # type: ignore[arg-type]
+    ) == session
 
     idempotency = IdempotencyService(CloudBaseIdempotencyRepository(store))  # type: ignore[arg-type]
-    reserved = idempotency.begin(
+    reserved = await idempotency.begin(
         "student", "user-1", "/moods/today", "mood-1", {"mood": "calm"}, now=now
     )
-    idempotency.complete(reserved, status_code=200, response_digest="saved", now=now)
-    replayed = IdempotencyService(CloudBaseIdempotencyRepository(store)).begin(  # type: ignore[arg-type]
+    (await idempotency.complete(reserved, status_code=200, response_digest="saved", now=now))
+    replayed = await IdempotencyService(CloudBaseIdempotencyRepository(store)).begin(  # type: ignore[arg-type]
         "student", "user-1", "/moods/today", "mood-1", {"mood": "calm"}, now=now
     )
     assert replayed.replayed is True
     assert replayed.record.response_status == 200
 
     writer = AuditWriter(CloudBaseAuditRepository(store), environment_id="demo-env")  # type: ignore[arg-type]
-    writer.write(
-        request_id="req-1",
-        actor_type="student",
-        actor_id="user-1",
-        capability=None,
-        action="mood_saved",
-        resource_type="mood",
-        resource_id="mood-1",
-        data_scope="object_version",
-        outcome="success",
-        reason_code=None,
-        occurred_at=now,
-        facts={"object_version": 1, "body": "not stored"},
+    (
+        await writer.write(
+            request_id="req-1",
+            actor_type="student",
+            actor_id="user-1",
+            capability=None,
+            action="mood_saved",
+            resource_type="mood",
+            resource_id="mood-1",
+            data_scope="object_version",
+            outcome="success",
+            reason_code=None,
+            occurred_at=now,
+            facts={"object_version": 1, "body": "not stored"},
+        )
     )
-    events = CloudBaseAuditRepository(store).list()  # type: ignore[arg-type]
+    events = await CloudBaseAuditRepository(store).list()  # type: ignore[arg-type]
     assert events[0].details == {"object_version": 1}
     assert "not stored" not in str(store.collections["audit_events"])
 
@@ -276,15 +286,15 @@ def test_application_selects_cloudbase_only_when_explicitly_configured() -> None
     assert memory_app.state.persistence_backend == "memory"
 
 
-def test_admin_tasks_survive_a_new_service_instance_and_keep_version_checks() -> None:
+async def test_admin_tasks_survive_a_new_service_instance_and_keep_version_checks() -> None:
     store = MemoryStore()
     settings = cloudbase_settings()
     tasks = CloudBaseAdminTaskRepository(store)  # type: ignore[arg-type]
     first = AdminWorkbenchService(settings, task_repository=tasks)
 
-    page = first.list_tasks("needs_action", admin_id="admin-1", cursor=None, limit=20)
+    page = await first.list_tasks("needs_action", admin_id="admin-1", cursor=None, limit=20)
     task = next(item for item in page.items if item.task_id == "task-demo-content-01")
-    result = first.claim(
+    result = await first.claim(
         task.task_id,
         object_version=task.object_version,
         admin_id="admin-1",
@@ -293,15 +303,17 @@ def test_admin_tasks_survive_a_new_service_instance_and_keep_version_checks() ->
     )
 
     second = AdminWorkbenchService(settings, task_repository=tasks)
-    restored = second.get_task(task.task_id, admin_id="admin-1")
+    restored = await second.get_task(task.task_id, admin_id="admin-1")
     assert restored.state == "claimed"
     assert restored.object_version == result.new_object_version == 2
     with pytest.raises(ApiException) as error:
-        second.release(
-            task.task_id,
-            object_version=1,
-            admin_id="admin-1",
-            request_id="req-release",
-            idempotency_key="release-1",
+        (
+            await second.release(
+                task.task_id,
+                object_version=1,
+                admin_id="admin-1",
+                request_id="req-release",
+                idempotency_key="release-1",
+            )
         )
     assert getattr(error.value, "code", None) == "VERSION_CONFLICT"

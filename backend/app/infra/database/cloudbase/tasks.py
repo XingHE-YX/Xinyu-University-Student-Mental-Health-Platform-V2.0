@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractAsyncContextManager
 from copy import deepcopy
 from typing import Any, Protocol
 
@@ -11,46 +12,52 @@ from app.infra.logger.common import traced
 
 
 class AdminTaskRepository(Protocol):
+    def transaction(self) -> AbstractAsyncContextManager[None]: ...
     @traced
-    def list(self) -> tuple[dict[str, Any], ...]: ...
+    async def list(self) -> tuple[dict[str, Any], ...]: ...
 
     @traced
-    def get(self, task_id: str) -> dict[str, Any] | None: ...
+    async def get(self, task_id: str) -> dict[str, Any] | None: ...
 
     @traced
-    def create(self, task: dict[str, Any]) -> None: ...
+    async def create(self, task: dict[str, Any]) -> None: ...
 
     @traced
-    def save(self, task: dict[str, Any], *, expected_version: int) -> None: ...
+    async def save(self, task: dict[str, Any], *, expected_version: int) -> None: ...
 
 
 class CloudBaseAdminTaskRepository:
     def __init__(self, store: CloudBaseStore) -> None:
         self.store = store
 
+    def transaction(self) -> AbstractAsyncContextManager[None]:
+        return self.store.transaction()
+
     @traced
-    def list(self) -> tuple[dict[str, Any], ...]:
+    async def list(self) -> tuple[dict[str, Any], ...]:
         return tuple(
-            task
-            for row in self.store.all("work_tasks")
-            if not (task := self._from_document(row)).get("is_deleted", False)
+            [
+                task
+                for row in (await self.store.all("work_tasks"))
+                if not (task := self._from_document(row)).get("is_deleted", False)
+            ]
         )
 
     @traced
-    def get(self, task_id: str) -> dict[str, Any] | None:
+    async def get(self, task_id: str) -> dict[str, Any] | None:
         try:
-            task = self._from_document(self.store.get("work_tasks", task_id))
+            task = self._from_document(await self.store.get("work_tasks", task_id))
         except RepositoryNotFound:
             return None
         return None if task.get("is_deleted", False) else task
 
     @traced
-    def create(self, task: dict[str, Any]) -> None:
-        self.store.insert("work_tasks", self._to_document(task))
+    async def create(self, task: dict[str, Any]) -> None:
+        (await self.store.insert("work_tasks", self._to_document(task)))
 
     @traced
-    def save(self, task: dict[str, Any], *, expected_version: int) -> None:
-        self.store.replace("work_tasks", self._to_document(task), expected_version)
+    async def save(self, task: dict[str, Any], *, expected_version: int) -> None:
+        (await self.store.replace("work_tasks", self._to_document(task), expected_version))
 
     @staticmethod
     @traced

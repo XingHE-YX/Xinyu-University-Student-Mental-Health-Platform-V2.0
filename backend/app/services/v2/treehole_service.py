@@ -11,8 +11,7 @@ from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryVersionConflict,
 )
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import traced
 from app.infra.security.tokens import AuthenticatedSubject, TokenManager
@@ -33,6 +32,7 @@ from app.services.v2.idempotency_service import (
     deserialize_api_error,
     serialize_api_error,
 )
+from app.services.v2.repositories import DomainRepository, SessionRepository
 
 
 class TreeholeService:
@@ -40,8 +40,8 @@ class TreeholeService:
         self,
         *,
         settings: Settings,
-        repository: InMemoryDomainDataRepository,
-        session_repository: InMemorySessionRepository,
+        repository: DomainRepository,
+        session_repository: SessionRepository,
         token_manager: TokenManager,
         idempotency_service: IdempotencyService,
         audit_writer: AuditWriter,
@@ -56,6 +56,9 @@ class TreeholeService:
         self.audit = audit_writer
         self.consent = consent_service
         self.ai_assist = ai_assist_service
+        share_memory_transaction(
+            self.repository, self.idempotency.repository, self.audit.repository, self.sessions
+        )
 
     @traced
     async def attach_post_ai_review(
@@ -65,15 +68,15 @@ class TreeholeService:
         post_id: str,
         body: str,
     ) -> TreeholeMutationResponse:
-        subject = self._student(access_token)
-        post = self.repository.get_treehole_post(post_id)
+        subject = await self._student(access_token)
+        post = await self.repository.get_treehole_post(post_id)
         self._check_owner(post.author_user_id, subject.subject_id)
         if (
             self.ai_assist is None
             or post.ai_assist_snapshot_id is not None
             or post.safety_state != "not_triggered"
         ):
-            return self._mutation(post, subject.subject_id)
+            return await self._mutation(post, subject.subject_id)
         sanitized, flags = _sanitize_for_ai(body)
         assist = await self.ai_assist.treehole_review_assist(
             resource_id=post.document_id,
@@ -88,11 +91,11 @@ class TreeholeService:
             },
         )
         if assist.snapshot_id is None:
-            return self._mutation(post, subject.subject_id)
-        latest = self.repository.get_treehole_post(post_id)
+            return await self._mutation(post, subject.subject_id)
+        latest = await self.repository.get_treehole_post(post_id)
         if latest.ai_assist_snapshot_id is None:
-            with self.repository.transaction():
-                latest = self.repository.save_treehole_post(
+            async with self.repository.transaction():
+                latest = await self.repository.save_treehole_post(
                     latest.model_copy(
                         update={
                             "ai_assist_snapshot_id": assist.snapshot_id,
@@ -105,10 +108,12 @@ class TreeholeService:
                     ),
                     expected_version=latest.version,
                 )
-                self._save_ai_review_to_task(
-                    task_id=f"content_review_{latest.document_id}", assist=assist
+                (
+                    await self._save_ai_review_to_task(
+                        task_id=f"content_review_{latest.document_id}", assist=assist
+                    )
                 )
-        return self._mutation(latest, subject.subject_id)
+        return await self._mutation(latest, subject.subject_id)
 
     @traced
     async def attach_response_ai_review(
@@ -118,8 +123,8 @@ class TreeholeService:
         response_id: str,
         body: str,
     ) -> TreeholeResponseProjection:
-        subject = self._student(access_token)
-        response = self.repository.get_treehole_response(response_id)
+        subject = await self._student(access_token)
+        response = await self.repository.get_treehole_response(response_id)
         self._check_owner(response.author_user_id, subject.subject_id)
         if self.ai_assist is None or response.ai_assist_snapshot_id is not None:
             return _response_projection(response, viewer_id=subject.subject_id, public=False)
@@ -138,20 +143,22 @@ class TreeholeService:
         )
         if assist.snapshot_id is None:
             return _response_projection(response, viewer_id=subject.subject_id, public=False)
-        latest = self.repository.get_treehole_response(response_id)
+        latest = await self.repository.get_treehole_response(response_id)
         if latest.ai_assist_snapshot_id is None:
-            with self.repository.transaction():
-                latest = self.repository.save_treehole_response(
+            async with self.repository.transaction():
+                latest = await self.repository.save_treehole_response(
                     latest.model_copy(update={"ai_assist_snapshot_id": assist.snapshot_id}),
                     expected_version=latest.version,
                 )
-                self._save_ai_review_to_task(
-                    task_id=f"content_review_{latest.document_id}", assist=assist
+                (
+                    await self._save_ai_review_to_task(
+                        task_id=f"content_review_{latest.document_id}", assist=assist
+                    )
                 )
         return _response_projection(latest, viewer_id=subject.subject_id, public=False)
 
     @traced
-    def list_public(
+    async def list_public(
         self,
         access_token: str,
         *,
@@ -159,12 +166,12 @@ class TreeholeService:
         cursor: str | None = None,
         limit: int = 20,
     ) -> TreeholePostListResponse:
-        subject = self._student(access_token)
+        subject = await self._student(access_token)
         if sort not in {"latest", "confirmed"} or limit < 1:
             raise ApiException(422, "VALIDATION_FAILED")
         posts = [
             post
-            for post in self.repository.list_treehole_posts()
+            for post in (await self.repository.list_treehole_posts())
             if post.visibility_state in {"published", "protected"} and post.deleted_at is None
         ]
         if sort == "confirmed":
@@ -178,38 +185,38 @@ class TreeholeService:
         next_cursor = str(offset + page_size) if offset + page_size < len(posts) else None
         return TreeholePostListResponse(
             items=[
-                self._post_projection(post, viewer_id=subject.subject_id, public=True)
+                (await self._post_projection(post, viewer_id=subject.subject_id, public=True))
                 for post in page
             ],
             next_cursor=next_cursor,
         )
 
     @traced
-    def get_post(self, access_token: str, *, post_id: str) -> TreeholePostProjection:
-        subject = self._student(access_token)
+    async def get_post(self, access_token: str, *, post_id: str) -> TreeholePostProjection:
+        subject = await self._student(access_token)
         try:
-            post = self.repository.get_treehole_post(post_id)
+            post = await self.repository.get_treehole_post(post_id)
         except RepositoryNotFound as error:
             raise ApiException(404, "NOT_FOUND") from error
         mine = post.author_user_id == subject.subject_id
         if not mine and post.visibility_state not in {"published", "protected"}:
             raise ApiException(404, "NOT_FOUND")
-        return self._post_projection(post, viewer_id=subject.subject_id, public=not mine)
+        return await self._post_projection(post, viewer_id=subject.subject_id, public=not mine)
 
     @traced
-    def list_mine(
+    async def list_mine(
         self,
         access_token: str,
         *,
         cursor: str | None = None,
         limit: int = 20,
     ) -> TreeholePostListResponse:
-        subject = self._student(access_token)
+        subject = await self._student(access_token)
         if limit < 1:
             raise ApiException(422, "VALIDATION_FAILED")
         posts = [
             post
-            for post in self.repository.list_treehole_posts()
+            for post in (await self.repository.list_treehole_posts())
             if post.author_user_id == subject.subject_id
         ]
         offset = _decode_cursor(cursor)
@@ -218,14 +225,14 @@ class TreeholeService:
         next_cursor = str(offset + page_size) if offset + page_size < len(posts) else None
         return TreeholePostListResponse(
             items=[
-                self._post_projection(post, viewer_id=subject.subject_id, public=False)
+                (await self._post_projection(post, viewer_id=subject.subject_id, public=False))
                 for post in page
             ],
             next_cursor=next_cursor,
         )
 
     @traced
-    def create_post(
+    async def create_post(
         self,
         access_token: str,
         *,
@@ -235,113 +242,126 @@ class TreeholeService:
     ) -> TreeholeMutationResponse:
         if not body.strip():
             raise ApiException(422, "VALIDATION_FAILED")
-        subject = self._student(access_token)
-        self.consent.ensure_community_write_allowed(access_token)
-        reservation = self.idempotency.begin(
+        subject = await self._student(access_token)
+        (await self.consent.ensure_community_write_allowed(access_token))
+        reservation = await self.idempotency.begin(
             "student", subject.subject_id, "/treehole/posts", idempotency_key, {"body": body}
         )
         if reservation.replayed:
             return _decode_mutation(reservation.record.response_digest)
         try:
-            user = self.repository.get_user(subject.subject_id)
-            if not user.anonymous_identity_id:
-                raise ApiException(403, "IDENTITY_REQUIRED")
-            anonymous = self.repository.get_anonymous_identity(user.anonymous_identity_id)
-            if anonymous.user_id != user.document_id or anonymous.status != "active":
-                raise ApiException(403, "IDENTITY_REQUIRED")
-            now = datetime.now(UTC)
-            sanitized, _ = _sanitize_for_ai(body)
-            safety = _contains_safety_signal(body)
-            state: Literal[
-                "checking",
-                "published",
-                "protected",
-                "pending_confirmation",
-                "unpublished",
-                "safety_priority",
-                "deleted",
-            ] = "safety_priority" if safety else "checking"
-            review_state: Literal[
-                "not_started", "automated_checked", "human_required", "decided"
-            ] = "human_required"
-            post = TreeholePostDocument(
-                _id=self.repository.next_treehole_post_id(),
-                author_user_id=user.document_id,
-                anonymous_identity_id=anonymous.document_id,
-                display_name_snapshot=anonymous.display_name,
-                body_original_ciphertext=_protected_body(body),
-                body_sanitized=sanitized,
-                body_hash=hashlib.sha256(body.encode("utf-8")).hexdigest(),
-                visibility_state=state,
-                review_state=review_state,
-                safety_state="needs_support_review" if safety else "not_triggered",
-                community_consent_version=user.community_consent_version or "unknown",
-                original_retention_deadline=None,
-                deleted_at=None,
-                created_at=now,
-                updated_at=now,
-                version=1,
-            )
-            with self.repository.transaction():
-                saved = self.repository.create_treehole_post(post)
-                task_id = f"content_review_{saved.document_id}"
-                self.repository.append_extra_document(
-                    "content_review_tasks",
-                    {
-                        "_id": task_id,
-                        "post_id": saved.document_id,
-                        "state": "needs_action",
-                        "safety_priority": safety,
-                    },
+            async with self.repository.transaction():
+                user = await self.repository.get_user(subject.subject_id)
+                if not user.anonymous_identity_id:
+                    raise ApiException(403, "IDENTITY_REQUIRED")
+                anonymous = await self.repository.get_anonymous_identity(user.anonymous_identity_id)
+                if anonymous.user_id != user.document_id or anonymous.status != "active":
+                    raise ApiException(403, "IDENTITY_REQUIRED")
+                now = datetime.now(UTC)
+                sanitized, _ = _sanitize_for_ai(body)
+                safety = _contains_safety_signal(body)
+                state: Literal[
+                    "checking",
+                    "published",
+                    "protected",
+                    "pending_confirmation",
+                    "unpublished",
+                    "safety_priority",
+                    "deleted",
+                ] = "safety_priority" if safety else "checking"
+                review_state: Literal[
+                    "not_started", "automated_checked", "human_required", "decided"
+                ] = "human_required"
+                post = TreeholePostDocument(
+                    _id=(await self.repository.next_treehole_post_id()),
+                    author_user_id=user.document_id,
+                    anonymous_identity_id=anonymous.document_id,
+                    display_name_snapshot=anonymous.display_name,
+                    body_original_ciphertext=_protected_body(body),
+                    body_sanitized=sanitized,
+                    body_hash=hashlib.sha256(body.encode("utf-8")).hexdigest(),
+                    visibility_state=state,
+                    review_state=review_state,
+                    safety_state="needs_support_review" if safety else "not_triggered",
+                    community_consent_version=user.community_consent_version or "unknown",
+                    original_retention_deadline=None,
+                    deleted_at=None,
+                    created_at=now,
+                    updated_at=now,
+                    version=1,
                 )
-                self.repository.create_work_task(
-                    WorkTaskDocument(
-                        _id=task_id,
-                        task_kind="content_review",
-                        source_type="post",
-                        source_id=saved.document_id,
-                        available_capability="content_review",
-                        state="needs_action",
-                        assigned_admin_id=None,
-                        safe_summary="树洞帖子待审核",
-                        object_version=1,
-                        last_action=None,
-                        facts=[
-                            {"label": "来源", "value": "匿名树洞"},
-                            {"label": "内容类型", "value": "帖子"},
-                        ],
-                        redacted_content=sanitized,
-                        created_at=now,
-                        updated_at=now,
-                        version=1,
+                async with self.repository.transaction():
+                    saved = await self.repository.create_treehole_post(post)
+                    task_id = f"content_review_{saved.document_id}"
+                    (
+                        await self.repository.append_extra_document(
+                            "content_review_tasks",
+                            {
+                                "_id": task_id,
+                                "post_id": saved.document_id,
+                                "state": "needs_action",
+                                "safety_priority": safety,
+                            },
+                        )
+                    )
+                    (
+                        await self.repository.create_work_task(
+                            WorkTaskDocument(
+                                _id=task_id,
+                                task_kind="content_review",
+                                source_type="post",
+                                source_id=saved.document_id,
+                                available_capability="content_review",
+                                state="needs_action",
+                                assigned_admin_id=None,
+                                safe_summary="树洞帖子待审核",
+                                object_version=1,
+                                last_action=None,
+                                facts=[
+                                    {"label": "来源", "value": "匿名树洞"},
+                                    {"label": "内容类型", "value": "帖子"},
+                                ],
+                                redacted_content=sanitized,
+                                created_at=now,
+                                updated_at=now,
+                                version=1,
+                            )
+                        )
+                    )
+                response = await self._mutation(saved, subject.subject_id)
+                (
+                    await self.idempotency.complete(
+                        reservation, status_code=200, response_digest=response.model_dump_json()
                     )
                 )
-            response = self._mutation(saved, subject.subject_id)
-            self.idempotency.complete(
-                reservation, status_code=200, response_digest=response.model_dump_json()
-            )
-            self._audit(
-                request_id, subject.subject_id, "treehole_post_create", saved.document_id, state
-            )
-            return response
+                (
+                    await self._audit(
+                        request_id,
+                        subject.subject_id,
+                        "treehole_post_create",
+                        saved.document_id,
+                        state,
+                    )
+                )
+                return response
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryError as error:
             failure = ApiException(503, "DEPENDENCY_UNAVAILABLE")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def withdraw_post(
+    async def withdraw_post(
         self,
         access_token: str,
         *,
@@ -350,7 +370,7 @@ class TreeholeService:
         request_id: str,
         idempotency_key: str,
     ) -> TreeholeMutationResponse:
-        return self._change_post_state(
+        return await self._change_post_state(
             access_token,
             post_id=post_id,
             object_version=object_version,
@@ -360,7 +380,7 @@ class TreeholeService:
         )
 
     @traced
-    def delete_post(
+    async def delete_post(
         self,
         access_token: str,
         *,
@@ -369,8 +389,8 @@ class TreeholeService:
         request_id: str,
         idempotency_key: str,
     ) -> TreeholeDeleteResponse:
-        subject = self._student(access_token)
-        reservation = self.idempotency.begin(
+        subject = await self._student(access_token)
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/treehole/posts/{post_id}/delete",
@@ -380,52 +400,59 @@ class TreeholeService:
         if reservation.replayed:
             return _decode_delete(reservation.record.response_digest)
         try:
-            with self.repository.transaction():
-                post = self.repository.get_treehole_post(post_id)
-                self._check_owner(post.author_user_id, subject.subject_id)
-                if post.version != object_version:
-                    raise ApiException(409, "VERSION_CONFLICT", current_version=post.version)
-                if post.deleted_at is not None:
-                    raise ApiException(404, "NOT_FOUND")
-                now = datetime.now(UTC)
-                saved = self.repository.save_treehole_post(
-                    post.model_copy(
-                        update={
-                            "visibility_state": "deleted",
-                            "deleted_at": now,
-                            "body_sanitized": None,
-                        }
-                    ),
-                    expected_version=post.version,
+            async with self.repository.transaction():
+                async with self.repository.transaction():
+                    post = await self.repository.get_treehole_post(post_id)
+                    self._check_owner(post.author_user_id, subject.subject_id)
+                    if post.version != object_version:
+                        raise ApiException(409, "VERSION_CONFLICT", current_version=post.version)
+                    if post.deleted_at is not None:
+                        raise ApiException(404, "NOT_FOUND")
+                    now = datetime.now(UTC)
+                    saved = await self.repository.save_treehole_post(
+                        post.model_copy(
+                            update={
+                                "visibility_state": "deleted",
+                                "deleted_at": now,
+                                "body_sanitized": None,
+                            }
+                        ),
+                        expected_version=post.version,
+                    )
+                    response = TreeholeDeleteResponse(
+                        resource_id=saved.document_id,
+                        deleted_at=saved.deleted_at or now,
+                        object_version=saved.version,
+                    )
+                (
+                    await self.idempotency.complete(
+                        reservation, status_code=200, response_digest=response.model_dump_json()
+                    )
                 )
-                response = TreeholeDeleteResponse(
-                    resource_id=saved.document_id,
-                    deleted_at=saved.deleted_at or now,
-                    object_version=saved.version,
+                (
+                    await self._audit(
+                        request_id, subject.subject_id, "treehole_post_delete", post_id, "deleted"
+                    )
                 )
-            self.idempotency.complete(
-                reservation, status_code=200, response_digest=response.model_dump_json()
-            )
-            self._audit(request_id, subject.subject_id, "treehole_post_delete", post_id, "deleted")
-            return response
+                return response
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def create_response(
+    async def create_response(
         self,
         access_token: str,
         *,
@@ -435,9 +462,9 @@ class TreeholeService:
         request_id: str,
         idempotency_key: str,
     ) -> TreeholeResponseProjection:
-        subject = self._student(access_token)
-        self.consent.ensure_community_write_allowed(access_token)
-        reservation = self.idempotency.begin(
+        subject = await self._student(access_token)
+        (await self.consent.ensure_community_write_allowed(access_token))
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/treehole/posts/{post_id}/responses",
@@ -447,96 +474,105 @@ class TreeholeService:
         if reservation.replayed:
             return _decode_response(reservation.record.response_digest)
         try:
-            post = self.repository.get_treehole_post(post_id)
-            if (
-                post.visibility_state not in {"published", "protected"}
-                or post.deleted_at is not None
-            ):
-                raise ApiException(404, "NOT_FOUND")
-            if post.version != object_version:
-                raise ApiException(409, "VERSION_CONFLICT", current_version=post.version)
-            user = self.repository.get_user(subject.subject_id)
-            if not user.anonymous_identity_id:
-                raise ApiException(403, "IDENTITY_REQUIRED")
-            anonymous = self.repository.get_anonymous_identity(user.anonymous_identity_id)
-            now = datetime.now(UTC)
-            sanitized, _ = _sanitize_for_ai(body)
-            response = TreeholeResponseDocument(
-                _id=self.repository.next_treehole_response_id(),
-                post_id=post.document_id,
-                author_user_id=user.document_id,
-                anonymous_identity_id=anonymous.document_id,
-                display_name_snapshot=anonymous.display_name,
-                body_original_ciphertext=_protected_body(body),
-                body_sanitized=sanitized,
-                state="checking",
-                community_consent_version=user.community_consent_version or "unknown",
-                deleted_at=None,
-                created_at=now,
-                updated_at=now,
-                version=1,
-            )
-            with self.repository.transaction():
-                saved = self.repository.create_treehole_response(response)
-                task_id = f"content_review_{saved.document_id}"
-                self.repository.append_extra_document(
-                    "content_review_tasks",
-                    {
-                        "_id": task_id,
-                        "response_id": saved.document_id,
-                        "post_id": post.document_id,
-                        "state": "needs_action",
-                        "safety_priority": False,
-                    },
+            async with self.repository.transaction():
+                post = await self.repository.get_treehole_post(post_id)
+                if (
+                    post.visibility_state not in {"published", "protected"}
+                    or post.deleted_at is not None
+                ):
+                    raise ApiException(404, "NOT_FOUND")
+                if post.version != object_version:
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=post.version)
+                user = await self.repository.get_user(subject.subject_id)
+                if not user.anonymous_identity_id:
+                    raise ApiException(403, "IDENTITY_REQUIRED")
+                anonymous = await self.repository.get_anonymous_identity(user.anonymous_identity_id)
+                now = datetime.now(UTC)
+                sanitized, _ = _sanitize_for_ai(body)
+                response = TreeholeResponseDocument(
+                    _id=(await self.repository.next_treehole_response_id()),
+                    post_id=post.document_id,
+                    author_user_id=user.document_id,
+                    anonymous_identity_id=anonymous.document_id,
+                    display_name_snapshot=anonymous.display_name,
+                    body_original_ciphertext=_protected_body(body),
+                    body_sanitized=sanitized,
+                    state="checking",
+                    community_consent_version=user.community_consent_version or "unknown",
+                    deleted_at=None,
+                    created_at=now,
+                    updated_at=now,
+                    version=1,
                 )
-                self.repository.create_work_task(
-                    WorkTaskDocument(
-                        _id=task_id,
-                        task_kind="content_review",
-                        source_type="response",
-                        source_id=saved.document_id,
-                        available_capability="content_review",
-                        state="needs_action",
-                        assigned_admin_id=None,
-                        safe_summary="树洞回应待审核",
-                        object_version=1,
-                        last_action=None,
-                        facts=[
-                            {"label": "来源", "value": "匿名树洞"},
-                            {"label": "内容类型", "value": "回应"},
-                        ],
-                        redacted_content=sanitized,
-                        created_at=now,
-                        updated_at=now,
-                        version=1,
+                async with self.repository.transaction():
+                    saved = await self.repository.create_treehole_response(response)
+                    task_id = f"content_review_{saved.document_id}"
+                    (
+                        await self.repository.append_extra_document(
+                            "content_review_tasks",
+                            {
+                                "_id": task_id,
+                                "response_id": saved.document_id,
+                                "post_id": post.document_id,
+                                "state": "needs_action",
+                                "safety_priority": False,
+                            },
+                        )
+                    )
+                    (
+                        await self.repository.create_work_task(
+                            WorkTaskDocument(
+                                _id=task_id,
+                                task_kind="content_review",
+                                source_type="response",
+                                source_id=saved.document_id,
+                                available_capability="content_review",
+                                state="needs_action",
+                                assigned_admin_id=None,
+                                safe_summary="树洞回应待审核",
+                                object_version=1,
+                                last_action=None,
+                                facts=[
+                                    {"label": "来源", "value": "匿名树洞"},
+                                    {"label": "内容类型", "value": "回应"},
+                                ],
+                                redacted_content=sanitized,
+                                created_at=now,
+                                updated_at=now,
+                                version=1,
+                            )
+                        )
+                    )
+                projection = _response_projection(saved, viewer_id=subject.subject_id, public=False)
+                (
+                    await self.idempotency.complete(
+                        reservation, status_code=200, response_digest=projection.model_dump_json()
                     )
                 )
-            projection = _response_projection(saved, viewer_id=subject.subject_id, public=False)
-            self.idempotency.complete(
-                reservation, status_code=200, response_digest=projection.model_dump_json()
-            )
-            self._audit(
-                request_id,
-                subject.subject_id,
-                "treehole_response_create",
-                saved.document_id,
-                "checking",
-            )
-            return projection
+                (
+                    await self._audit(
+                        request_id,
+                        subject.subject_id,
+                        "treehole_response_create",
+                        saved.document_id,
+                        "checking",
+                    )
+                )
+                return projection
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def delete_response(
+    async def delete_response(
         self,
         access_token: str,
         *,
@@ -545,8 +581,8 @@ class TreeholeService:
         request_id: str,
         idempotency_key: str,
     ) -> TreeholeDeleteResponse:
-        subject = self._student(access_token)
-        reservation = self.idempotency.begin(
+        subject = await self._student(access_token)
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/treehole/responses/{response_id}",
@@ -556,49 +592,58 @@ class TreeholeService:
         if reservation.replayed:
             return _decode_delete(reservation.record.response_digest)
         try:
-            response = self.repository.get_treehole_response(response_id)
-            self._check_owner(response.author_user_id, subject.subject_id)
-            if response.version != object_version:
-                raise ApiException(409, "VERSION_CONFLICT", current_version=response.version)
-            if response.deleted_at is not None:
-                raise ApiException(404, "NOT_FOUND")
-            now = datetime.now(UTC)
-            saved = self.repository.save_treehole_response(
-                response.model_copy(
-                    update={"state": "deleted", "deleted_at": now, "body_sanitized": None}
-                ),
-                expected_version=response.version,
-            )
-            result = TreeholeDeleteResponse(
-                resource_id=saved.document_id,
-                deleted_at=saved.deleted_at or now,
-                object_version=saved.version,
-            )
-            self.idempotency.complete(
-                reservation, status_code=200, response_digest=result.model_dump_json()
-            )
-            self._audit(
-                request_id, subject.subject_id, "treehole_response_delete", response_id, "deleted"
-            )
-            return result
+            async with self.repository.transaction():
+                response = await self.repository.get_treehole_response(response_id)
+                self._check_owner(response.author_user_id, subject.subject_id)
+                if response.version != object_version:
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=response.version)
+                if response.deleted_at is not None:
+                    raise ApiException(404, "NOT_FOUND")
+                now = datetime.now(UTC)
+                saved = await self.repository.save_treehole_response(
+                    response.model_copy(
+                        update={"state": "deleted", "deleted_at": now, "body_sanitized": None}
+                    ),
+                    expected_version=response.version,
+                )
+                result = TreeholeDeleteResponse(
+                    resource_id=saved.document_id,
+                    deleted_at=saved.deleted_at or now,
+                    object_version=saved.version,
+                )
+                (
+                    await self.idempotency.complete(
+                        reservation, status_code=200, response_digest=result.model_dump_json()
+                    )
+                )
+                (
+                    await self._audit(
+                        request_id,
+                        subject.subject_id,
+                        "treehole_response_delete",
+                        response_id,
+                        "deleted",
+                    )
+                )
+                return result
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def _change_post_state(
+    async def _change_post_state(
         self,
         access_token: str,
         *,
@@ -608,8 +653,8 @@ class TreeholeService:
         request_id: str,
         idempotency_key: str,
     ) -> TreeholeMutationResponse:
-        subject = self._student(access_token)
-        reservation = self.idempotency.begin(
+        subject = await self._student(access_token)
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/treehole/posts/{post_id}/{target}",
@@ -619,48 +664,55 @@ class TreeholeService:
         if reservation.replayed:
             return _decode_mutation(reservation.record.response_digest)
         try:
-            with self.repository.transaction():
-                post = self.repository.get_treehole_post(post_id)
-                self._check_owner(post.author_user_id, subject.subject_id)
-                if post.version != object_version:
-                    raise ApiException(409, "VERSION_CONFLICT", current_version=post.version)
-                if post.deleted_at is not None:
-                    raise ApiException(404, "NOT_FOUND")
-                saved = self.repository.save_treehole_post(
-                    post.model_copy(update={"visibility_state": target}),
-                    expected_version=post.version,
+            async with self.repository.transaction():
+                async with self.repository.transaction():
+                    post = await self.repository.get_treehole_post(post_id)
+                    self._check_owner(post.author_user_id, subject.subject_id)
+                    if post.version != object_version:
+                        raise ApiException(409, "VERSION_CONFLICT", current_version=post.version)
+                    if post.deleted_at is not None:
+                        raise ApiException(404, "NOT_FOUND")
+                    saved = await self.repository.save_treehole_post(
+                        post.model_copy(update={"visibility_state": target}),
+                        expected_version=post.version,
+                    )
+                    result = await self._mutation(saved, subject.subject_id)
+                (
+                    await self.idempotency.complete(
+                        reservation, status_code=200, response_digest=result.model_dump_json()
+                    )
                 )
-                result = self._mutation(saved, subject.subject_id)
-            self.idempotency.complete(
-                reservation, status_code=200, response_digest=result.model_dump_json()
-            )
-            self._audit(request_id, subject.subject_id, "treehole_post_withdraw", post_id, target)
-            return result
+                (
+                    await self._audit(
+                        request_id, subject.subject_id, "treehole_post_withdraw", post_id, target
+                    )
+                )
+                return result
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def _student(self, access_token: str) -> AuthenticatedSubject:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+    async def _student(self, access_token: str) -> AuthenticatedSubject:
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
         return subject
 
     @traced
-    def _post_projection(
+    async def _post_projection(
         self, post: TreeholePostDocument, *, viewer_id: str, public: bool
     ) -> TreeholePostProjection:
         mine = post.author_user_id == viewer_id
@@ -669,7 +721,7 @@ class TreeholeService:
             expose_body = False
         responses = [
             _response_projection(response, viewer_id=viewer_id, public=public)
-            for response in self.repository.list_treehole_responses(post.document_id)
+            for response in (await self.repository.list_treehole_responses(post.document_id))
             if response.deleted_at is None and (not public or response.state == "published")
         ]
         return TreeholePostProjection(
@@ -688,8 +740,10 @@ class TreeholeService:
         )
 
     @traced
-    def _mutation(self, post: TreeholePostDocument, viewer_id: str) -> TreeholeMutationResponse:
-        projection = self._post_projection(post, viewer_id=viewer_id, public=False)
+    async def _mutation(
+        self, post: TreeholePostDocument, viewer_id: str
+    ) -> TreeholeMutationResponse:
+        projection = await self._post_projection(post, viewer_id=viewer_id, public=False)
         return TreeholeMutationResponse(
             post_id=post.document_id,
             visibility_state=post.visibility_state,
@@ -704,9 +758,9 @@ class TreeholeService:
             raise ApiException(404, "NOT_FOUND")
 
     @traced
-    def _save_ai_review_to_task(self, *, task_id: str, assist: AiAssistResult) -> None:
+    async def _save_ai_review_to_task(self, *, task_id: str, assist: AiAssistResult) -> None:
         try:
-            task = self.repository.get_work_task(task_id)
+            task = await self.repository.get_work_task(task_id)
         except RepositoryNotFound:
             return
         output = getattr(assist, "output", None)
@@ -726,22 +780,24 @@ class TreeholeService:
         records.append({"label": "DeepSeek 建议", "value": route_labels.get(route, "建议人工复核")})
         if isinstance(note, str) and note.strip():
             records.append({"label": "辅助审核说明", "value": note.strip()})
-        self.repository.save_work_task(
-            task.model_copy(
-                update={
-                    "records": records,
-                    "object_version": task.version + 1,
-                }
-            ),
-            expected_version=task.version,
+        (
+            await self.repository.save_work_task(
+                task.model_copy(
+                    update={
+                        "records": records,
+                        "object_version": task.version + 1,
+                    }
+                ),
+                expected_version=task.version,
+            )
         )
 
     @traced
-    def _audit(
+    async def _audit(
         self, request_id: str, actor_id: str, action: str, resource_id: str, status: str
     ) -> None:
-        try:
-            self.audit.write(
+        (
+            await self.audit.write(
                 request_id=request_id,
                 actor_type="student",
                 actor_id=actor_id,
@@ -755,8 +811,7 @@ class TreeholeService:
                 occurred_at=datetime.now(UTC),
                 facts={"action_code": action, "status": status},
             )
-        except Exception:
-            pass
+        )
 
 
 @traced
@@ -854,14 +909,16 @@ def _decode_delete(value: str | None) -> TreeholeDeleteResponse:
 
 
 @traced
-def _complete_failure(
+async def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
     error: ApiException,
 ) -> None:
-    idempotency.complete(
-        reservation,
-        status_code=error.status_code,
-        response_digest=serialize_api_error(error),
-        outcome="failure",
+    (
+        await idempotency.complete(
+            reservation,
+            status_code=error.status_code,
+            response_digest=serialize_api_error(error),
+            outcome="failure",
+        )
     )

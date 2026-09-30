@@ -238,20 +238,22 @@ def build_repository(**overrides: Any) -> InMemoryDomainDataRepository:
     )
 
 
-def issue_student_token(sessions: InMemorySessionRepository, *, subject_id: str = "user-1") -> str:
+async def issue_student_token(
+    sessions: InMemorySessionRepository, *, subject_id: str = "user-1"
+) -> str:
     return (
-        TokenManager("student-session-secret")
-        .issue(
+        await TokenManager("student-session-secret").issue(
             "student",
             subject_id,
             sessions,
         )
-        .access_token
-    )
+    ).access_token
 
 
-def issue_admin_token(sessions: InMemorySessionRepository) -> str:
-    return TokenManager("student-session-secret").issue("admin", "admin-1", sessions).access_token
+async def issue_admin_token(sessions: InMemorySessionRepository) -> str:
+    return (
+        await TokenManager("student-session-secret").issue("admin", "admin-1", sessions)
+    ).access_token
 
 
 def build_services(
@@ -298,7 +300,7 @@ def build_services(
     return mood, quote, resources, today, sessions, audit_repository
 
 
-def test_today_requires_active_consented_verified_student_and_returns_minimal_projection() -> None:
+async def test_today_requires_consented_verified_student_and_returns_minimal_projection() -> None:
     repository = build_repository(
         daily_mood_records=[mood_record("mood-1", mood_code="pleasant")],
         quote_entries=[quote_entry("Q-0001", sort_order=1)],
@@ -335,9 +337,9 @@ def test_today_requires_active_consented_verified_student_and_returns_minimal_pr
         ],
     )
     _, _, _, today, sessions, _ = build_services(repository)
-    access_token = issue_student_token(sessions)
+    access_token = await issue_student_token(sessions)
 
-    projection = today.get_today(access_token)
+    projection = await today.get_today(access_token)
     payload = projection.model_dump()
 
     assert set(payload) == {"quote", "mood_today", "assessment_shortcuts", "support_entry"}
@@ -373,20 +375,20 @@ def test_today_requires_active_consented_verified_student_and_returns_minimal_pr
         blocked_repository = build_repository(users=[user])
         _, _, _, blocked_today, blocked_sessions, _ = build_services(blocked_repository)
         with pytest.raises(ApiException):
-            blocked_today.get_today(issue_student_token(blocked_sessions))
+            await blocked_today.get_today(await issue_student_token(blocked_sessions))
 
     _, _, _, admin_today, admin_sessions, _ = build_services(repository)
     with pytest.raises(ApiException) as admin_error:
-        admin_today.get_today(issue_admin_token(admin_sessions))
+        await admin_today.get_today(await issue_admin_token(admin_sessions))
     assert admin_error.value.code == "FORBIDDEN"
 
 
-def test_mood_records_only_six_codes_for_current_shanghai_day_with_idempotent_first_fact() -> None:
+async def test_mood_records_six_codes_for_shanghai_day_with_idempotent_first_fact() -> None:
     repository = build_repository()
     mood, _, _, _, sessions, audit_repository = build_services(repository)
-    access_token = issue_student_token(sessions)
+    access_token = await issue_student_token(sessions)
 
-    saved = mood.record_today_mood(
+    saved = await mood.record_today_mood(
         access_token,
         mood_code="calm",
         record_date="2026-09-01",
@@ -397,11 +399,11 @@ def test_mood_records_only_six_codes_for_current_shanghai_day_with_idempotent_fi
     assert saved.record_date == "2026-09-01"
     assert saved.mood_code == "calm"
     assert saved.version == 1
-    assert repository.extra_collection("work_tasks") == []
-    assert repository.extra_collection("safety_support_tasks") == []
-    assert "calm" not in str(audit_repository.list())
+    assert (await repository.extra_collection("work_tasks")) == []
+    assert (await repository.extra_collection("safety_support_tasks")) == []
+    assert "calm" not in str(await audit_repository.list())
 
-    replay = mood.record_today_mood(
+    replay = await mood.record_today_mood(
         access_token,
         mood_code="calm",
         record_date="2026-09-01",
@@ -410,7 +412,7 @@ def test_mood_records_only_six_codes_for_current_shanghai_day_with_idempotent_fi
     )
     assert replay == saved
 
-    not_overwritten = mood.record_today_mood(
+    not_overwritten = await mood.record_today_mood(
         access_token,
         mood_code="low",
         record_date="2026-09-01",
@@ -418,17 +420,19 @@ def test_mood_records_only_six_codes_for_current_shanghai_day_with_idempotent_fi
         idempotency_key="mood-key-2",
     )
     assert not_overwritten == saved
-    stored_mood = repository.get_daily_mood_by_user_date("user-1", "2026-09-01")
+    stored_mood = await repository.get_daily_mood_by_user_date("user-1", "2026-09-01")
     assert stored_mood is not None
     assert stored_mood.mood_code == "calm"
 
     with pytest.raises(ApiException) as conflict:
-        mood.record_today_mood(
-            access_token,
-            mood_code="pleasant",
-            record_date="2026-09-01",
-            request_id="req-mood-conflict",
-            idempotency_key="mood-key-1",
+        (
+            await mood.record_today_mood(
+                access_token,
+                mood_code="pleasant",
+                record_date="2026-09-01",
+                request_id="req-mood-conflict",
+                idempotency_key="mood-key-1",
+            )
         )
     assert conflict.value.code == "IDEMPOTENCY_CONFLICT"
 
@@ -436,27 +440,33 @@ def test_mood_records_only_six_codes_for_current_shanghai_day_with_idempotent_fi
         assert code in MoodService.MOOD_LABELS
 
     with pytest.raises(ApiException) as invalid_code:
-        mood.record_today_mood(
-            access_token,
-            mood_code="excited",
-            record_date="2026-09-01",
-            request_id="req-invalid-code",
-            idempotency_key="invalid-code",
+        (
+            await mood.record_today_mood(
+                access_token,
+                mood_code="excited",
+                record_date="2026-09-01",
+                request_id="req-invalid-code",
+                idempotency_key="invalid-code",
+            )
         )
     assert invalid_code.value.code == "VALIDATION_FAILED"
 
     with pytest.raises(ApiException) as wrong_date:
-        mood.record_today_mood(
-            access_token,
-            mood_code="calm",
-            record_date="2026-08-31",
-            request_id="req-wrong-date",
-            idempotency_key="wrong-date",
+        (
+            await mood.record_today_mood(
+                access_token,
+                mood_code="calm",
+                record_date="2026-08-31",
+                request_id="req-wrong-date",
+                idempotency_key="wrong-date",
+            )
         )
     assert wrong_date.value.code == "VALIDATION_FAILED"
 
 
-def test_mood_history_filters_owner_dates_cursor_limit_and_delete_keeps_same_day_slot() -> None:
+async def test_mood_history_filters_owner_dates_cursor_limit_and_delete_keeps_same_day_slot() -> (
+    None
+):
     repository = build_repository(
         daily_mood_records=[
             mood_record(
@@ -486,27 +496,31 @@ def test_mood_history_filters_owner_dates_cursor_limit_and_delete_keeps_same_day
         ]
     )
     mood, _, _, _, sessions, _ = build_services(repository)
-    access_token = issue_student_token(sessions)
+    access_token = await issue_student_token(sessions)
 
-    page = mood.list_history(access_token, from_date="2026-08-30", to_date="2026-09-01", limit=2)
+    page = await mood.list_history(
+        access_token, from_date="2026-08-30", to_date="2026-09-01", limit=2
+    )
 
     assert [item.record_id for item in page.items] == ["mood-today", "mood-yesterday"]
     assert page.next_cursor is not None
-    second_page = mood.list_history(access_token, cursor=page.next_cursor, limit=2)
+    second_page = await mood.list_history(access_token, cursor=page.next_cursor, limit=2)
     assert [item.record_id for item in second_page.items] == ["mood-old"]
 
     with pytest.raises(ApiException) as stale:
-        mood.delete_mood(
-            access_token,
-            record_id="mood-today",
-            object_version=999,
-            request_id="req-stale",
-            idempotency_key="delete-stale",
+        (
+            await mood.delete_mood(
+                access_token,
+                record_id="mood-today",
+                object_version=999,
+                request_id="req-stale",
+                idempotency_key="delete-stale",
+            )
         )
     assert stale.value.code == "VERSION_CONFLICT"
     assert stale.value.current_version == 1
 
-    deleted = mood.delete_mood(
+    deleted = await mood.delete_mood(
         access_token,
         record_id="mood-today",
         object_version=1,
@@ -516,10 +530,10 @@ def test_mood_history_filters_owner_dates_cursor_limit_and_delete_keeps_same_day
     assert deleted.version == 2
     assert deleted.deleted_at is not None
     assert "mood-today" not in [
-        item.record_id for item in mood.list_history(access_token, limit=10).items
+        item.record_id for item in (await mood.list_history(access_token, limit=10)).items
     ]
 
-    replacement = mood.record_today_mood(
+    replacement = await mood.record_today_mood(
         access_token,
         mood_code="pleasant",
         record_date="2026-09-01",
@@ -528,54 +542,62 @@ def test_mood_history_filters_owner_dates_cursor_limit_and_delete_keeps_same_day
     )
     assert replacement.record_id == "mood-today"
     assert replacement.mood_code == "calm"
-    assert repository.extra_collection("work_tasks") == []
-    assert repository.extra_collection("safety_support_tasks") == []
+    assert (await repository.extra_collection("work_tasks")) == []
+    assert (await repository.extra_collection("safety_support_tasks")) == []
 
     with pytest.raises(ApiException) as other_owner:
-        mood.delete_mood(
-            access_token,
-            record_id="mood-other",
-            object_version=1,
-            request_id="req-other",
-            idempotency_key="delete-other",
+        (
+            await mood.delete_mood(
+                access_token,
+                record_id="mood-other",
+                object_version=1,
+                request_id="req-other",
+                idempotency_key="delete-other",
+            )
         )
     assert other_owner.value.code == "NOT_FOUND"
 
 
-def test_mood_delete_rejects_already_deleted_record_without_mutation_or_second_audit() -> None:
+async def test_mood_delete_rejects_already_deleted_record_without_mutation_or_second_audit() -> (
+    None
+):
     repository = build_repository(daily_mood_records=[mood_record("mood-terminal")])
     mood, _, _, _, sessions, audit_repository = build_services(repository)
-    access_token = issue_student_token(sessions)
+    access_token = await issue_student_token(sessions)
 
-    deleted = mood.delete_mood(
+    deleted = await mood.delete_mood(
         access_token,
         record_id="mood-terminal",
         object_version=1,
         request_id="req-delete-first",
         idempotency_key="delete-terminal",
     )
-    persisted_after_first_delete = repository.get_daily_mood("mood-terminal")
-    audits_after_first_delete = audit_repository.list()
+    persisted_after_first_delete = await repository.get_daily_mood("mood-terminal")
+    audits_after_first_delete = await audit_repository.list()
 
     with pytest.raises(ApiException) as second_delete:
-        mood.delete_mood(
-            access_token,
-            record_id="mood-terminal",
-            object_version=deleted.version,
-            request_id="req-delete-second",
-            idempotency_key="delete-terminal-second",
+        (
+            await mood.delete_mood(
+                access_token,
+                record_id="mood-terminal",
+                object_version=deleted.version,
+                request_id="req-delete-second",
+                idempotency_key="delete-terminal-second",
+            )
         )
 
-    persisted_after_second_delete = repository.get_daily_mood("mood-terminal")
+    persisted_after_second_delete = await repository.get_daily_mood("mood-terminal")
     assert second_delete.value.code == "NOT_FOUND"
     assert second_delete.value.status_code == 404
     assert persisted_after_second_delete.version == persisted_after_first_delete.version == 2
     assert persisted_after_second_delete.deleted_at == persisted_after_first_delete.deleted_at
-    assert audit_repository.list() == audits_after_first_delete
+    assert (await audit_repository.list()) == audits_after_first_delete
     assert len([event for event in audits_after_first_delete if event.action == "mood_delete"]) == 1
 
 
-def test_mood_delete_replays_success_conflicts_on_different_body_and_replays_failure() -> None:
+async def test_mood_delete_replays_success_conflicts_on_different_body_and_replays_failure() -> (
+    None
+):
     repository = build_repository(daily_mood_records=[mood_record("mood-idem")])
     sessions = InMemorySessionRepository()
     token_manager = TokenManager("student-session-secret")
@@ -589,16 +611,16 @@ def test_mood_delete_replays_success_conflicts_on_different_body_and_replays_fai
         audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
         now_provider=lambda: FIXED_NOW,
     )
-    access_token = token_manager.issue("student", "user-1", sessions).access_token
+    access_token = (await token_manager.issue("student", "user-1", sessions)).access_token
 
-    first = mood.delete_mood(
+    first = await mood.delete_mood(
         access_token,
         record_id="mood-idem",
         object_version=1,
         request_id="req-delete-idem",
         idempotency_key="delete-idem",
     )
-    replay = mood.delete_mood(
+    replay = await mood.delete_mood(
         access_token,
         record_id="mood-idem",
         object_version=1,
@@ -607,39 +629,48 @@ def test_mood_delete_replays_success_conflicts_on_different_body_and_replays_fai
     )
 
     assert replay == first
-    assert repository.get_daily_mood("mood-idem").version == 2
-    assert len([event for event in audit_repository.list() if event.action == "mood_delete"]) == 1
+    assert (await repository.get_daily_mood("mood-idem")).version == 2
+    assert (
+        len([event for event in (await audit_repository.list()) if event.action == "mood_delete"])
+        == 1
+    )
 
     with pytest.raises(ApiException) as conflict:
-        mood.delete_mood(
-            access_token,
-            record_id="mood-idem",
-            object_version=2,
-            request_id="req-delete-idem-conflict",
-            idempotency_key="delete-idem",
+        (
+            await mood.delete_mood(
+                access_token,
+                record_id="mood-idem",
+                object_version=2,
+                request_id="req-delete-idem-conflict",
+                idempotency_key="delete-idem",
+            )
         )
     assert conflict.value.code == "IDEMPOTENCY_CONFLICT"
 
     with pytest.raises(ApiException) as stale:
-        mood.delete_mood(
-            access_token,
-            record_id="mood-idem",
-            object_version=999,
-            request_id="req-delete-idem-stale",
-            idempotency_key="delete-stale-idem",
+        (
+            await mood.delete_mood(
+                access_token,
+                record_id="mood-idem",
+                object_version=999,
+                request_id="req-delete-idem-stale",
+                idempotency_key="delete-stale-idem",
+            )
         )
     assert stale.value.code == "VERSION_CONFLICT"
 
     with pytest.raises(ApiException) as stale_replay:
-        mood.delete_mood(
-            access_token,
-            record_id="mood-idem",
-            object_version=999,
-            request_id="req-delete-idem-stale-replay",
-            idempotency_key="delete-stale-idem",
+        (
+            await mood.delete_mood(
+                access_token,
+                record_id="mood-idem",
+                object_version=999,
+                request_id="req-delete-idem-stale-replay",
+                idempotency_key="delete-stale-idem",
+            )
         )
     assert stale_replay.value.code == "VERSION_CONFLICT"
-    failure_record = idempotency_repository.get(
+    failure_record = await idempotency_repository.get(
         "student",
         "user-1",
         "/daily-moods/mood-idem",
@@ -650,27 +681,29 @@ def test_mood_delete_replays_success_conflicts_on_different_body_and_replays_fai
     assert failure_record.outcome == "failure"
 
 
-def test_mood_account_gate_failures_do_not_write_success_facts() -> None:
+async def test_mood_account_gate_failures_do_not_write_success_facts() -> None:
     repository = build_repository(
         users=[build_user(base_consent_status="not_accepted", base_consent_version=None)]
     )
     mood, _, _, _, sessions, _ = build_services(repository)
-    access_token = issue_student_token(sessions)
+    access_token = await issue_student_token(sessions)
 
     with pytest.raises(ApiException) as blocked:
-        mood.record_today_mood(
-            access_token,
-            mood_code="calm",
-            record_date="2026-09-01",
-            request_id="req-blocked",
-            idempotency_key="blocked",
+        (
+            await mood.record_today_mood(
+                access_token,
+                mood_code="calm",
+                record_date="2026-09-01",
+                request_id="req-blocked",
+                idempotency_key="blocked",
+            )
         )
 
     assert blocked.value.code == "CONSENT_REQUIRED"
-    assert repository.list_daily_mood_records("user-1") == ()
+    assert (await repository.list_daily_mood_records("user-1")) == ()
 
 
-def test_quote_service_uses_enabled_seed_pool_window_and_never_exposes_candidates() -> None:
+async def test_quote_service_uses_enabled_seed_pool_window_and_never_exposes_candidates() -> None:
     import scripts.seed_demo as seed_demo
 
     seed_quotes = [
@@ -684,12 +717,12 @@ def test_quote_service_uses_enabled_seed_pool_window_and_never_exposes_candidate
     repository = build_repository(quote_entries=seed_quotes)
     _, quote, _, _, _, _ = build_services(repository)
 
-    pool = repository.list_available_quote_entries(record_date="2026-09-01")
+    pool = await repository.list_available_quote_entries(record_date="2026-09-01")
     assert len(pool) == 40
     assert {entry.document_id for entry in pool} == {f"Q-{number:04d}" for number in range(1, 41)}
     assert {entry.source_kind for entry in pool} == {"public_domain", "project_original"}
 
-    selection = quote.get_daily_quote(now=FIXED_NOW)
+    selection = await quote.get_daily_quote(now=FIXED_NOW)
     assert selection.status == "available"
     assert selection.quote is not None
     assert set(selection.quote.model_dump()) == {
@@ -713,18 +746,18 @@ def test_quote_service_uses_enabled_seed_pool_window_and_never_exposes_candidate
         ]
     )
     _, windowed_quote, _, _, _, _ = build_services(windowed_repository)
-    windowed_selection = windowed_quote.get_daily_quote(now=FIXED_NOW)
+    windowed_selection = await windowed_quote.get_daily_quote(now=FIXED_NOW)
     assert windowed_selection.quote is not None
     assert windowed_selection.quote.quote_text == "短句 Q-available"
 
     empty_repository = build_repository(quote_entries=[])
     _, empty_quote, _, _, _, _ = build_services(empty_repository)
-    empty = empty_quote.get_daily_quote(now=FIXED_NOW)
+    empty = await empty_quote.get_daily_quote(now=FIXED_NOW)
     assert empty.status == "unconfigured"
     assert empty.quote is None
 
 
-def test_quote_service_randomly_selects_again_and_excludes_previous_quote() -> None:
+async def test_quote_service_randomly_selects_again_and_excludes_previous_quote() -> None:
     repository = build_repository(
         quote_entries=[
             quote_entry("Q-first", sort_order=1),
@@ -745,8 +778,8 @@ def test_quote_service_randomly_selects_again_and_excludes_previous_quote() -> N
 
     quote = QuoteService(repository=repository, choice_provider=choose)
 
-    first = quote.get_daily_quote(now=FIXED_NOW)
-    second = quote.get_daily_quote(now=FIXED_NOW, previous_quote_id="Q-second")
+    first = await quote.get_daily_quote(now=FIXED_NOW)
+    second = await quote.get_daily_quote(now=FIXED_NOW, previous_quote_id="Q-second")
 
     assert first.quote is not None
     assert second.quote is not None
@@ -755,7 +788,7 @@ def test_quote_service_randomly_selects_again_and_excludes_previous_quote() -> N
     assert choices == ["Q-first,Q-second", "Q-first"]
 
 
-def test_quote_repository_requires_enabled_review_status_for_available_pool() -> None:
+async def test_quote_repository_requires_enabled_review_status_for_available_pool() -> None:
     repository = build_repository(
         quote_entries=[
             quote_entry("Q-approved", sort_order=1),
@@ -764,12 +797,12 @@ def test_quote_repository_requires_enabled_review_status_for_available_pool() ->
         ]
     )
 
-    pool = repository.list_available_quote_entries(record_date="2026-09-01")
+    pool = await repository.list_available_quote_entries(record_date="2026-09-01")
 
     assert [entry.document_id for entry in pool] == ["Q-approved"]
 
 
-def test_support_resources_are_environment_scoped_ordered_and_explicit_when_missing() -> None:
+async def test_support_resources_are_environment_scoped_ordered_and_explicit_when_missing() -> None:
     repository = build_repository(
         support_resources=[
             support_resource(
@@ -822,8 +855,8 @@ def test_support_resources_are_environment_scoped_ordered_and_explicit_when_miss
     )
     _, _, resources, _, _, _ = build_services(repository)
 
-    normal = resources.list_resources(context="normal")
-    safety = resources.list_resources(context="safety")
+    normal = await resources.list_resources(context="normal")
+    safety = await resources.list_resources(context="safety")
 
     assert normal.status == "available"
     assert [item.category for item in normal.resources] == ["trusted_person", "campus", "emergency"]
@@ -851,14 +884,14 @@ def test_support_resources_are_environment_scoped_ordered_and_explicit_when_miss
     assert "OLD-VERSION" not in str(normal.model_dump())
     assert "EXPIRED" not in str(normal.model_dump())
 
-    unconfigured = SupportResourceService(
+    unconfigured = await SupportResourceService(
         settings=settings_for("unknown"),
         repository=repository,
     ).list_resources(context="normal")
     assert unconfigured.status == "unconfigured"
     assert unconfigured.resources == []
 
-    empty = SupportResourceService(
+    empty = await SupportResourceService(
         settings=settings_for(),
         repository=build_repository(support_resources=[]),
         now_provider=lambda: FIXED_NOW,
@@ -866,7 +899,7 @@ def test_support_resources_are_environment_scoped_ordered_and_explicit_when_miss
     assert empty.status == "empty"
     assert empty.resources == []
 
-    expired = SupportResourceService(
+    expired = await SupportResourceService(
         settings=settings_for(),
         repository=build_repository(
             support_resources=[
@@ -885,5 +918,5 @@ def test_support_resources_are_environment_scoped_ordered_and_explicit_when_miss
     assert expired.resources == []
 
     with pytest.raises(ApiException) as bad_context:
-        resources.list_resources(context="community")
+        await resources.list_resources(context="community")
     assert bad_context.value.code == "VALIDATION_FAILED"

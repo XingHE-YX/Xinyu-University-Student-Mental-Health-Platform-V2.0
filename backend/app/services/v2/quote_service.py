@@ -10,9 +10,9 @@ from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, ConfigDict
 
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.logger.common import traced
 from app.models.v2.documents import QuoteEntryDocument
+from app.services.v2.repositories import DomainRepository
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 
@@ -37,7 +37,7 @@ class QuoteService:
     def __init__(
         self,
         *,
-        repository: InMemoryDomainDataRepository,
+        repository: DomainRepository,
         choice_provider: Callable[[tuple[QuoteEntryDocument, ...]], QuoteEntryDocument]
         | None = None,
     ) -> None:
@@ -45,14 +45,14 @@ class QuoteService:
         self._choice_provider = choice_provider or random.choice
 
     @traced
-    def get_daily_quote(
+    async def get_daily_quote(
         self,
         *,
         now: datetime | None = None,
         previous_quote_id: str | None = None,
     ) -> QuoteSelection:
         current_date = _shanghai_date(now or datetime.now(UTC))
-        entries = self.repository.list_available_quote_entries(record_date=current_date)
+        entries = await self.repository.list_available_quote_entries(record_date=current_date)
         if not entries:
             return QuoteSelection(status="unconfigured", quote=None)
         eligible = tuple(entry for entry in entries if entry.document_id != previous_quote_id)

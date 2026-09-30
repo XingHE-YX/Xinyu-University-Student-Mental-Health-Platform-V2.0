@@ -1,35 +1,18 @@
 """Atomic in-memory idempotency records matching the CloudBase collection shape."""
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import datetime
-from threading import RLock
-from typing import Literal, Protocol
+from typing import Protocol
 
+from app.infra.database.memory.transaction import MemoryUnitOfWork
+from app.infra.database.records import IdempotencyOutcome as IdempotencyOutcome
+from app.infra.database.records import IdempotencyRecord as IdempotencyRecord
 from app.infra.logger.common import traced
-
-IdempotencyOutcome = Literal["processing", "success", "failure"]
-
-
-@dataclass(frozen=True, slots=True)
-class IdempotencyRecord:
-    record_id: str
-    actor_type: str
-    actor_id: str
-    route_key: str
-    idempotency_key: str
-    request_hash: str
-    outcome: IdempotencyOutcome
-    response_status: int | None
-    response_digest: str | None
-    expires_at: datetime
-    created_at: datetime
-    updated_at: datetime
-    version: int = 1
 
 
 class IdempotencyRepository(Protocol):
     @traced
-    def get(
+    async def get(
         self,
         actor_type: str,
         actor_id: str,
@@ -40,10 +23,12 @@ class IdempotencyRepository(Protocol):
     ) -> IdempotencyRecord | None: ...
 
     @traced
-    def reserve(self, record: IdempotencyRecord, *, now: datetime) -> IdempotencyRecord | None: ...
+    async def reserve(
+        self, record: IdempotencyRecord, *, now: datetime
+    ) -> IdempotencyRecord | None: ...
 
     @traced
-    def complete(
+    async def complete(
         self,
         record_id: str,
         *,
@@ -57,7 +42,8 @@ class IdempotencyRepository(Protocol):
 class InMemoryIdempotencyRepository:
     def __init__(self) -> None:
         self._records: dict[tuple[str, str, str, str], IdempotencyRecord] = {}
-        self._lock = RLock()
+        self._lock = MemoryUnitOfWork()
+        self._lock.register(self)
 
     @staticmethod
     @traced
@@ -65,7 +51,7 @@ class InMemoryIdempotencyRepository:
         return record.actor_type, record.actor_id, record.route_key, record.idempotency_key
 
     @traced
-    def get(
+    async def get(
         self,
         actor_type: str,
         actor_id: str,
@@ -74,7 +60,7 @@ class InMemoryIdempotencyRepository:
         *,
         now: datetime,
     ) -> IdempotencyRecord | None:
-        with self._lock:
+        async with self._lock:
             record = self._records.get((actor_type, actor_id, route_key, idempotency_key))
             if record is not None and record.expires_at <= now:
                 self._records.pop((actor_type, actor_id, route_key, idempotency_key), None)
@@ -82,8 +68,10 @@ class InMemoryIdempotencyRepository:
             return record
 
     @traced
-    def reserve(self, record: IdempotencyRecord, *, now: datetime) -> IdempotencyRecord | None:
-        with self._lock:
+    async def reserve(
+        self, record: IdempotencyRecord, *, now: datetime
+    ) -> IdempotencyRecord | None:
+        async with self._lock:
             key = self._key(record)
             existing = self._records.get(key)
             if existing is not None and existing.expires_at > now:
@@ -92,7 +80,7 @@ class InMemoryIdempotencyRepository:
             return None
 
     @traced
-    def complete(
+    async def complete(
         self,
         record_id: str,
         *,
@@ -101,7 +89,7 @@ class InMemoryIdempotencyRepository:
         response_digest: str,
         now: datetime,
     ) -> IdempotencyRecord:
-        with self._lock:
+        async with self._lock:
             for key, record in self._records.items():
                 if record.record_id == record_id:
                     if record.outcome != "processing":

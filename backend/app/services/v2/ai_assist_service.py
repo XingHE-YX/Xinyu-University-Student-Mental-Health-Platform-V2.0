@@ -20,9 +20,9 @@ from app.infra.ai.prompt.templates.common import (
     RESOLVED_MODEL_VERSION,
 )
 from app.infra.config.settings import Settings
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import get_logger, traced
+from app.services.v2.repositories import DomainRepository
 from app.services.v2.rules.ai_policy import (
     PolicyViolation,
     project_assessment_input,
@@ -87,7 +87,7 @@ class AiAssistService:
         client: AIClient | None = None,
         prompts: PromptManager | None = None,
         audit_writer: AuditWriter | None = None,
-        repository: InMemoryDomainDataRepository | None = None,
+        repository: DomainRepository | None = None,
     ) -> None:
         self.settings = settings
         self.prompts = prompts or PromptManager()
@@ -104,10 +104,10 @@ class AiAssistService:
         self.snapshots: dict[str, AiAssistSnapshot] = {}
 
     @traced
-    def snapshot_projection(self, snapshot_id: str | None) -> dict[str, Any] | None:
+    async def snapshot_projection(self, snapshot_id: str | None) -> dict[str, Any] | None:
         if not snapshot_id:
             return None
-        snapshot = self.snapshots.get(snapshot_id) or self._load_snapshot(snapshot_id)
+        snapshot = self.snapshots.get(snapshot_id) or (await self._load_snapshot(snapshot_id))
         if snapshot is None:
             return None
         return {
@@ -132,7 +132,7 @@ class AiAssistService:
         fixed_band_value = input_data.get("fixed_band")
         fixed_band = fixed_band_value if isinstance(fixed_band_value, str) else None
         if projected is None:
-            return self._fallback(
+            return await self._fallback(
                 task_type="assessment_explanation",
                 resource_type="assessment_result",
                 resource_id=resource_id,
@@ -163,7 +163,7 @@ class AiAssistService:
             "treehole_response" if input_data.get("content_type") == "response" else "treehole_post"
         )
         if projected is None:
-            return self._fallback(
+            return await self._fallback(
                 task_type="treehole_review_assist",
                 resource_type=resource_type,
                 resource_id=resource_id,
@@ -238,7 +238,7 @@ class AiAssistService:
                 if isinstance(error, PolicyViolation)
                 else "dependency_unavailable"
             )
-            return self._fallback(
+            return await self._fallback(
                 task_type=task_type,
                 resource_type=resource_type,
                 resource_id=resource_id,
@@ -247,7 +247,7 @@ class AiAssistService:
                 reason=reason,
                 fixed_band=fixed_band,
             )
-        return self._adopt(
+        return await self._adopt(
             task_type=task_type,
             resource_type=resource_type,
             resource_id=resource_id,
@@ -258,7 +258,7 @@ class AiAssistService:
         )
 
     @traced
-    def _fallback(
+    async def _fallback(
         self,
         *,
         task_type: TaskType,
@@ -269,7 +269,7 @@ class AiAssistService:
         reason: str,
         fixed_band: str | None = None,
     ) -> AiAssistResult:
-        snapshot = self._snapshot(
+        snapshot = await self._snapshot(
             task_type=task_type,
             resource_type=resource_type,
             resource_id=resource_id,
@@ -279,7 +279,7 @@ class AiAssistService:
             output_projection=None,
             adopted_copy=None,
         )
-        self._audit(task_type, "fallback", reason)
+        (await self._audit(task_type, "fallback", reason))
         if task_type == "assessment_explanation":
             return AiAssistResult(
                 **self._metadata(task_type),
@@ -303,7 +303,7 @@ class AiAssistService:
         )
 
     @traced
-    def _adopt(
+    async def _adopt(
         self,
         *,
         task_type: TaskType,
@@ -319,7 +319,7 @@ class AiAssistService:
             if task_type == "assessment_explanation"
             else output.get("review_note")
         )
-        snapshot = self._snapshot(
+        snapshot = await self._snapshot(
             task_type=task_type,
             resource_type=resource_type,
             resource_id=resource_id,
@@ -329,7 +329,7 @@ class AiAssistService:
             output_projection=output,
             adopted_copy=adopted_copy if isinstance(adopted_copy, str) else None,
         )
-        self._audit(task_type, "adopted", None)
+        (await self._audit(task_type, "adopted", None))
         route = output.get("recommended_route") if task_type == "treehole_review_assist" else None
         return AiAssistResult(
             **self._metadata(task_type),
@@ -342,7 +342,7 @@ class AiAssistService:
         )
 
     @traced
-    def _snapshot(
+    async def _snapshot(
         self,
         *,
         task_type: TaskType,
@@ -376,17 +376,17 @@ class AiAssistService:
             try:
                 document = snapshot.model_dump(mode="python")
                 document["_id"] = document.pop("snapshot_id")
-                self.repository.append_extra_document("ai_assist_snapshots", document)
+                (await self.repository.append_extra_document("ai_assist_snapshots", document))
             except Exception:
                 logger.warning("ai_snapshot_write_failed")
         return snapshot
 
     @traced
-    def _load_snapshot(self, snapshot_id: str) -> AiAssistSnapshot | None:
+    async def _load_snapshot(self, snapshot_id: str) -> AiAssistSnapshot | None:
         if self.repository is None:
             return None
         try:
-            for document in self.repository.extra_collection("ai_assist_snapshots"):
+            for document in await self.repository.extra_collection("ai_assist_snapshots"):
                 if document.get("_id") != snapshot_id:
                     continue
                 values = dict(document)
@@ -399,26 +399,28 @@ class AiAssistService:
         return None
 
     @traced
-    def _audit(self, task_type: TaskType, outcome: str, reason: str | None) -> None:
-        self.audit.write(
-            request_id=f"ai_{uuid4().hex}",
-            actor_type="system",
-            actor_id="ai-assist",
-            capability="restricted_ai",
-            action="ai_assist",
-            resource_type="ai_assist",
-            resource_id=task_type,
-            data_scope="task_type,model_version,prompt_version,outcome_category,error_category",
-            outcome="success" if outcome == "adopted" else "failure",
-            reason_code=reason,
-            occurred_at=datetime.now(UTC),
-            facts={
-                "task_kind": task_type,
-                "model_version": self.settings.ai.resolved_model_version,
-                "prompt_version": self.prompts.get(task_type).version,
-                "outcome_category": outcome,
-                "error_category": reason,
-            },
+    async def _audit(self, task_type: TaskType, outcome: str, reason: str | None) -> None:
+        (
+            await self.audit.write(
+                request_id=f"ai_{uuid4().hex}",
+                actor_type="system",
+                actor_id="ai-assist",
+                capability="restricted_ai",
+                action="ai_assist",
+                resource_type="ai_assist",
+                resource_id=task_type,
+                data_scope="task_type,model_version,prompt_version,outcome_category,error_category",
+                outcome="success" if outcome == "adopted" else "failure",
+                reason_code=reason,
+                occurred_at=datetime.now(UTC),
+                facts={
+                    "task_kind": task_type,
+                    "model_version": self.settings.ai.resolved_model_version,
+                    "prompt_version": self.prompts.get(task_type).version,
+                    "outcome_category": outcome,
+                    "error_category": reason,
+                },
+            )
         )
 
     @traced

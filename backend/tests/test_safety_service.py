@@ -149,8 +149,10 @@ def build_services(
     return assessment, safety, repository, sessions, idempotency_repository, audit_repository
 
 
-def issue_access_token(sessions: InMemorySessionRepository) -> str:
-    return TokenManager("student-session-secret").issue("student", "user-1", sessions).access_token
+async def issue_access_token(sessions: InMemorySessionRepository) -> str:
+    return (
+        await TokenManager("student-session-secret").issue("student", "user-1", sessions)
+    ).access_token
 
 
 def phq9_safety_answers(option_key: str = "1") -> list[dict[str, object]]:
@@ -171,12 +173,12 @@ def phq9_complete_answers(option_key: str = "1") -> list[dict[str, object]]:
     return [*phq9_safety_answers(option_key), {"question_key": "impact", "option_key": "some"}]
 
 
-def start_phq9(
+async def start_phq9(
     assessment: AssessmentService,
     sessions: InMemorySessionRepository,
 ) -> tuple[str, str, int]:
-    access_token = issue_access_token(sessions)
-    started = assessment.start_session(
+    access_token = await issue_access_token(sessions)
+    started = await assessment.start_session(
         access_token,
         module_code="phq9",
         request_id="req-start-safety",
@@ -185,11 +187,11 @@ def start_phq9(
     return access_token, started.session_id, started.object_version
 
 
-def test_can_be_safe_records_minimal_confirmation_and_never_creates_task() -> None:
+async def test_can_be_safe_records_minimal_confirmation_and_never_creates_task() -> None:
     assessment, safety, repository, sessions, _, audit_repository = build_services()
-    access_token, session_id, version = start_phq9(assessment, sessions)
+    access_token, session_id, version = await start_phq9(assessment, sessions)
 
-    response = safety.confirm_safety(
+    response = await safety.confirm_safety(
         access_token,
         session_id=session_id,
         state="can_be_safe",
@@ -210,15 +212,15 @@ def test_can_be_safe_records_minimal_confirmation_and_never_creates_task() -> No
         "questionnaire_completed": False,
         "task_state": None,
     }
-    session = repository.get_assessment_session(session_id)
+    session = await repository.get_assessment_session(session_id)
     assert session.safety_triggered is True
     assert session.safety_confirmation_state == "can_be_safe"
     assert session.answers is None
-    assert repository.list_safety_support_tasks() == ()
-    assert repository.extra_collection("work_tasks") == []
-    assert "question_key" not in str(audit_repository.list())
+    assert (await repository.list_safety_support_tasks()) == ()
+    assert (await repository.extra_collection("work_tasks")) == []
+    assert "question_key" not in str(await audit_repository.list())
 
-    completed = assessment.complete_session(
+    completed = await assessment.complete_session(
         access_token,
         session_id=session_id,
         object_version=session.version,
@@ -228,53 +230,57 @@ def test_can_be_safe_records_minimal_confirmation_and_never_creates_task() -> No
     )
     assert completed.completion_state == "result_ready"
     assert completed.result_state in {"ordinary", "higher_score"}
-    stored_result = repository.get_assessment_result(completed.result_id or "")
+    stored_result = await repository.get_assessment_result(completed.result_id or "")
     assert stored_result.safety_state == "can_be_safe"
     assert stored_result.answers_snapshot is not None
-    assert repository.list_safety_support_tasks() == ()
-    assert repository.extra_collection("work_tasks") == []
+    assert (await repository.list_safety_support_tasks()) == ()
+    assert (await repository.extra_collection("work_tasks")) == []
 
 
-def test_q9_zero_rejects_safety_confirmation_without_persisting_partial_answers() -> None:
+async def test_q9_zero_rejects_safety_confirmation_without_persisting_partial_answers() -> None:
     assessment, safety, repository, sessions, _, _ = build_services()
-    access_token, session_id, version = start_phq9(assessment, sessions)
+    access_token, session_id, version = await start_phq9(assessment, sessions)
 
     with pytest.raises(ApiException) as error:
-        safety.confirm_safety(
-            access_token,
-            session_id=session_id,
-            state="can_be_safe",
-            object_version=version,
-            answers=phq9_safety_answers("0"),
-            request_id="req-zero",
-            idempotency_key="zero-1",
+        (
+            await safety.confirm_safety(
+                access_token,
+                session_id=session_id,
+                state="can_be_safe",
+                object_version=version,
+                answers=phq9_safety_answers("0"),
+                request_id="req-zero",
+                idempotency_key="zero-1",
+            )
         )
 
     assert error.value.code == "VALIDATION_FAILED"
-    session = repository.get_assessment_session(session_id)
+    session = await repository.get_assessment_session(session_id)
     assert session.safety_confirmation_state is None
     assert session.answers is None
 
 
 @pytest.mark.parametrize("state", ["can_be_safe", "uncertain"])
-def test_final_q9_zero_after_safety_confirmation_clears_temporary_safety_state(
+async def test_final_q9_zero_after_safety_confirmation_clears_temporary_safety_state(
     state: str,
 ) -> None:
     assessment, safety, repository, sessions, _, _ = build_services()
-    access_token, session_id, version = start_phq9(assessment, sessions)
+    access_token, session_id, version = await start_phq9(assessment, sessions)
 
-    safety.confirm_safety(
-        access_token,
-        session_id=session_id,
-        state=state,  # type: ignore[arg-type]
-        object_version=version,
-        answers=phq9_safety_answers("1"),
-        request_id=f"req-{state}-before-zero",
-        idempotency_key=f"{state}-before-zero",
+    (
+        await safety.confirm_safety(
+            access_token,
+            session_id=session_id,
+            state=state,  # type: ignore[arg-type]
+            object_version=version,
+            answers=phq9_safety_answers("1"),
+            request_id=f"req-{state}-before-zero",
+            idempotency_key=f"{state}-before-zero",
+        )
     )
     next_version = version + 1
     if state == "uncertain":
-        ack = safety.acknowledge_support_resource(
+        ack = await safety.acknowledge_support_resource(
             access_token,
             session_id=session_id,
             resource_context="safety",
@@ -285,7 +291,7 @@ def test_final_q9_zero_after_safety_confirmation_clears_temporary_safety_state(
         )
         next_version = ack.version
 
-    completed = assessment.complete_session(
+    completed = await assessment.complete_session(
         access_token,
         session_id=session_id,
         object_version=next_version,
@@ -298,24 +304,24 @@ def test_final_q9_zero_after_safety_confirmation_clears_temporary_safety_state(
     assert completed.safety_triggered is False
     assert completed.result_state == "ordinary"
     assert completed.score == 0
-    session = repository.get_assessment_session(session_id)
+    session = await repository.get_assessment_session(session_id)
     assert session.state == "completed"
     assert session.safety_triggered is False
     assert session.safety_confirmation_state is None
     assert session.safety_resource_version is None
     assert session.safety_resource_acknowledged_at is None
-    result = repository.get_assessment_result(completed.result_id or "")
+    result = await repository.get_assessment_result(completed.result_id or "")
     assert result.safety_state == "not_triggered"
     assert result.answers_snapshot is not None
-    assert repository.list_safety_support_tasks() == ()
-    assert repository.extra_collection("work_tasks") == []
+    assert (await repository.list_safety_support_tasks()) == ()
+    assert (await repository.extra_collection("work_tasks")) == []
 
 
-def test_uncertain_requires_matching_resource_ack_before_final_restricted_result_and_task() -> None:
+async def test_uncertain_requires_resource_ack_before_result_and_task() -> None:
     assessment, safety, repository, sessions, _, _ = build_services()
-    access_token, session_id, version = start_phq9(assessment, sessions)
+    access_token, session_id, version = await start_phq9(assessment, sessions)
 
-    confirmation = safety.confirm_safety(
+    confirmation = await safety.confirm_safety(
         access_token,
         session_id=session_id,
         state="uncertain",
@@ -330,17 +336,19 @@ def test_uncertain_requires_matching_resource_ack_before_final_restricted_result
     assert confirmation.visible_projection["resource_categories_shown"] == ["campus"]
 
     with pytest.raises(ApiException) as blocked:
-        assessment.complete_session(
-            access_token,
-            session_id=session_id,
-            object_version=version + 1,
-            answers=phq9_complete_answers("1"),
-            request_id="req-complete-before-ack",
-            idempotency_key="complete-before-ack",
+        (
+            await assessment.complete_session(
+                access_token,
+                session_id=session_id,
+                object_version=version + 1,
+                answers=phq9_complete_answers("1"),
+                request_id="req-complete-before-ack",
+                idempotency_key="complete-before-ack",
+            )
         )
     assert blocked.value.code == "SAFETY_CONFIRMATION_REQUIRED"
 
-    ack = safety.acknowledge_support_resource(
+    ack = await safety.acknowledge_support_resource(
         access_token,
         session_id=session_id,
         resource_context="safety",
@@ -352,7 +360,7 @@ def test_uncertain_requires_matching_resource_ack_before_final_restricted_result
     assert ack.resource_version == "support-v1"
     assert ack.version == version + 2
 
-    result = assessment.complete_session(
+    result = await assessment.complete_session(
         access_token,
         session_id=session_id,
         object_version=version + 2,
@@ -364,18 +372,18 @@ def test_uncertain_requires_matching_resource_ack_before_final_restricted_result
     assert result.completion_state == "result_ready"
     assert result.result_state == "safety_support"
     assert result.score is None
-    stored_result = repository.get_assessment_result(result.result_id or "")
+    stored_result = await repository.get_assessment_result(result.result_id or "")
     assert stored_result.answers_snapshot is None
     assert stored_result.score is None
     assert stored_result.reference_band is None
     assert stored_result.ai_assist_snapshot_id is None
     assert stored_result.safety_state == "uncertain"
     assert stored_result.dimension_summary["resource_categories_shown"] == ["campus"]
-    session = repository.get_assessment_session(session_id)
+    session = await repository.get_assessment_session(session_id)
     assert session.state == "completed"
     assert session.answers is None
     assert session.answered_count == 10
-    tasks = repository.list_safety_support_tasks()
+    tasks = await repository.list_safety_support_tasks()
     assert len(tasks) == 1
     assert tasks[0].task_kind == "safety_support"
     assert tasks[0].safety_fact == "uncertain"
@@ -383,18 +391,18 @@ def test_uncertain_requires_matching_resource_ack_before_final_restricted_result
     assert tasks[0].source_session_id is None
     assert tasks[0].state == "needs_action"
     assert [resource.category for resource in tasks[0].support_resource_snapshot] == ["campus"]
-    work_task = repository.extra_collection("work_tasks")[0]
+    work_task = (await repository.extra_collection("work_tasks"))[0]
     assert work_task["_id"] == tasks[0].document_id
     assert work_task["available_capability"] == "safety_support"
     assert work_task["source_type"] == "support_task"
     assert work_task["source_id"] == tasks[0].document_id
 
 
-def test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe() -> None:
+async def test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe() -> None:
     assessment, safety, repository, sessions, _, _ = build_services()
-    access_token, session_id, version = start_phq9(assessment, sessions)
+    access_token, session_id, version = await start_phq9(assessment, sessions)
 
-    first = safety.confirm_safety(
+    first = await safety.confirm_safety(
         access_token,
         session_id=session_id,
         state="uncertain",
@@ -406,22 +414,24 @@ def test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe() -> None:
     assert first.next_step == "show_support_resources"
 
     with pytest.raises(ApiException) as overwrite:
-        safety.confirm_safety(
-            access_token,
-            session_id=session_id,
-            state="can_be_safe",
-            object_version=version + 1,
-            answers=phq9_safety_answers("1"),
-            request_id="req-unsafe-overwrite",
-            idempotency_key="unsafe-overwrite",
+        (
+            await safety.confirm_safety(
+                access_token,
+                session_id=session_id,
+                state="can_be_safe",
+                object_version=version + 1,
+                answers=phq9_safety_answers("1"),
+                request_id="req-unsafe-overwrite",
+                idempotency_key="unsafe-overwrite",
+            )
         )
 
     assert overwrite.value.code == "SAFETY_SUPPORT_BLOCKED"
-    session = repository.get_assessment_session(session_id)
+    session = await repository.get_assessment_session(session_id)
     assert session.safety_confirmation_state == "uncertain"
     assert session.safety_resource_version is None
 
-    ack = safety.acknowledge_support_resource(
+    ack = await safety.acknowledge_support_resource(
         access_token,
         session_id=session_id,
         resource_context="safety",
@@ -430,7 +440,7 @@ def test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe() -> None:
         request_id="req-uncertain-ack-after-block",
         idempotency_key="uncertain-ack-after-block",
     )
-    result = assessment.complete_session(
+    result = await assessment.complete_session(
         access_token,
         session_id=session_id,
         object_version=ack.version,
@@ -440,11 +450,11 @@ def test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe() -> None:
     )
 
     assert result.result_state == "safety_support"
-    stored_result = repository.get_assessment_result(result.result_id or "")
+    stored_result = await repository.get_assessment_result(result.result_id or "")
     assert stored_result.safety_state == "uncertain"
     assert stored_result.answers_snapshot is None
     assert stored_result.dimension_summary["resource_categories_shown"] == ["campus"]
-    tasks = repository.list_safety_support_tasks()
+    tasks = await repository.list_safety_support_tasks()
     assert len(tasks) == 1
     assert tasks[0].safety_fact == "uncertain"
     assert tasks[0].source_result_id == stored_result.document_id
@@ -452,41 +462,45 @@ def test_uncertain_confirmation_cannot_be_overwritten_to_can_be_safe() -> None:
     assert [resource.category for resource in tasks[0].support_resource_snapshot] == ["campus"]
 
 
-def test_support_resource_ack_rejects_resource_version_conflict() -> None:
+async def test_support_resource_ack_rejects_resource_version_conflict() -> None:
     assessment, safety, repository, sessions, _, _ = build_services()
-    access_token, session_id, version = start_phq9(assessment, sessions)
-    safety.confirm_safety(
-        access_token,
-        session_id=session_id,
-        state="uncertain",
-        object_version=version,
-        answers=phq9_safety_answers("1"),
-        request_id="req-uncertain-version",
-        idempotency_key="uncertain-version",
+    access_token, session_id, version = await start_phq9(assessment, sessions)
+    (
+        await safety.confirm_safety(
+            access_token,
+            session_id=session_id,
+            state="uncertain",
+            object_version=version,
+            answers=phq9_safety_answers("1"),
+            request_id="req-uncertain-version",
+            idempotency_key="uncertain-version",
+        )
     )
 
     with pytest.raises(ApiException) as error:
-        safety.acknowledge_support_resource(
-            access_token,
-            session_id=session_id,
-            resource_context="safety",
-            resource_version="old-support-v0",
-            object_version=version + 1,
-            request_id="req-ack-conflict",
-            idempotency_key="ack-conflict",
+        (
+            await safety.acknowledge_support_resource(
+                access_token,
+                session_id=session_id,
+                resource_context="safety",
+                resource_version="old-support-v0",
+                object_version=version + 1,
+                request_id="req-ack-conflict",
+                idempotency_key="ack-conflict",
+            )
         )
 
     assert error.value.code == "VERSION_CONFLICT"
     assert error.value.current_version == "support-v1"
-    session = repository.get_assessment_session(session_id)
+    session = await repository.get_assessment_session(session_id)
     assert session.safety_resource_version is None
 
 
-def test_cannot_be_safe_abandons_session_creates_minimal_task_but_no_result() -> None:
+async def test_cannot_be_safe_abandons_session_creates_minimal_task_but_no_result() -> None:
     assessment, safety, repository, sessions, _, _ = build_services()
-    access_token, session_id, version = start_phq9(assessment, sessions)
+    access_token, session_id, version = await start_phq9(assessment, sessions)
 
-    response = safety.confirm_safety(
+    response = await safety.confirm_safety(
         access_token,
         session_id=session_id,
         state="cannot_be_safe",
@@ -495,7 +509,7 @@ def test_cannot_be_safe_abandons_session_creates_minimal_task_but_no_result() ->
         request_id="req-cannot",
         idempotency_key="cannot-1",
     )
-    replay = safety.confirm_safety(
+    replay = await safety.confirm_safety(
         access_token,
         session_id=session_id,
         state="cannot_be_safe",
@@ -509,29 +523,29 @@ def test_cannot_be_safe_abandons_session_creates_minimal_task_but_no_result() ->
     assert response.support_required is True
     assert response.task_created is True
     assert replay == response
-    session = repository.get_assessment_session(session_id)
+    session = await repository.get_assessment_session(session_id)
     assert session.state == "abandoned"
     assert session.answers is None
-    assert repository.list_assessment_results_by_session(session_id) == ()
-    tasks = repository.list_safety_support_tasks()
+    assert (await repository.list_assessment_results_by_session(session_id)) == ()
+    tasks = await repository.list_safety_support_tasks()
     assert len(tasks) == 1
     assert tasks[0].safety_fact == "cannot_be_safe"
     assert tasks[0].user_reference_id == "user-1"
     assert tasks[0].source_result_id is None
     assert tasks[0].source_session_id == session_id
     assert tasks[0].assigned_admin_id is None
-    work_task = repository.extra_collection("work_tasks")[0]
+    work_task = (await repository.extra_collection("work_tasks"))[0]
     assert work_task["_id"] == tasks[0].document_id
     assert work_task["source_type"] == "support_task"
     assert work_task["source_id"] == tasks[0].document_id
 
 
 @pytest.mark.parametrize("kind", ["authorized", "unconfigured"])
-def test_task_creation_depends_on_allowed_environment(kind: str) -> None:
+async def test_task_creation_depends_on_allowed_environment(kind: str) -> None:
     assessment, safety, repository, sessions, _, _ = build_services(kind=kind)
-    access_token, session_id, version = start_phq9(assessment, sessions)
+    access_token, session_id, version = await start_phq9(assessment, sessions)
 
-    response = safety.confirm_safety(
+    response = await safety.confirm_safety(
         access_token,
         session_id=session_id,
         state="cannot_be_safe",
@@ -542,44 +556,50 @@ def test_task_creation_depends_on_allowed_environment(kind: str) -> None:
     )
 
     assert response.task_created is (kind == "authorized")
-    assert len(repository.list_safety_support_tasks()) == (1 if kind == "authorized" else 0)
-    assert len(repository.extra_collection("work_tasks")) == (1 if kind == "authorized" else 0)
+    assert len(await repository.list_safety_support_tasks()) == (1 if kind == "authorized" else 0)
+    assert len(await repository.extra_collection("work_tasks")) == (
+        1 if kind == "authorized" else 0
+    )
 
 
-def test_safety_confirmation_rejects_object_version_conflict_and_tampered_fields() -> None:
+async def test_safety_confirmation_rejects_object_version_conflict_and_tampered_fields() -> None:
     assessment, safety, repository, sessions, _, _ = build_services()
-    access_token, session_id, version = start_phq9(assessment, sessions)
-    saved = repository.get_assessment_session(session_id).model_copy(
+    access_token, session_id, version = await start_phq9(assessment, sessions)
+    saved = (await repository.get_assessment_session(session_id)).model_copy(
         update={"safety_triggered": True}
     )
-    repository.save_assessment_session(saved, expected_version=version)
+    (await repository.save_assessment_session(saved, expected_version=version))
 
     with pytest.raises(ApiException) as conflict:
-        safety.confirm_safety(
-            access_token,
-            session_id=session_id,
-            state="can_be_safe",
-            object_version=version,
-            answers=phq9_safety_answers("1"),
-            request_id="req-conflict",
-            idempotency_key="conflict-1",
+        (
+            await safety.confirm_safety(
+                access_token,
+                session_id=session_id,
+                state="can_be_safe",
+                object_version=version,
+                answers=phq9_safety_answers("1"),
+                request_id="req-conflict",
+                idempotency_key="conflict-1",
+            )
         )
 
     assert conflict.value.code == "VERSION_CONFLICT"
     assert conflict.value.current_version == version + 1
 
     with pytest.raises(ApiException) as tampered:
-        safety.confirm_safety(
-            access_token,
-            session_id=session_id,
-            state="can_be_safe",
-            object_version=version + 1,
-            answers=[
-                *phq9_safety_answers("1"),
-                {"question_key": "score", "option_key": "27"},
-            ],
-            request_id="req-tampered",
-            idempotency_key="tampered-1",
+        (
+            await safety.confirm_safety(
+                access_token,
+                session_id=session_id,
+                state="can_be_safe",
+                object_version=version + 1,
+                answers=[
+                    *phq9_safety_answers("1"),
+                    {"question_key": "score", "option_key": "27"},
+                ],
+                request_id="req-tampered",
+                idempotency_key="tampered-1",
+            )
         )
 
     assert tampered.value.code == "VALIDATION_FAILED"

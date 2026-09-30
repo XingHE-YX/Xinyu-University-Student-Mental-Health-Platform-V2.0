@@ -51,7 +51,7 @@ def test_fastapi_routes_match_backend_structure_contract() -> None:
     assert actual == _declared_contract()
 
 
-def test_wechat_login_provisions_a_domain_user_for_follow_up_services() -> None:
+async def test_wechat_login_provisions_a_domain_user_for_follow_up_services() -> None:
     repository = InMemoryDomainDataRepository()
     app = create_app(
         configured_settings(),
@@ -66,6 +66,6 @@ def test_wechat_login_provisions_a_domain_user_for_follow_up_services() -> None:
     )
 
     assert response.status_code == 200
-    user = repository.get_user_by_auth_subject_hash("student-subject-hash")
+    user = await repository.get_user_by_auth_subject_hash("student-subject-hash")
     assert user is not None
     assert user.status == "active"

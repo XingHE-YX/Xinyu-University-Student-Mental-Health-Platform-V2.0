@@ -23,6 +23,7 @@ from app.infra.database.memory.idempotency import (
     InMemoryIdempotencyRepository,
 )
 from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.handlers import start_logging, stop_logging
 from app.infra.security.tokens import TokenManager
@@ -55,6 +56,7 @@ from app.services.v2.identity_access_service import IdentityAccessService
 from app.services.v2.identity_service import IdentityService
 from app.services.v2.mood_service import MoodService
 from app.services.v2.quote_service import QuoteService
+from app.services.v2.repositories import DomainRepository, SessionRepository
 from app.services.v2.safety_service import SafetyService
 from app.services.v2.support_resource_service import SupportResourceService
 from app.services.v2.today_service import TodayService
@@ -72,10 +74,13 @@ class HealthData(BaseModel):
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     start_logging(app.state.settings.logger)
     try:
+        await app.state.admin_workbench_service.initialize()
         yield
     finally:
         try:
             await app.state.ai_assist_service.aclose()
+            if app.state.cloudbase_store is not None:
+                await app.state.cloudbase_store.aclose()
         finally:
             await asyncio.to_thread(stop_logging)
 
@@ -84,19 +89,19 @@ def create_app(
     settings: Settings | None = None,
     *,
     wechat_client: WechatClient | None = None,
-    session_repository: InMemorySessionRepository | None = None,
+    session_repository: SessionRepository | None = None,
     token_manager: TokenManager | None = None,
     admin_workbench_service: AdminWorkbenchService | None = None,
     ai_assist_service: AiAssistService | None = None,
-    domain_repository: InMemoryDomainDataRepository | None = None,
+    domain_repository: DomainRepository | None = None,
     idempotency_repository: IdempotencyRepository | None = None,
     audit_repository: AuditRepository | None = None,
 ) -> FastAPI:
     runtime_settings = settings or Settings.from_environment()
     cloudbase_store: CloudBaseStore | None = None
     runtime_admin_task_repository: CloudBaseAdminTaskRepository | None = None
-    runtime_sessions: InMemorySessionRepository
-    runtime_domain_repository: InMemoryDomainDataRepository
+    runtime_sessions: SessionRepository
+    runtime_domain_repository: DomainRepository
     if (
         session_repository is None
         and domain_repository is None
@@ -107,6 +112,7 @@ def create_app(
         cloudbase_store = CloudBaseStore(
             runtime_settings.cloudbase_env_id or "",
             runtime_settings.cloudbase_secret or "",
+            config=runtime_settings.database,
         )
         runtime_sessions = CloudBaseSessionRepository(cloudbase_store)
         runtime_domain_repository = CloudBaseDomainDataRepository(cloudbase_store)
@@ -120,6 +126,12 @@ def create_app(
         runtime_domain_repository = domain_repository or InMemoryDomainDataRepository()
         runtime_idempotency_repository = idempotency_repository or InMemoryIdempotencyRepository()
         runtime_audit_repository = audit_repository or InMemoryAuditRepository()
+    share_memory_transaction(
+        runtime_domain_repository,
+        runtime_sessions,
+        runtime_idempotency_repository,
+        runtime_audit_repository,
+    )
     runtime_tokens = token_manager or TokenManager(
         runtime_settings.session_secret or "local-development-session-secret",
         admin_password_hash=runtime_settings.password_hash,
@@ -145,6 +157,7 @@ def create_app(
         audit_repository=runtime_audit_repository,
         task_repository=runtime_admin_task_repository,
         content_repository=runtime_domain_repository,
+        idempotency_service=runtime_idempotency,
     )
     app.state.ai_assist_service = ai_assist_service or AiAssistService(
         runtime_settings,

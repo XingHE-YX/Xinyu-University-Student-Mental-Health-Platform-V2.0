@@ -12,7 +12,7 @@ from app.services.v2.identity_service import HmacIdentityCipher
 from .test_assessment_service import configured_settings
 
 
-def build_client() -> tuple[TestClient, str, InMemoryDomainDataRepository]:
+async def build_client() -> tuple[TestClient, str, InMemoryDomainDataRepository]:
     now = datetime(2026, 9, 2, tzinfo=UTC)
     settings = configured_settings()
     cipher = HmacIdentityCipher(settings.session_secret or "local-development-session-secret")
@@ -42,17 +42,19 @@ def build_client() -> tuple[TestClient, str, InMemoryDomainDataRepository]:
     )
     repository = InMemoryDomainDataRepository(users=[user], identities=[identity])
     app = create_app(settings, domain_repository=repository)
-    token = app.state.auth_service.tokens.issue(
-        "admin",
-        "admin:fixed-super-admin",
-        app.state.auth_service.sessions,
-        capability="super_admin",
+    token = (
+        await app.state.auth_service.tokens.issue(
+            "admin",
+            "admin:fixed-super-admin",
+            app.state.auth_service.sessions,
+            capability="super_admin",
+        )
     ).access_token
     return TestClient(app), token, repository
 
 
-def test_identity_access_request_requires_admin_and_reads_only_approved_fields() -> None:
-    client, token, _ = build_client()
+async def test_identity_access_request_requires_admin_and_reads_only_approved_fields() -> None:
+    client, token, _ = await build_client()
     headers = {"Authorization": f"Bearer {token}", "Idempotency-Key": "identity-request-1"}
     created = client.post(
         "/api/v1/admin/identity-access-requests",
@@ -73,8 +75,8 @@ def test_identity_access_request_requires_admin_and_reads_only_approved_fields()
     assert "student_name" not in denied.text
 
 
-def test_identity_access_request_rejects_client_scope_expansion() -> None:
-    client, token, _ = build_client()
+async def test_identity_access_request_rejects_client_scope_expansion() -> None:
+    client, token, _ = await build_client()
     response = client.post(
         "/api/v1/admin/identity-access-requests",
         headers={"Authorization": f"Bearer {token}", "Idempotency-Key": "identity-request-2"},

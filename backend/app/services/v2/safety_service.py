@@ -14,8 +14,7 @@ from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryVersionConflict,
 )
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
@@ -42,6 +41,7 @@ from app.services.v2.idempotency_service import (
     deserialize_api_error,
     serialize_api_error,
 )
+from app.services.v2.repositories import DomainRepository, SessionRepository
 from app.services.v2.rules.assessment import (
     PHQ9_Q9_KEY,
     AssessmentValidationError,
@@ -61,8 +61,8 @@ class SafetyService:
         self,
         *,
         settings: Settings,
-        repository: InMemoryDomainDataRepository,
-        session_repository: InMemorySessionRepository,
+        repository: DomainRepository,
+        session_repository: SessionRepository,
         token_manager: TokenManager,
         idempotency_service: IdempotencyService,
         audit_writer: AuditWriter,
@@ -73,9 +73,12 @@ class SafetyService:
         self.tokens = token_manager
         self.idempotency = idempotency_service
         self.audit = audit_writer
+        share_memory_transaction(
+            self.repository, self.idempotency.repository, self.audit.repository, self.sessions
+        )
 
     @traced
-    def confirm_safety(
+    async def confirm_safety(
         self,
         access_token: str,
         *,
@@ -92,11 +95,11 @@ class SafetyService:
             )
         except ValidationError as error:
             raise ApiException(422, "VALIDATION_FAILED") from error
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_assessment_access(subject.subject_id)
-        reservation = self.idempotency.begin(
+        (await self._ensure_assessment_access(subject.subject_id))
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/assessment-sessions/{session_id}/safety-confirmation",
@@ -107,36 +110,39 @@ class SafetyService:
             return self._decode_confirmation_response(reservation.record.response_digest)
 
         try:
-            response = self._confirm_safety(
-                subject_id=subject.subject_id,
-                session_id=session_id,
-                request=request,
-                request_id=request_id,
-            )
-            self.idempotency.complete(
-                reservation,
-                status_code=200,
-                response_digest=response.model_dump_json(),
-            )
-            return response
+            async with self.repository.transaction():
+                response = await self._confirm_safety(
+                    subject_id=subject.subject_id,
+                    session_id=session_id,
+                    request=request,
+                    request_id=request_id,
+                )
+                (
+                    await self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response.model_dump_json(),
+                    )
+                )
+                return response
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def acknowledge_support_resource(
+    async def acknowledge_support_resource(
         self,
         access_token: str,
         *,
@@ -157,11 +163,11 @@ class SafetyService:
             )
         except ValidationError as error:
             raise ApiException(422, "VALIDATION_FAILED") from error
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_assessment_access(subject.subject_id)
-        reservation = self.idempotency.begin(
+        (await self._ensure_assessment_access(subject.subject_id))
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/assessment-sessions/{session_id}/support-resource-ack",
@@ -172,36 +178,39 @@ class SafetyService:
             return self._decode_ack_response(reservation.record.response_digest)
 
         try:
-            response = self._acknowledge_support_resource(
-                subject_id=subject.subject_id,
-                session_id=session_id,
-                request=request,
-                request_id=request_id,
-            )
-            self.idempotency.complete(
-                reservation,
-                status_code=200,
-                response_digest=response.model_dump_json(),
-            )
-            return response
+            async with self.repository.transaction():
+                response = await self._acknowledge_support_resource(
+                    subject_id=subject.subject_id,
+                    session_id=session_id,
+                    request=request,
+                    request_id=request_id,
+                )
+                (
+                    await self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response.model_dump_json(),
+                    )
+                )
+                return response
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def _confirm_safety(
+    async def _confirm_safety(
         self,
         *,
         subject_id: str,
@@ -211,8 +220,8 @@ class SafetyService:
     ) -> SafetyConfirmationResponse:
         current = datetime.now(UTC)
         decision = decide_safety_branch(request.state)
-        with self.repository.transaction():
-            session = self.repository.get_assessment_session(session_id)
+        async with self.repository.transaction():
+            session = await self.repository.get_assessment_session(session_id)
             if session.user_id != subject_id:
                 raise ApiException(404, "NOT_FOUND")
             if session.version != request.object_version:
@@ -223,17 +232,21 @@ class SafetyService:
                 raise ApiException(422, "SAFETY_SUPPORT_BLOCKED")
             if current > session.expires_at:
                 expired = session.model_copy(update={"state": "expired", "updated_at": current})
-                self.repository.save_assessment_session(expired, expected_version=session.version)
+                (
+                    await self.repository.save_assessment_session(
+                        expired, expected_version=session.version
+                    )
+                )
                 raise ApiException(404, "NOT_FOUND")
 
-            module = self.repository.get_assessment_module(session.module_code)
-            questionnaire = self.repository.get_assessment_questionnaire(
+            module = await self.repository.get_assessment_module(session.module_code)
+            questionnaire = await self.repository.get_assessment_questionnaire(
                 session.module_code,
                 session.questionnaire_version,
             )
             self._validate_safety_answers(module, questionnaire, request.answers)
 
-            resource_categories = self._resource_categories()
+            resource_categories = await self._resource_categories()
             task_created = False
             task_state: str | None = None
             update: dict[str, object] = {
@@ -243,12 +256,12 @@ class SafetyService:
             }
             if request.state == "cannot_be_safe":
                 update.update({"state": "abandoned", "abandoned_at": current})
-            saved_session = self.repository.save_assessment_session(
+            saved_session = await self.repository.save_assessment_session(
                 session.model_copy(update=update),
                 expected_version=session.version,
             )
             if decision.creates_immediate_task:
-                task_created, task_state = self._create_safety_tasks(
+                task_created, task_state = await self._create_safety_tasks(
                     user_id=subject_id,
                     source_session_id=saved_session.document_id,
                     safety_fact=request.state,
@@ -263,19 +276,21 @@ class SafetyService:
                 task_state=task_state,
             )
 
-        self._audit(
-            request_id=request_id,
-            actor_id=subject_id,
-            action="assessment_safety_confirmation",
-            resource_id=session_id,
-            reason_code=request.state,
-            facts={
-                "action_code": "safety_confirmation",
-                "object_version": saved_session.version,
-                "resource_version": self.settings.support_resource_version,
-                "status": request.state,
-                "task_kind": "safety_support" if task_created else None,
-            },
+        (
+            await self._audit(
+                request_id=request_id,
+                actor_id=subject_id,
+                action="assessment_safety_confirmation",
+                resource_id=session_id,
+                reason_code=request.state,
+                facts={
+                    "action_code": "safety_confirmation",
+                    "object_version": saved_session.version,
+                    "resource_version": self.settings.support_resource_version,
+                    "status": request.state,
+                    "task_kind": "safety_support" if task_created else None,
+                },
+            )
         )
         return SafetyConfirmationResponse(
             next_step=decision.next_step,
@@ -287,7 +302,7 @@ class SafetyService:
         )
 
     @traced
-    def _acknowledge_support_resource(
+    async def _acknowledge_support_resource(
         self,
         *,
         subject_id: str,
@@ -304,15 +319,15 @@ class SafetyService:
                 current_version=self.settings.support_resource_version,
             )
         current = datetime.now(UTC)
-        with self.repository.transaction():
-            session = self.repository.get_assessment_session(session_id)
+        async with self.repository.transaction():
+            session = await self.repository.get_assessment_session(session_id)
             if session.user_id != subject_id:
                 raise ApiException(404, "NOT_FOUND")
             if session.version != request.object_version:
                 raise ApiException(409, "VERSION_CONFLICT", current_version=session.version)
             if session.state != "in_progress" or session.safety_confirmation_state != "uncertain":
                 raise ApiException(422, "SAFETY_SUPPORT_BLOCKED")
-            saved_session = self.repository.save_assessment_session(
+            saved_session = await self.repository.save_assessment_session(
                 session.model_copy(
                     update={
                         "safety_resource_version": request.resource_version,
@@ -322,18 +337,20 @@ class SafetyService:
                 ),
                 expected_version=session.version,
             )
-        self._audit(
-            request_id=request_id,
-            actor_id=subject_id,
-            action="assessment_support_resource_ack",
-            resource_id=session_id,
-            reason_code="support_resource_acknowledged",
-            facts={
-                "action_code": "support_resource_ack",
-                "object_version": saved_session.version,
-                "resource_version": request.resource_version,
-                "status": "acknowledged",
-            },
+        (
+            await self._audit(
+                request_id=request_id,
+                actor_id=subject_id,
+                action="assessment_support_resource_ack",
+                resource_id=session_id,
+                reason_code="support_resource_acknowledged",
+                facts={
+                    "action_code": "support_resource_ack",
+                    "object_version": saved_session.version,
+                    "resource_version": request.resource_version,
+                    "status": "acknowledged",
+                },
+            )
         )
         return SupportResourceAckResponse(
             resource_version=request.resource_version,
@@ -371,10 +388,10 @@ class SafetyService:
             raise ApiException(422, "VALIDATION_FAILED")
 
     @traced
-    def _resource_categories(self) -> list[str]:
+    async def _resource_categories(self) -> list[str]:
         if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
             return []
-        resources = self.repository.list_support_resources(
+        resources = await self.repository.list_support_resources(
             self.settings.environment_kind.value,
             resource_set_version=self.settings.support_resource_version,
             now=datetime.now(UTC),
@@ -382,7 +399,7 @@ class SafetyService:
         return sorted({resource.category for resource in resources})
 
     @traced
-    def _create_safety_tasks(
+    async def _create_safety_tasks(
         self,
         *,
         user_id: str,
@@ -392,7 +409,7 @@ class SafetyService:
     ) -> tuple[bool, str | None]:
         if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
             return False, None
-        resources = self.repository.list_support_resources(
+        resources = await self.repository.list_support_resources(
             self.settings.environment_kind.value,
             resource_set_version=self.settings.support_resource_version,
             now=now,
@@ -407,7 +424,7 @@ class SafetyService:
             )
             for resource in resources
         ]
-        safety_task_id = self.repository.next_safety_support_task_id()
+        safety_task_id = await self.repository.next_safety_support_task_id()
         safety_task = SafetySupportTaskDocument(
             _id=safety_task_id,
             task_kind="safety_support",
@@ -425,7 +442,7 @@ class SafetyService:
             updated_at=now,
             version=1,
         )
-        self.repository.create_safety_support_task(safety_task)
+        (await self.repository.create_safety_support_task(safety_task))
         work_task = WorkTaskDocument(
             _id=safety_task_id,
             task_kind="safety_support",
@@ -441,12 +458,12 @@ class SafetyService:
             updated_at=now,
             version=1,
         )
-        self.repository.create_work_task(work_task)
+        (await self.repository.create_work_task(work_task))
         return True, safety_task.state
 
     @traced
-    def _ensure_assessment_access(self, user_id: str) -> None:
-        user = self.repository.get_user(user_id)
+    async def _ensure_assessment_access(self, user_id: str) -> None:
+        user = await self.repository.get_user(user_id)
         if user.status != "active":
             raise ApiException(403, "FORBIDDEN")
         if user.base_consent_status != "accepted":
@@ -454,14 +471,14 @@ class SafetyService:
         if not user.identity_record_id:
             raise ApiException(403, "IDENTITY_REQUIRED")
         try:
-            identity = self.repository.get_identity_record(user.identity_record_id)
+            identity = await self.repository.get_identity_record(user.identity_record_id)
         except RepositoryNotFound as error:
             raise ApiException(403, "IDENTITY_REQUIRED") from error
         if identity.user_id != user.document_id or identity.verification_status != "verified":
             raise ApiException(403, "IDENTITY_REQUIRED")
 
     @traced
-    def _audit(
+    async def _audit(
         self,
         *,
         request_id: str,
@@ -471,8 +488,8 @@ class SafetyService:
         reason_code: str,
         facts: dict[str, object],
     ) -> None:
-        try:
-            self.audit.write(
+        (
+            await self.audit.write(
                 request_id=request_id,
                 actor_type="student",
                 actor_id=actor_id,
@@ -486,8 +503,7 @@ class SafetyService:
                 occurred_at=datetime.now(UTC),
                 facts=facts,
             )
-        except Exception:
-            logger.warning("audit_write_failed")
+        )
 
     @traced
     def _decode_confirmation_response(
@@ -511,16 +527,18 @@ class SafetyService:
 
 
 @traced
-def _complete_failure(
+async def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
     error: ApiException,
 ) -> None:
-    idempotency.complete(
-        reservation,
-        status_code=error.status_code,
-        response_digest=serialize_api_error(error),
-        outcome="failure",
+    (
+        await idempotency.complete(
+            reservation,
+            status_code=error.status_code,
+            response_digest=serialize_api_error(error),
+            outcome="failure",
+        )
     )
 
 

@@ -65,12 +65,12 @@ def build_user(**overrides: Any) -> UserAccountDocument:
     return UserAccountDocument(**data)
 
 
-def issue_student_access_token(
+async def issue_student_access_token(
     sessions: InMemorySessionRepository,
     *,
     subject_id: str = "user-1",
 ) -> str:
-    pair = TokenManager("student-session-secret").issue("student", subject_id, sessions)
+    pair = await TokenManager("student-session-secret").issue("student", subject_id, sessions)
     return pair.access_token
 
 
@@ -172,14 +172,14 @@ async def test_completed_assessment_persists_and_returns_ai_assist() -> None:
         audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
         ai_assist_service=ai_assist,
     )
-    access_token = issue_student_access_token(sessions)
-    started = service.start_session(
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
         access_token,
         module_code="gad7",
         request_id="req-ai-start",
         idempotency_key="ai-start",
     )
-    completed = service.complete_session(
+    completed = await service.complete_session(
         access_token,
         session_id=started.session_id,
         object_version=started.object_version,
@@ -192,15 +192,15 @@ async def test_completed_assessment_persists_and_returns_ai_assist() -> None:
     )
 
     await service.attach_ai_assist(access_token, result_id=completed.result_id or "")
-    projection = service.get_result(access_token, result_id=completed.result_id or "")
+    projection = await service.get_result(access_token, result_id=completed.result_id or "")
 
     assert projection.ai_assist is not None
     assert projection.ai_assist["status"] == "adopted"
-    assert repository.get_assessment_result(completed.result_id or "").ai_assist_snapshot_id
-    assert len(repository.extra_collection("ai_assist_snapshots")) == 1
+    assert (await repository.get_assessment_result(completed.result_id or "")).ai_assist_snapshot_id
+    assert len(await repository.extra_collection("ai_assist_snapshots")) == 1
 
 
-def test_start_session_freezes_enabled_questionnaire_version_without_score_rules() -> None:
+async def test_start_session_freezes_enabled_questionnaire_version_without_score_rules() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
     service_module = pytest.importorskip("app.services.v2.assessment_service")
@@ -212,9 +212,9 @@ def test_start_session_freezes_enabled_questionnaire_version_without_score_rules
         idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
         audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
     )
-    access_token = issue_student_access_token(sessions)
+    access_token = await issue_student_access_token(sessions)
 
-    started = service.start_session(
+    started = await service.start_session(
         access_token,
         module_code="phq9",
         request_id="req-start-1",
@@ -226,13 +226,13 @@ def test_start_session_freezes_enabled_questionnaire_version_without_score_rules
     assert len(started.questions) == 10
     assert all(not hasattr(question, "score_rule") for question in started.questions)
 
-    session = repository.get_assessment_session(started.session_id)
+    session = await repository.get_assessment_session(started.session_id)
     assert session.questionnaire_version == "phq9-cn-v1"
     assert session.answers is None
     assert session.answered_count is None
 
 
-def test_assessment_audit_events_use_allowed_assessment_resource_type() -> None:
+async def test_assessment_audit_events_use_allowed_assessment_resource_type() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
     audit_repository = InMemoryAuditRepository()
@@ -246,21 +246,21 @@ def test_assessment_audit_events_use_allowed_assessment_resource_type() -> None:
         audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
     )
 
-    service.start_session(
-        issue_student_access_token(sessions),
+    await service.start_session(
+        (await issue_student_access_token(sessions)),
         module_code="phq9",
         request_id="req-start-audit-resource",
         idempotency_key="start-audit-resource",
     )
 
     start_events = [
-        event for event in audit_repository.list() if event.action == "assessment_session"
+        event for event in (await audit_repository.list()) if event.action == "assessment_session"
     ]
     assert len(start_events) == 1
     assert start_events[0].resource_type == "assessment"
 
 
-def test_start_session_rejects_disabled_module_from_repository() -> None:
+async def test_start_session_rejects_disabled_module_from_repository() -> None:
     repository = seed_rules_repository(module_updates={"phq9": {"enabled": False}})
     sessions = InMemorySessionRepository()
     service_module = pytest.importorskip("app.services.v2.assessment_service")
@@ -274,8 +274,8 @@ def test_start_session_rejects_disabled_module_from_repository() -> None:
     )
 
     with pytest.raises(ApiException) as error:
-        service.start_session(
-            issue_student_access_token(sessions),
+        await service.start_session(
+            (await issue_student_access_token(sessions)),
             module_code="phq9",
             request_id="req-start-disabled-module",
             idempotency_key="start-disabled-module",
@@ -283,10 +283,10 @@ def test_start_session_rejects_disabled_module_from_repository() -> None:
 
     assert error.value.code == "NOT_FOUND"
     with pytest.raises(RepositoryNotFound):
-        repository.get_assessment_session("assessment_session_0001")
+        (await repository.get_assessment_session("assessment_session_0001"))
 
 
-def test_start_session_rejects_disabled_questionnaire_from_repository() -> None:
+async def test_start_session_rejects_disabled_questionnaire_from_repository() -> None:
     repository = seed_rules_repository(
         questionnaire_updates={("phq9", "phq9-cn-v1"): {"enabled": False}}
     )
@@ -302,8 +302,8 @@ def test_start_session_rejects_disabled_questionnaire_from_repository() -> None:
     )
 
     with pytest.raises(ApiException) as error:
-        service.start_session(
-            issue_student_access_token(sessions),
+        await service.start_session(
+            (await issue_student_access_token(sessions)),
             module_code="phq9",
             request_id="req-start-disabled-questionnaire",
             idempotency_key="start-disabled-questionnaire",
@@ -312,7 +312,7 @@ def test_start_session_rejects_disabled_questionnaire_from_repository() -> None:
     assert error.value.code == "NOT_FOUND"
 
 
-def test_start_session_uses_repository_current_version_and_question_projection() -> None:
+async def test_start_session_uses_repository_current_version_and_question_projection() -> None:
     rules = pytest.importorskip("app.services.v2.rules.assessment")
     seed_documents = rules.build_seed_documents()
     phq9_v1 = next(
@@ -347,8 +347,8 @@ def test_start_session_uses_repository_current_version_and_question_projection()
         audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
     )
 
-    started = service.start_session(
-        issue_student_access_token(sessions),
+    started = await service.start_session(
+        (await issue_student_access_token(sessions)),
         module_code="phq9",
         request_id="req-start-v2",
         idempotency_key="start-v2",
@@ -359,7 +359,7 @@ def test_start_session_uses_repository_current_version_and_question_projection()
     assert all(not hasattr(question, "score_rule") for question in started.questions)
 
 
-def test_start_session_rejects_missing_current_questionnaire() -> None:
+async def test_start_session_rejects_missing_current_questionnaire() -> None:
     repository = seed_rules_repository(
         module_updates={"phq9": {"current_questionnaire_version": "phq9-cn-v2"}}
     )
@@ -375,8 +375,8 @@ def test_start_session_rejects_missing_current_questionnaire() -> None:
     )
 
     with pytest.raises(ApiException) as error:
-        service.start_session(
-            issue_student_access_token(sessions),
+        await service.start_session(
+            (await issue_student_access_token(sessions)),
             module_code="phq9",
             request_id="req-start-missing-questionnaire",
             idempotency_key="start-missing-questionnaire",
@@ -385,7 +385,7 @@ def test_start_session_rejects_missing_current_questionnaire() -> None:
     assert error.value.code == "NOT_FOUND"
 
 
-def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
+async def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
     rules = pytest.importorskip("app.services.v2.rules.assessment")
     repository = seed_rules_repository()
     gad7 = next(
@@ -398,7 +398,7 @@ def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
     )
     original_get = repository.get_assessment_questionnaire
 
-    def get_mismatched_questionnaire(
+    async def get_mismatched_questionnaire(
         module_code: str, questionnaire_version: str
     ) -> AssessmentQuestionnaireDocument:
         assert module_code == "phq9"
@@ -418,8 +418,8 @@ def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
     )
 
     with pytest.raises(ApiException) as error:
-        service.start_session(
-            issue_student_access_token(sessions),
+        await service.start_session(
+            (await issue_student_access_token(sessions)),
             module_code="phq9",
             request_id="req-start-mismatched-questionnaire",
             idempotency_key="start-mismatched-questionnaire",
@@ -429,7 +429,7 @@ def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
     repository.get_assessment_questionnaire = original_get  # type: ignore[method-assign]
 
 
-def test_completion_scores_from_the_session_questionnaire_document() -> None:
+async def test_completion_scores_from_the_session_questionnaire_document() -> None:
     rules = pytest.importorskip("app.services.v2.rules.assessment")
     seed_documents = rules.build_seed_documents()
     gad7_v1 = next(
@@ -472,15 +472,15 @@ def test_completion_scores_from_the_session_questionnaire_document() -> None:
         idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
         audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
     )
-    access_token = issue_student_access_token(sessions)
-    started = service.start_session(
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
         access_token,
         module_code="gad7",
         request_id="req-start-gad-v2",
         idempotency_key="start-gad-v2",
     )
 
-    result = service.complete_session(
+    result = await service.complete_session(
         access_token,
         session_id=started.session_id,
         object_version=started.object_version,
@@ -493,12 +493,12 @@ def test_completion_scores_from_the_session_questionnaire_document() -> None:
     )
 
     assert result.score == 1
-    stored_result = repository.get_assessment_result(result.result_id or "")
+    stored_result = await repository.get_assessment_result(result.result_id or "")
     assert stored_result.answers_snapshot is not None
     assert stored_result.answers_snapshot[0].score_snapshot == 1
 
 
-def test_completion_persists_result_atomically_and_replays_duplicate_submit() -> None:
+async def test_completion_persists_result_atomically_and_replays_duplicate_submit() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
     service_module = pytest.importorskip("app.services.v2.assessment_service")
@@ -510,15 +510,15 @@ def test_completion_persists_result_atomically_and_replays_duplicate_submit() ->
         idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
         audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
     )
-    access_token = issue_student_access_token(sessions)
-    started = service.start_session(
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
         access_token,
         module_code="gad7",
         request_id="req-start-1",
         idempotency_key="start-1",
     )
 
-    result = service.complete_session(
+    result = await service.complete_session(
         access_token,
         session_id=started.session_id,
         object_version=started.object_version,
@@ -535,7 +535,7 @@ def test_completion_persists_result_atomically_and_replays_duplicate_submit() ->
         idempotency_key="complete-1",
     )
 
-    replay = service.complete_session(
+    replay = await service.complete_session(
         access_token,
         session_id=started.session_id,
         object_version=started.object_version,
@@ -558,18 +558,16 @@ def test_completion_persists_result_atomically_and_replays_duplicate_submit() ->
     assert result.result_state == "higher_score"
     assert replay.result_id == result.result_id
 
-    session = repository.get_assessment_session(started.session_id)
-    stored_result = repository.get_assessment_result(result.result_id)
+    session = await repository.get_assessment_session(started.session_id)
+    stored_result = await repository.get_assessment_result(result.result_id)
     assert session.state == "completed"
     assert session.answered_count == 7
     assert stored_result.session_id == started.session_id
     assert stored_result.score == 10
-    assert len(repository.list_assessment_results_by_session(started.session_id)) == 1
+    assert len(await repository.list_assessment_results_by_session(started.session_id)) == 1
 
 
-def test_phq9_question_9_non_zero_requires_safety_confirmation_and_does_not_persist_answers() -> (
-    None
-):
+async def test_phq9_q9_requires_confirmation_without_persisting_answers() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
     service_module = pytest.importorskip("app.services.v2.assessment_service")
@@ -582,15 +580,15 @@ def test_phq9_question_9_non_zero_requires_safety_confirmation_and_does_not_pers
         idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
         audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
     )
-    access_token = issue_student_access_token(sessions)
-    started = service.start_session(
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
         access_token,
         module_code="phq9",
         request_id="req-start-1",
         idempotency_key="start-1",
     )
 
-    result = service.complete_session(
+    result = await service.complete_session(
         access_token,
         session_id=started.session_id,
         object_version=started.object_version,
@@ -614,18 +612,18 @@ def test_phq9_question_9_non_zero_requires_safety_confirmation_and_does_not_pers
     assert result.result_id is None
     assert result.safety_triggered is True
 
-    session = repository.get_assessment_session(started.session_id)
+    session = await repository.get_assessment_session(started.session_id)
     assert session.state == "in_progress"
     assert session.answers is None
     assert session.answered_count is None
     assert session.safety_triggered is True
-    assert repository.list_assessment_results_by_session(started.session_id) == ()
-    first_event = audit_repository.list()[0]
+    assert (await repository.list_assessment_results_by_session(started.session_id)) == ()
+    first_event = (await audit_repository.list())[0]
     assert "question_key" not in str(first_event)
     assert "option_key" not in str(first_event)
 
 
-def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result() -> None:
+async def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
     idempotency_repository = InMemoryIdempotencyRepository()
@@ -639,20 +637,24 @@ def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result()
         idempotency_service=IdempotencyService(idempotency_repository),
         audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
     )
-    access_token = issue_student_access_token(sessions)
-    started = service.start_session(
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
         access_token,
         module_code="phq9",
         request_id="req-start-cannot-be-safe",
         idempotency_key="start-cannot-be-safe",
     )
-    blocked_session = repository.get_assessment_session(started.session_id).model_copy(
+    blocked_session = (await repository.get_assessment_session(started.session_id)).model_copy(
         update={
             "safety_triggered": True,
             "safety_confirmation_state": "cannot_be_safe",
         }
     )
-    repository.save_assessment_session(blocked_session, expected_version=started.object_version)
+    (
+        await repository.save_assessment_session(
+            blocked_session, expected_version=started.object_version
+        )
+    )
     answers = [
         {"question_key": "q1", "option_key": "0"},
         {"question_key": "q2", "option_key": "0"},
@@ -666,7 +668,7 @@ def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result()
         {"question_key": "impact", "option_key": "some"},
     ]
 
-    result = service.complete_session(
+    result = await service.complete_session(
         access_token,
         session_id=started.session_id,
         object_version=blocked_session.version + 1,
@@ -674,7 +676,7 @@ def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result()
         request_id="req-complete-cannot-be-safe",
         idempotency_key="complete-cannot-be-safe",
     )
-    replay = service.complete_session(
+    replay = await service.complete_session(
         access_token,
         session_id=started.session_id,
         object_version=blocked_session.version + 1,
@@ -688,12 +690,12 @@ def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result()
     assert result.score is None
     assert result.result_state is None
     assert replay == result
-    session = repository.get_assessment_session(started.session_id)
+    session = await repository.get_assessment_session(started.session_id)
     assert session.state == "in_progress"
     assert session.answers is None
     assert session.answered_count is None
-    assert repository.list_assessment_results_by_session(started.session_id) == ()
-    idempotency_record = idempotency_repository.get(
+    assert (await repository.list_assessment_results_by_session(started.session_id)) == ()
+    idempotency_record = await idempotency_repository.get(
         "student",
         "user-1",
         f"/assessment-sessions/{started.session_id}/complete",
@@ -705,7 +707,7 @@ def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result()
     assert idempotency_record.response_status == 200
     blocked_events = [
         event
-        for event in audit_repository.list()
+        for event in (await audit_repository.list())
         if event.action == "assessment_complete" and event.reason_code == "safety_support_blocked"
     ]
     assert len(blocked_events) == 1
@@ -713,7 +715,7 @@ def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result()
     assert "option_key" not in str(blocked_events[0])
 
 
-def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None:
+async def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
     service_module = pytest.importorskip("app.services.v2.assessment_service")
@@ -725,8 +727,8 @@ def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None
         idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
         audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
     )
-    access_token = issue_student_access_token(sessions)
-    started = service.start_session(
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
         access_token,
         module_code="sleep_observation",
         request_id="req-start-1",
@@ -734,7 +736,7 @@ def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None
     )
 
     with pytest.raises(ApiException) as missing:
-        service.complete_session(
+        await service.complete_session(
             access_token,
             session_id=started.session_id,
             object_version=started.object_version,
@@ -748,7 +750,7 @@ def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None
     assert missing.value.code == "VALIDATION_FAILED"
 
     with pytest.raises(ApiException) as duplicate:
-        service.complete_session(
+        await service.complete_session(
             access_token,
             session_id=started.session_id,
             object_version=started.object_version,
@@ -768,7 +770,7 @@ def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None
     assert duplicate.value.code == "VALIDATION_FAILED"
 
     with pytest.raises(ApiException) as invalid:
-        service.complete_session(
+        await service.complete_session(
             access_token,
             session_id=started.session_id,
             object_version=started.object_version,
@@ -787,7 +789,7 @@ def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None
     assert invalid.value.code == "VALIDATION_FAILED"
 
 
-def test_completion_rejects_version_conflict_expired_and_abandoned_sessions() -> None:
+async def test_completion_rejects_version_conflict_expired_and_abandoned_sessions() -> None:
     repository = seed_rules_repository()
     sessions = InMemorySessionRepository()
     service_module = pytest.importorskip("app.services.v2.assessment_service")
@@ -799,22 +801,24 @@ def test_completion_rejects_version_conflict_expired_and_abandoned_sessions() ->
         idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
         audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
     )
-    access_token = issue_student_access_token(sessions)
-    started = service.start_session(
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
         access_token,
         module_code="gad7",
         request_id="req-start-1",
         idempotency_key="start-1",
     )
 
-    repository.replace_assessment_module(
-        repository.get_assessment_module("gad7").model_copy(
-            update={"current_questionnaire_version": "gad7-cn-v2"}
-        ),
-        expected_version=1,
+    (
+        await repository.replace_assessment_module(
+            (await repository.get_assessment_module("gad7")).model_copy(
+                update={"current_questionnaire_version": "gad7-cn-v2"}
+            ),
+            expected_version=1,
+        )
     )
     with pytest.raises(ApiException) as version_error:
-        service.complete_session(
+        await service.complete_session(
             access_token,
             session_id=started.session_id,
             object_version=started.object_version,
@@ -832,12 +836,12 @@ def test_completion_rejects_version_conflict_expired_and_abandoned_sessions() ->
         )
     assert version_error.value.code == "VERSION_CONFLICT"
 
-    expired_session = repository.get_assessment_session(started.session_id).model_copy(
+    expired_session = (await repository.get_assessment_session(started.session_id)).model_copy(
         update={"expires_at": datetime.now(UTC) - timedelta(minutes=1)}
     )
-    repository.save_assessment_session(expired_session, expected_version=1)
+    (await repository.save_assessment_session(expired_session, expected_version=1))
     with pytest.raises(ApiException) as expired:
-        service.complete_session(
+        await service.complete_session(
             access_token,
             session_id=started.session_id,
             object_version=2,

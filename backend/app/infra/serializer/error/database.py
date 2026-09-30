@@ -26,6 +26,10 @@ class RepositoryUnavailable(RepositoryError):
     pass
 
 
+class RepositoryCommitUncertain(RepositoryUnavailable):
+    """A write may have committed; callers must reconcile rather than retry blindly."""
+
+
 class RepositoryCommitUnknown(RepositoryUnavailable):
     """Commit was sent but its result could not be confirmed."""
 

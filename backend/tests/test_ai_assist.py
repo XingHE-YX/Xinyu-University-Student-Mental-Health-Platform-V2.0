@@ -1,4 +1,3 @@
-import asyncio
 import json
 from typing import Any
 
@@ -109,7 +108,7 @@ def test_output_policy_rejects_unknown_fields_and_evidence_not_in_text() -> None
         )
 
 
-def test_deepseek_client_sends_fixed_json_contract_without_retry() -> None:
+async def test_deepseek_client_sends_fixed_json_contract_without_retry() -> None:
     requests: list[httpx.Request] = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -125,12 +124,10 @@ def test_deepseek_client_sends_fixed_json_contract_without_retry() -> None:
 
     transport = httpx.MockTransport(handler)
     client = DeepSeekClient(api_key="secret", transport=transport)
-    result = asyncio.run(
-        client.complete(
-            PromptManager().request(
-                "assessment_explanation", {"task_type": "assessment_explanation"}, AIConfig()
-            ),
-        )
+    result = await client.complete(
+        PromptManager().request(
+            "assessment_explanation", {"task_type": "assessment_explanation"}, AIConfig()
+        ),
     )
 
     assert json.loads(result.content) == {"task_type": "assessment_explanation"}
@@ -144,17 +141,15 @@ def test_deepseek_client_sends_fixed_json_contract_without_retry() -> None:
     assert body["response_format"] == {"type": "json_object"}
 
 
-def test_missing_key_is_explicit_unavailable() -> None:
+async def test_missing_key_is_explicit_unavailable() -> None:
     client = DeepSeekClient(api_key=None)
     with pytest.raises(DeepSeekUnavailable, match="未配置"):
-        asyncio.run(
-            client.complete(
-                PromptManager().request("assessment_explanation", ASSESSMENT_INPUT, AIConfig())
-            )
+        await client.complete(
+            PromptManager().request("assessment_explanation", ASSESSMENT_INPUT, AIConfig())
         )
 
 
-def test_service_falls_back_and_audits_without_blocking_fixed_result() -> None:
+async def test_service_falls_back_and_audits_without_blocking_fixed_result() -> None:
     audit_repository = InMemoryAuditRepository()
     settings = settings_for(api_key=None)
     assert settings.configuration_status == "ready"
@@ -163,26 +158,24 @@ def test_service_falls_back_and_audits_without_blocking_fixed_result() -> None:
         audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
     )
 
-    result = asyncio.run(
-        service.assessment_explanation(
-            resource_id="result-1",
-            owner_user_id="user-1",
-            input_data=ASSESSMENT_INPUT,
-        )
+    result = await service.assessment_explanation(
+        resource_id="result-1",
+        owner_user_id="user-1",
+        input_data=ASSESSMENT_INPUT,
     )
 
     assert result.status == "fallback"
     assert result.output is None
     assert result.fallback_reason == "dependency_unavailable"
     assert result.fixed_result_available is True
-    event = audit_repository.list()[0]
+    event = (await audit_repository.list())[0]
     assert event.action == "ai_assist"
     assert event.details["task_kind"] == "assessment_explanation"
     assert event.details["outcome_category"] == "fallback"
     assert "fixed_summary" not in event.details
 
 
-def test_service_adopts_valid_output_but_does_not_change_fixed_band() -> None:
+async def test_service_adopts_valid_output_but_does_not_change_fixed_band() -> None:
     output = {
         "task_type": "assessment_explanation",
         "status": "ok",
@@ -207,12 +200,10 @@ def test_service_adopts_valid_output_but_does_not_change_fixed_band() -> None:
             pass
 
     service = AiAssistService(settings_for(), client=StubClient())
-    result = asyncio.run(
-        service.assessment_explanation(
-            resource_id="result-1",
-            owner_user_id="user-1",
-            input_data=ASSESSMENT_INPUT,
-        )
+    result = await service.assessment_explanation(
+        resource_id="result-1",
+        owner_user_id="user-1",
+        input_data=ASSESSMENT_INPUT,
     )
 
     assert result.status == "adopted"
@@ -221,15 +212,13 @@ def test_service_adopts_valid_output_but_does_not_change_fixed_band() -> None:
     assert result.fixed_band_unchanged == ASSESSMENT_INPUT["fixed_band"]
 
 
-def test_treehole_failure_requests_manual_review_and_never_publishes() -> None:
+async def test_treehole_failure_requests_manual_review_and_never_publishes() -> None:
     settings = settings_for(api_key=None)
     assert settings.configuration_status == "ready"
     service = AiAssistService(settings)
-    result = asyncio.run(
-        service.treehole_review_assist(
-            resource_id="post-1",
-            input_data=TREEHOLE_INPUT,
-        )
+    result = await service.treehole_review_assist(
+        resource_id="post-1",
+        input_data=TREEHOLE_INPUT,
     )
 
     assert result.status == "fallback"
@@ -238,7 +227,7 @@ def test_treehole_failure_requests_manual_review_and_never_publishes() -> None:
     assert result.visibility_state == "pending_confirmation"
 
 
-def test_needs_fallback_model_response_is_not_adopted() -> None:
+async def test_needs_fallback_model_response_is_not_adopted() -> None:
     class FallbackClient(AIClient):
         async def complete(self, request: AIRequest) -> AIResponse:
             payload = json.loads(request.messages[-1].content)
@@ -266,12 +255,10 @@ def test_needs_fallback_model_response_is_not_adopted() -> None:
             pass
 
     service = AiAssistService(settings_for(), client=FallbackClient())
-    result = asyncio.run(
-        service.assessment_explanation(
-            resource_id="result-1",
-            owner_user_id="user-1",
-            input_data=ASSESSMENT_INPUT,
-        )
+    result = await service.assessment_explanation(
+        resource_id="result-1",
+        owner_user_id="user-1",
+        input_data=ASSESSMENT_INPUT,
     )
 
     assert result.status == "fallback"
@@ -279,7 +266,7 @@ def test_needs_fallback_model_response_is_not_adopted() -> None:
     assert service.snapshots[result.snapshot_id or ""].output_status == "rejected"
 
 
-def test_ai_snapshot_persists_and_can_be_reloaded() -> None:
+async def test_ai_snapshot_persists_and_can_be_reloaded() -> None:
     repository = InMemoryDomainDataRepository()
 
     class StubClient(AIClient):
@@ -309,16 +296,14 @@ def test_ai_snapshot_persists_and_can_be_reloaded() -> None:
             pass
 
     first = AiAssistService(settings_for(), client=StubClient(), repository=repository)
-    result = asyncio.run(
-        first.assessment_explanation(
-            resource_id="result-persistent",
-            owner_user_id="user-1",
-            input_data=ASSESSMENT_INPUT,
-        )
+    result = await first.assessment_explanation(
+        resource_id="result-persistent",
+        owner_user_id="user-1",
+        input_data=ASSESSMENT_INPUT,
     )
     second = AiAssistService(settings_for(), client=StubClient(), repository=repository)
 
-    projection = second.snapshot_projection(result.snapshot_id)
+    projection = await second.snapshot_projection(result.snapshot_id)
 
     assert projection is not None
     assert projection["status"] == "adopted"

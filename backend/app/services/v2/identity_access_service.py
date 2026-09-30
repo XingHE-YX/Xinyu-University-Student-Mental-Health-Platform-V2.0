@@ -3,8 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from app.infra.database.common import RepositoryError, RepositoryNotFound
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import traced
 from app.infra.security.tokens import AuthenticatedSubject, TokenManager
@@ -22,6 +21,7 @@ from app.services.v2.idempotency_service import (
     serialize_api_error,
 )
 from app.services.v2.identity_service import IdentityService
+from app.services.v2.repositories import DomainRepository, SessionRepository
 
 
 class IdentityAccessService:
@@ -30,8 +30,8 @@ class IdentityAccessService:
     def __init__(
         self,
         *,
-        repository: InMemoryDomainDataRepository,
-        session_repository: InMemorySessionRepository,
+        repository: DomainRepository,
+        session_repository: SessionRepository,
         token_manager: TokenManager,
         idempotency_service: IdempotencyService,
         audit_writer: AuditWriter,
@@ -43,9 +43,12 @@ class IdentityAccessService:
         self.idempotency = idempotency_service
         self.audit = audit_writer
         self.identity = identity_service
+        share_memory_transaction(
+            self.repository, self.idempotency.repository, self.audit.repository, self.sessions
+        )
 
     @traced
-    def create_request(
+    async def create_request(
         self,
         access_token: str,
         *,
@@ -53,8 +56,8 @@ class IdentityAccessService:
         request_id: str,
         idempotency_key: str,
     ) -> IdentityAccessRequestProjection:
-        subject = self._admin(access_token)
-        reservation = self.idempotency.begin(
+        subject = await self._admin(access_token)
+        reservation = await self.idempotency.begin(
             "admin",
             subject.subject_id,
             "/admin/identity-access-requests",
@@ -64,65 +67,72 @@ class IdentityAccessService:
         if reservation.replayed:
             return _decode_request(reservation.record.response_digest)
         try:
-            user = self.repository.get_user(payload.user_reference_id)
-            if user.status == "purged":
-                raise ApiException(404, "NOT_FOUND")
-            now = datetime.now(UTC)
-            request = IdentityAccessRequestDocument(
-                _id=self.repository.next_identity_access_request_id(),
-                task_kind="identity_access",
-                user_reference_id=user.document_id,
-                requester_admin_id=subject.subject_id,
-                requested_fields=list(dict.fromkeys(payload.requested_fields)),
-                reason_fact=payload.reason_fact,
-                state="pending",
-                decided_admin_id=None,
-                decision_reason=None,
-                valid_from=None,
-                valid_until=None,
-                created_at=now,
-                updated_at=now,
-                version=1,
-            )
-            self.repository.create_identity_access_request(request)
-            response = _request_projection(request)
-            self.idempotency.complete(
-                reservation, status_code=200, response_digest=response.model_dump_json()
-            )
-            self._audit(
-                request_id,
-                subject.subject_id,
-                "identity_access_request_create",
-                request.document_id,
-                "pending",
-            )
-            return response
+            async with self.repository.transaction():
+                user = await self.repository.get_user(payload.user_reference_id)
+                if user.status == "purged":
+                    raise ApiException(404, "NOT_FOUND")
+                now = datetime.now(UTC)
+                request = IdentityAccessRequestDocument(
+                    _id=(await self.repository.next_identity_access_request_id()),
+                    task_kind="identity_access",
+                    user_reference_id=user.document_id,
+                    requester_admin_id=subject.subject_id,
+                    requested_fields=list(dict.fromkeys(payload.requested_fields)),
+                    reason_fact=payload.reason_fact,
+                    state="pending",
+                    decided_admin_id=None,
+                    decision_reason=None,
+                    valid_from=None,
+                    valid_until=None,
+                    created_at=now,
+                    updated_at=now,
+                    version=1,
+                )
+                (await self.repository.create_identity_access_request(request))
+                response = _request_projection(request)
+                (
+                    await self.idempotency.complete(
+                        reservation, status_code=200, response_digest=response.model_dump_json()
+                    )
+                )
+                (
+                    await self._audit(
+                        request_id,
+                        subject.subject_id,
+                        "identity_access_request_create",
+                        request.document_id,
+                        "pending",
+                    )
+                )
+                return response
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryError as error:
             failure = ApiException(503, "DEPENDENCY_UNAVAILABLE")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def get_request(self, access_token: str, *, request_id: str) -> IdentityAccessRequestProjection:
-        subject = self._admin(access_token)
+    async def get_request(
+        self, access_token: str, *, request_id: str
+    ) -> IdentityAccessRequestProjection:
+        subject = await self._admin(access_token)
         try:
-            request = self.repository.get_identity_access_request(request_id)
+            request = await self.repository.get_identity_access_request(request_id)
         except RepositoryNotFound as error:
             raise ApiException(404, "NOT_FOUND") from error
         if request.state == "approved" and request.valid_until is not None:
             if datetime.now(UTC) > request.valid_until:
-                request = self.repository.save_identity_access_request(
+                request = await self.repository.save_identity_access_request(
                     request.model_copy(update={"state": "expired"}),
                     expected_version=request.version,
                 )
@@ -131,38 +141,54 @@ class IdentityAccessService:
         return _request_projection(request)
 
     @traced
-    def read_identity(
+    async def read_identity(
         self,
         access_token: str,
         *,
         request_id: str,
         audit_request_id: str,
     ) -> IdentityAccessIdentityProjection:
-        subject = self._admin(access_token)
+        subject = await self._admin(access_token)
         try:
-            request = self.repository.get_identity_access_request(request_id)
+            request = await self.repository.get_identity_access_request(request_id)
         except RepositoryNotFound as error:
-            self._audit(
-                audit_request_id, subject.subject_id, "identity_read", request_id, "not_found"
+            (
+                await self._audit(
+                    audit_request_id, subject.subject_id, "identity_read", request_id, "not_found"
+                )
             )
             raise ApiException(404, "NOT_FOUND") from error
         now = datetime.now(UTC)
         if request.state != "approved" or request.valid_from is None or request.valid_until is None:
-            self._audit(audit_request_id, subject.subject_id, "identity_read", request_id, "denied")
+            (
+                await self._audit(
+                    audit_request_id, subject.subject_id, "identity_read", request_id, "denied"
+                )
+            )
             raise ApiException(403, "FORBIDDEN")
         if now < request.valid_from or now > request.valid_until:
-            self._audit(
-                audit_request_id, subject.subject_id, "identity_read", request_id, "expired"
+            (
+                await self._audit(
+                    audit_request_id, subject.subject_id, "identity_read", request_id, "expired"
+                )
             )
             raise ApiException(403, "FORBIDDEN")
         try:
-            user = self.repository.get_user(request.user_reference_id)
-            identity_record = self.repository.get_identity_record_by_user(user.document_id)
+            user = await self.repository.get_user(request.user_reference_id)
+            identity_record = await self.repository.get_identity_record_by_user(user.document_id)
         except RepositoryNotFound as error:
-            self._audit(audit_request_id, subject.subject_id, "identity_read", request_id, "denied")
+            (
+                await self._audit(
+                    audit_request_id, subject.subject_id, "identity_read", request_id, "denied"
+                )
+            )
             raise ApiException(404, "NOT_FOUND") from error
         if identity_record is None or identity_record.verification_status != "verified":
-            self._audit(audit_request_id, subject.subject_id, "identity_read", request_id, "denied")
+            (
+                await self._audit(
+                    audit_request_id, subject.subject_id, "identity_read", request_id, "denied"
+                )
+            )
             raise ApiException(404, "NOT_FOUND")
         fields: dict[str, str] = {}
         try:
@@ -177,11 +203,17 @@ class IdentityAccessService:
                     raise ValueError("missing identity ciphertext")
                 fields[field] = decrypt(ciphertext)
         except Exception as error:
-            self._audit(
-                audit_request_id, subject.subject_id, "identity_read", request_id, "failure"
+            (
+                await self._audit(
+                    audit_request_id, subject.subject_id, "identity_read", request_id, "failure"
+                )
             )
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE") from error
-        self._audit(audit_request_id, subject.subject_id, "identity_read", request_id, "success")
+        (
+            await self._audit(
+                audit_request_id, subject.subject_id, "identity_read", request_id, "success"
+            )
+        )
         return IdentityAccessIdentityProjection(
             request_id=request.document_id,
             fields=fields,  # type: ignore[arg-type]
@@ -189,7 +221,7 @@ class IdentityAccessService:
         )
 
     @traced
-    def decide_request(
+    async def decide_request(
         self,
         access_token: str,
         *,
@@ -199,9 +231,9 @@ class IdentityAccessService:
         decision_reason: str | None = None,
         valid_until: datetime | None = None,
     ) -> IdentityAccessRequestProjection:
-        subject = self._admin(access_token)
+        subject = await self._admin(access_token)
         try:
-            request = self.repository.get_identity_access_request(request_id)
+            request = await self.repository.get_identity_access_request(request_id)
             if request.version != object_version:
                 raise ApiException(409, "VERSION_CONFLICT", current_version=request.version)
             if state not in {"approved", "denied", "revoked"}:
@@ -218,29 +250,31 @@ class IdentityAccessService:
                     else None,
                 }
             )
-            saved = self.repository.save_identity_access_request(
+            saved = await self.repository.save_identity_access_request(
                 updated, expected_version=request.version
             )
-            self._audit(
-                request_id, subject.subject_id, "identity_access_decision", request_id, state
+            (
+                await self._audit(
+                    request_id, subject.subject_id, "identity_access_decision", request_id, state
+                )
             )
             return _request_projection(saved)
         except RepositoryNotFound as error:
             raise ApiException(404, "NOT_FOUND") from error
 
     @traced
-    def _admin(self, access_token: str) -> AuthenticatedSubject:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+    async def _admin(self, access_token: str) -> AuthenticatedSubject:
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "admin" or subject.capability != "super_admin":
             raise ApiException(403, "FORBIDDEN")
         return subject
 
     @traced
-    def _audit(
+    async def _audit(
         self, request_id: str, actor_id: str, action: str, resource_id: str, outcome: str
     ) -> None:
-        try:
-            self.audit.write(
+        (
+            await self.audit.write(
                 request_id=request_id,
                 actor_type="admin",
                 actor_id=actor_id,
@@ -254,8 +288,7 @@ class IdentityAccessService:
                 occurred_at=datetime.now(UTC),
                 facts={"action_code": action, "status": outcome},
             )
-        except Exception:
-            pass
+        )
 
 
 @traced
@@ -286,14 +319,16 @@ def _decode_request(value: str | None) -> IdentityAccessRequestProjection:
 
 
 @traced
-def _complete_failure(
+async def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
     error: ApiException,
 ) -> None:
-    idempotency.complete(
-        reservation,
-        status_code=error.status_code,
-        response_digest=serialize_api_error(error),
-        outcome="failure",
+    (
+        await idempotency.complete(
+            reservation,
+            status_code=error.status_code,
+            response_digest=serialize_api_error(error),
+            outcome="failure",
+        )
     )

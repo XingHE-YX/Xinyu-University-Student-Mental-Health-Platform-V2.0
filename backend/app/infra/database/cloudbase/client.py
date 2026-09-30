@@ -4,21 +4,24 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
 from urllib.parse import quote
 
+import anyio
 import httpx
 
+from app.infra.config.types import DatabaseConfig
 from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryUnavailable,
     RepositoryVersionConflict,
 )
-from app.infra.logger.common import traced
+from app.infra.logger.common import get_logger, traced
+from app.infra.serializer.error.database import RepositoryCommitUncertain
 
 
 @traced
@@ -63,8 +66,9 @@ class CloudBaseStore:
         api_key: str,
         *,
         base_url: str | None = None,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = 8.0,
+        config: DatabaseConfig | None = None,
     ) -> None:
         if not re.fullmatch(r"[a-zA-Z0-9-]+", environment_id) or not api_key.strip():
             raise ValueError("CloudBase credentials are not configured")
@@ -76,9 +80,14 @@ class CloudBaseStore:
                 "/v1/database/instances/(default)/databases/(default)"
             )
         ).rstrip("/")
-        self._client = httpx.Client(
+        self.config = config or DatabaseConfig(timeout_seconds=timeout)
+        self._client = httpx.AsyncClient(
             headers={"Authorization": f"Bearer {api_key.strip()}"},
-            timeout=timeout,
+            timeout=self.config.timeout_seconds,
+            limits=httpx.Limits(
+                max_connections=self.config.max_connections,
+                max_keepalive_connections=self.config.max_keepalive_connections,
+            ),
             transport=transport,
             follow_redirects=False,
         )
@@ -87,11 +96,11 @@ class CloudBaseStore:
         )
 
     @traced
-    def close(self) -> None:
-        self._client.close()
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
     @traced
-    def request(
+    async def request(
         self,
         method: str,
         path: str,
@@ -108,7 +117,7 @@ class CloudBaseStore:
             else:
                 data["transactionId"] = transaction_id
         try:
-            response = self._client.request(
+            response = await self._client.request(
                 method,
                 self.base_url + path,
                 params=query,
@@ -138,12 +147,12 @@ class CloudBaseStore:
         except ValueError, TypeError, OverflowError:
             raise RepositoryUnavailable("CloudBase EJSON is invalid") from None
 
-    @contextmanager
-    def transaction(self) -> Iterator[None]:
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator[None]:
         if self._transaction.get() is not None:
             yield
             return
-        data = self.request("POST", "/transactions", in_transaction=False)
+        data = await self.request("POST", "/transactions", in_transaction=False)
         transaction_id = data.get("transactionId")
         if not isinstance(transaction_id, str) or not transaction_id:
             raise RepositoryUnavailable("CloudBase transaction ID is missing")
@@ -151,12 +160,17 @@ class CloudBaseStore:
         path = f"/transactions/{quote(transaction_id, safe='')}"
         try:
             yield
-            self.request("POST", path + "/commit", in_transaction=False)
-        except BaseException:
             try:
-                self.request("POST", path + "/rollback", in_transaction=False)
-            except RepositoryUnavailable, RepositoryNotFound, RepositoryVersionConflict:
-                pass  # Preserve the original failure; never report a failed commit as success.
+                await self.request("POST", path + "/commit", in_transaction=False)
+            except RepositoryUnavailable:
+                raise RepositoryCommitUncertain("CloudBase commit outcome is unknown") from None
+        except BaseException:
+            with anyio.CancelScope(shield=True):
+                with anyio.move_on_after(self.config.rollback_timeout_seconds):
+                    try:
+                        await self.request("POST", path + "/rollback", in_transaction=False)
+                    except RepositoryUnavailable, RepositoryNotFound, RepositoryVersionConflict:
+                        get_logger(__name__).error("transaction_rollback_failed")
             raise
         finally:
             self._transaction.reset(token)
@@ -169,7 +183,7 @@ class CloudBaseStore:
         return f"/collections/{collection}/documents"
 
     @traced
-    def query(
+    async def query(
         self,
         collection: str,
         where: Mapping[str, Any] | None = None,
@@ -177,7 +191,7 @@ class CloudBaseStore:
         limit: int = 100,
         offset: int = 0,
     ) -> list[dict[str, Any]]:
-        result = self.request(
+        result = await self.request(
             "GET",
             self.collection_path(collection),
             params={
@@ -193,32 +207,38 @@ class CloudBaseStore:
         return items
 
     @traced
-    def all(self, collection: str, where: Mapping[str, Any] | None = None) -> list[dict[str, Any]]:
+    async def all(
+        self, collection: str, where: Mapping[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         documents: list[dict[str, Any]] = []
         while True:
-            page = self.query(collection, where, offset=len(documents))
+            page = await self.query(collection, where, offset=len(documents))
             documents.extend(page)
             if len(page) < 100:
                 return documents
 
     @traced
-    def get(self, collection: str, document_id: str) -> dict[str, Any]:
-        items = self.query(collection, {"_id": document_id}, limit=1)
+    async def get(self, collection: str, document_id: str) -> dict[str, Any]:
+        items = await self.query(collection, {"_id": document_id}, limit=1)
         if not items:
             raise RepositoryNotFound("CloudBase document not found")
         return items[0]
 
     @traced
-    def insert(self, collection: str, document: Mapping[str, Any]) -> None:
-        result = self.request("POST", self.collection_path(collection), body={"data": [document]})
+    async def insert(self, collection: str, document: Mapping[str, Any]) -> None:
+        result = await self.request(
+            "POST", self.collection_path(collection), body={"data": [document]}
+        )
         if not isinstance(result.get("insertedIds"), list) or len(result["insertedIds"]) != 1:
             raise RepositoryUnavailable("CloudBase insert result is invalid")
 
     @traced
-    def replace(self, collection: str, document: Mapping[str, Any], expected_version: int) -> None:
+    async def replace(
+        self, collection: str, document: Mapping[str, Any], expected_version: int
+    ) -> None:
         values = dict(document)
         document_id = values.pop("_id")
-        result = self.request(
+        result = await self.request(
             "PATCH",
             self.collection_path(collection),
             body={
@@ -229,21 +249,23 @@ class CloudBaseStore:
             },
         )
         if result.get("matched") != 1:
-            current = self.get(collection, document_id)
+            current = await self.get(collection, document_id)
             raise RepositoryVersionConflict(current.get("version"))
         if result.get("updated") != 1:
             raise RepositoryUnavailable("CloudBase update was not applied")
 
     @traced
-    def create_collection(self, collection: str) -> None:
+    async def create_collection(self, collection: str) -> None:
         self.collection_path(collection)
-        self.request(
-            "POST", "/collections", body={"collectionName": collection}, in_transaction=False
+        (
+            await self.request(
+                "POST", "/collections", body={"collectionName": collection}, in_transaction=False
+            )
         )
 
     @traced
-    def commands(self, commands: list[dict[str, Any]]) -> list[Any]:
-        result = self.request("POST", "/commands", body={"commands": commands})
+    async def commands(self, commands: list[dict[str, Any]]) -> list[Any]:
+        result = await self.request("POST", "/commands", body={"commands": commands})
         items = result.get("list")
         if not isinstance(items, list) or len(items) != len(commands):
             raise RepositoryUnavailable("CloudBase command result is invalid")

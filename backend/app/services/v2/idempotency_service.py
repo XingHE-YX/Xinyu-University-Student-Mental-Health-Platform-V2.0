@@ -29,7 +29,7 @@ class IdempotencyService:
         self.repository = repository or InMemoryIdempotencyRepository()
 
     @traced
-    def begin(
+    async def begin(
         self,
         actor_type: str,
         actor_id: str,
@@ -57,7 +57,7 @@ class IdempotencyService:
             created_at=current,
             updated_at=current,
         )
-        existing = self.repository.reserve(record, now=current)
+        existing = await self.repository.reserve(record, now=current)
         if existing is None:
             return IdempotencyReservation(record=record, replayed=False)
         if existing.request_hash != request_hash:
@@ -72,7 +72,7 @@ class IdempotencyService:
         return IdempotencyReservation(record=existing, replayed=True)
 
     @traced
-    def complete(
+    async def complete(
         self,
         reservation: IdempotencyReservation,
         *,
@@ -86,7 +86,7 @@ class IdempotencyService:
         if outcome not in {"success", "failure"}:
             raise ValueError("invalid idempotency outcome")
         current = _utc(now or datetime.now(UTC))
-        return self.repository.complete(
+        return await self.repository.complete(
             reservation.record.record_id,
             outcome=outcome,  # type: ignore[arg-type]
             response_status=status_code,

@@ -1,6 +1,7 @@
 """Repository contracts shared by CloudBase and local test implementations."""
 
 from collections.abc import Mapping
+from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -22,8 +23,16 @@ class DocumentPage:
 
 
 class DocumentRepository(Protocol):
+    def transaction(self) -> AbstractAsyncContextManager[None]: ...
+
+    async def get(self, collection: str, document_id: str) -> JsonDocument: ...
+
+    async def insert(self, collection: str, document: Mapping[str, Any]) -> None: ...
+
+    async def aclose(self) -> None: ...
+
     @traced
-    def query(
+    async def query(
         self,
         collection: str,
         where: Mapping[str, Any] | None = None,
@@ -33,7 +42,7 @@ class DocumentRepository(Protocol):
     ) -> DocumentPage: ...
 
     @traced
-    def conditional_update(
+    async def conditional_update(
         self,
         collection: str,
         document_id: str,
@@ -43,7 +52,7 @@ class DocumentRepository(Protocol):
     ) -> JsonDocument: ...
 
     @traced
-    def logical_delete(
+    async def logical_delete(
         self,
         collection: str,
         document_id: str,

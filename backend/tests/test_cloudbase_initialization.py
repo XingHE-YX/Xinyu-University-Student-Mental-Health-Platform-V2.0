@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -19,16 +19,16 @@ class ProvisioningStore:
         self.collections: dict[str, dict[str, dict[str, Any]]] = {}
         self.commands_run: list[list[dict[str, Any]]] = []
 
-    def create_collection(self, collection: str) -> None:
+    async def create_collection(self, collection: str) -> None:
         if collection in self.collections:
             raise RepositoryVersionConflict(None)
         self.collections[collection] = {}
 
-    def commands(self, commands: list[dict[str, Any]]) -> list[Any]:
+    async def commands(self, commands: list[dict[str, Any]]) -> list[Any]:
         self.commands_run.append(commands)
         return [[{"ok": 1}]]
 
-    def query(
+    async def query(
         self,
         collection: str,
         where: dict[str, Any] | None = None,
@@ -43,17 +43,19 @@ class ProvisioningStore:
             if all(item.get(key) == value for key, value in (where or {}).items())
         ][:limit]
 
-    def insert(self, collection: str, document: dict[str, Any]) -> None:
+    async def insert(self, collection: str, document: dict[str, Any]) -> None:
         self.collections[collection][str(document["_id"])] = dict(document)
 
-    def replace(self, collection: str, document: dict[str, Any], expected_version: int) -> None:
+    async def replace(
+        self, collection: str, document: dict[str, Any], expected_version: int
+    ) -> None:
         current = self.collections[collection][str(document["_id"])]
         if current.get("version") != expected_version:
             raise RepositoryVersionConflict(current.get("version"))
         self.collections[collection][str(document["_id"])] = dict(document)
 
-    @contextmanager
-    def transaction(self):  # type: ignore[no-untyped-def]
+    @asynccontextmanager
+    async def transaction(self):  # type: ignore[no-untyped-def]
         yield
 
 
@@ -75,10 +77,10 @@ def test_environment_reader_rejects_invalid_lines(tmp_path: Path) -> None:
         read_environment(file)
 
 
-def test_initializer_is_repeatable_and_applies_every_collection_and_index() -> None:
+async def test_initializer_is_repeatable_and_applies_every_collection_and_index() -> None:
     store = ProvisioningStore()
-    first = initialize_demo(store)  # type: ignore[arg-type]
-    second = initialize_demo(store)  # type: ignore[arg-type]
+    first = await initialize_demo(store)  # type: ignore[arg-type]
+    second = await initialize_demo(store)  # type: ignore[arg-type]
     expected_documents = sum(len(items) for items in demo_seed_collections().values())
     expected_indexes = sum(len(items) for items in build_index_projection().values())
 
@@ -93,16 +95,16 @@ def test_initializer_is_repeatable_and_applies_every_collection_and_index() -> N
     assert sum(len(group[0]["indexes"]) for group in store.commands_run) == 2 * expected_indexes
 
 
-def test_support_resource_refresh_is_scoped_versioned_and_repeatable() -> None:
+async def test_support_resource_refresh_is_scoped_versioned_and_repeatable() -> None:
     store = ProvisioningStore()
-    initialize_demo(store)  # type: ignore[arg-type]
+    (await initialize_demo(store))  # type: ignore[arg-type]
     resources = store.collections["support_resources"]
     resources["support-demo-001"]["title"] = "旧演示标题"
     resources["support-demo-002"]["action_target"] = "https://example.invalid"
     resources["support-demo-003"]["availability_text"] = "旧演示说明"
 
-    assert refresh_demo_support_resources(store) == 3  # type: ignore[arg-type]
-    assert refresh_demo_support_resources(store) == 0  # type: ignore[arg-type]
+    assert (await refresh_demo_support_resources(store)) == 3  # type: ignore[arg-type]
+    assert (await refresh_demo_support_resources(store)) == 0  # type: ignore[arg-type]
     assert {item["version"] for item in resources.values()} == {2}
     assert all(item["action_target"] is None for item in resources.values())
     assert all(

@@ -27,7 +27,7 @@ async def wechat_session(
 
 @router.post("/refresh")
 async def refresh(request: Request, body: RefreshRequest) -> ApiEnvelope[object]:
-    data = request.app.state.auth_service.refresh(
+    data = await request.app.state.auth_service.refresh(
         body.refresh_token,
         expected_subject_type="student",
     )
@@ -40,7 +40,7 @@ async def logout(
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[dict[str, bool]]:
     token = bearer_token(authorization)
-    request.app.state.auth_service.logout(token, expected_subject_type="student")
+    (await request.app.state.auth_service.logout(token, expected_subject_type="student"))
     return ApiEnvelope.success(request_id(request), data={"success": True})
 
 
@@ -49,13 +49,13 @@ async def me(
     request: Request,
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[StudentMeData]:
-    subject = student_subject(request, authorization)
+    subject = await student_subject(request, authorization)
     account_status: Literal["active", "recovery_pending", "stopped", "purged"] = "active"
     account_service = getattr(request.app.state, "account_service", None)
     if account_service is not None:
         account_status = cast(
             Literal["active", "recovery_pending", "stopped", "purged"],
-            account_service.status(bearer_token(authorization)).status,
+            (await account_service.status(bearer_token(authorization))).status,
         )
     data = StudentMeData(
         subject_type="student",

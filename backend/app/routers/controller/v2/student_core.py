@@ -27,7 +27,8 @@ async def bootstrap(
     request: Request, authorization: Annotated[str | None, Header()] = None
 ) -> ApiEnvelope[object]:
     return ApiEnvelope.success(
-        request_id(request), request.app.state.bootstrap_service.get(bearer_token(authorization))
+        request_id(request),
+        (await request.app.state.bootstrap_service.get(bearer_token(authorization))),
     )
 
 
@@ -42,11 +43,13 @@ async def base_consent(
     token = bearer_token(authorization)
     version = (
         body.object_version
-        or request.app.state.consent_service.repository.get_user(
-            request.app.state.auth_service.authenticate(token).subject_id
+        or (
+            await request.app.state.consent_service.repository.get_user(
+                (await request.app.state.auth_service.authenticate(token)).subject_id
+            )
         ).version
     )
-    data = request.app.state.consent_service.accept_base_consent(
+    data = await request.app.state.consent_service.accept_base_consent(
         token,
         document_version=body.document_version,
         user_version=version,
@@ -64,12 +67,14 @@ async def community_consent(
     key = require_idempotency_key(request)
     version = (
         body.object_version
-        or request.app.state.consent_service.repository.get_user(
-            request.app.state.auth_service.authenticate(token).subject_id
+        or (
+            await request.app.state.consent_service.repository.get_user(
+                (await request.app.state.auth_service.authenticate(token)).subject_id
+            )
         ).version
     )
     if body.action == "accepted":
-        data = request.app.state.consent_service.accept_community_consent(
+        data = await request.app.state.consent_service.accept_community_consent(
             token,
             document_version=body.document_version,
             user_version=version,
@@ -77,7 +82,7 @@ async def community_consent(
             idempotency_key=key,
         )
     else:
-        data = request.app.state.consent_service.withdraw_community_consent(
+        data = await request.app.state.consent_service.withdraw_community_consent(
             token,
             document_version=body.document_version,
             user_version=version,
@@ -98,8 +103,12 @@ async def verify_identity(
         student_name=body.student_name,
         student_number=body.student_number,
         user_version=body.object_version
-        or request.app.state.identity_service.repository.get_user(
-            request.app.state.auth_service.authenticate(bearer_token(authorization)).subject_id
+        or (
+            await request.app.state.identity_service.repository.get_user(
+                (
+                    await request.app.state.auth_service.authenticate(bearer_token(authorization))
+                ).subject_id
+            )
         ).version,
         request_id=request_id(request),
         idempotency_key=require_idempotency_key(request),
@@ -120,8 +129,10 @@ async def verification_status(
 ) -> ApiEnvelope[object]:
     return ApiEnvelope.success(
         request_id(request),
-        request.app.state.identity_service.get_verification(
-            bearer_token(authorization), verification_id
+        (
+            await request.app.state.identity_service.get_verification(
+                bearer_token(authorization), verification_id
+            )
         ),
     )
 
@@ -132,7 +143,11 @@ async def anonymous_identity(
 ) -> ApiEnvelope[object]:
     return ApiEnvelope.success(
         request_id(request),
-        request.app.state.identity_service.get_anonymous_identity(bearer_token(authorization)),
+        (
+            await request.app.state.identity_service.get_anonymous_identity(
+                bearer_token(authorization)
+            )
+        ),
     )
 
 
@@ -144,8 +159,10 @@ async def today(
 ) -> ApiEnvelope[object]:
     return ApiEnvelope.success(
         request_id(request),
-        request.app.state.today_service.get_today(
-            bearer_token(authorization), previous_quote_id=previous_quote_id
+        (
+            await request.app.state.today_service.get_today(
+                bearer_token(authorization), previous_quote_id=previous_quote_id
+            )
         ),
     )
 
@@ -154,7 +171,7 @@ async def today(
 async def put_mood(
     request: Request, body: MoodRequest, authorization: Annotated[str | None, Header()] = None
 ) -> ApiEnvelope[object]:
-    data = request.app.state.mood_service.record_today_mood(
+    data = await request.app.state.mood_service.record_today_mood(
         bearer_token(authorization),
         mood_code=body.mood_code,
         record_date=body.record_date,
@@ -173,7 +190,7 @@ async def moods(
     limit: int = Query(default=20, ge=1, le=100),
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[object]:
-    data = request.app.state.mood_service.list_history(
+    data = await request.app.state.mood_service.list_history(
         bearer_token(authorization),
         from_date=from_date,
         to_date=to_date,
@@ -190,7 +207,7 @@ async def delete_mood(
     body: ObjectVersionRequest,
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[object]:
-    data = request.app.state.mood_service.delete_mood(
+    data = await request.app.state.mood_service.delete_mood(
         bearer_token(authorization),
         record_id=record_id,
         object_version=body.object_version,
@@ -206,10 +223,10 @@ async def support_resources(
     context: str = Query(default="normal"),
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[object]:
-    student_subject(request, authorization)
+    (await student_subject(request, authorization))
     return ApiEnvelope.success(
         request_id(request),
-        request.app.state.support_resource_service.list_resources(context=context),
+        (await request.app.state.support_resource_service.list_resources(context=context)),
     )
 
 
@@ -223,7 +240,7 @@ async def stop_account(
 
     if body.confirmation_text != "停止使用":
         raise ApiException(422, "VALIDATION_FAILED")
-    data = request.app.state.account_service.stop(
+    data = await request.app.state.account_service.stop(
         bearer_token(authorization),
         object_version=body.object_version,
         request_id=request_id(request),
@@ -242,7 +259,7 @@ async def recover_account(
 
     if body.confirmation_text not in {None, "恢复使用"}:
         raise ApiException(422, "VALIDATION_FAILED")
-    data = request.app.state.account_service.recover(
+    data = await request.app.state.account_service.recover(
         bearer_token(authorization),
         object_version=body.object_version,
         request_id=request_id(request),
@@ -256,5 +273,6 @@ async def account_status(
     request: Request, authorization: Annotated[str | None, Header()] = None
 ) -> ApiEnvelope[object]:
     return ApiEnvelope.success(
-        request_id(request), request.app.state.account_service.status(bearer_token(authorization))
+        request_id(request),
+        (await request.app.state.account_service.status(bearer_token(authorization))),
     )

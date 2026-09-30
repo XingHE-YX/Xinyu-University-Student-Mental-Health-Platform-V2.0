@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from datetime import UTC, datetime, timedelta
+from functools import wraps
 from typing import Any, Literal, cast
 
 from app.infra.config.settings import Settings
@@ -15,6 +18,8 @@ from app.infra.database.common import (
 )
 from app.infra.database.memory.audit import AuditRepository, InMemoryAuditRepository
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.database.memory.tasks import MemoryAdminTaskRepository
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
@@ -29,6 +34,53 @@ from app.models.v2.responses.admin_workbench import (
     WorkbenchPage,
     WorkbenchSection,
 )
+from app.services.v2.idempotency_service import IdempotencyService, serialize_api_error
+from app.services.v2.repositories import DomainRepository
+
+
+def task_mutation(
+    function: Callable[..., Awaitable[TaskMutationResult]],
+) -> Callable[..., Awaitable[TaskMutationResult]]:
+    @wraps(function)
+    async def mutate(
+        self: AdminWorkbenchService, task_id: str, **kwargs: Any
+    ) -> TaskMutationResult:
+        await self.initialize()
+        reservation = await self.idempotency.begin(
+            "admin",
+            kwargs["admin_id"],
+            f"/admin/tasks/{task_id}/{function.__name__}",
+            kwargs["idempotency_key"],
+            {
+                key: value
+                for key, value in kwargs.items()
+                if key not in {"request_id", "idempotency_key"}
+            },
+        )
+        if reservation.replayed:
+            from app.services.v2.idempotency_service import deserialize_api_error
+
+            error = deserialize_api_error(reservation.record.response_digest)
+            if error is not None:
+                raise error
+            return TaskMutationResult.model_validate_json(reservation.record.response_digest or "")
+        try:
+            async with self.task_repository.transaction():
+                result = await function(self, task_id, **kwargs)
+                await self.idempotency.complete(
+                    reservation, status_code=200, response_digest=result.model_dump_json()
+                )
+                return result
+        except ApiException as error:
+            await self.idempotency.complete(
+                reservation,
+                status_code=error.status_code,
+                response_digest=serialize_api_error(error),
+                outcome="failure",
+            )
+            raise
+
+    return mutate
 
 
 class AdminWorkbenchService:
@@ -44,23 +96,37 @@ class AdminWorkbenchService:
         *,
         audit_repository: AuditRepository | None = None,
         task_repository: AdminTaskRepository | None = None,
-        content_repository: InMemoryDomainDataRepository | None = None,
+        content_repository: DomainRepository | None = None,
+        idempotency_service: IdempotencyService | None = None,
     ) -> None:
         self.settings = settings
-        self.task_repository = task_repository
-        self.content_repository = content_repository
+        self.content_repository = content_repository or InMemoryDomainDataRepository()
+        self.task_repository = task_repository or MemoryAdminTaskRepository(self.content_repository)
         self.tasks: dict[str, dict[str, Any]] = {}
         self.audit = AuditWriter(
             audit_repository or InMemoryAuditRepository(),
             environment_id=settings.cloudbase_env_id or settings.environment_kind.value,
         )
-        self._idempotency: dict[tuple[str, str], TaskMutationResult] = {}
-        self._reload_tasks()
-        if not self.tasks:
-            self._seed_demo_tasks()
+        self.idempotency = idempotency_service or IdempotencyService()
+        share_memory_transaction(
+            self.content_repository, self.idempotency.repository, self.audit.repository
+        )
+        self._initialize_lock = asyncio.Lock()
+        self._initialized = False
+
+    async def initialize(self) -> None:
+        if self._initialized:
+            return
+        async with self._initialize_lock:
+            if self._initialized:
+                return
+            await self._reload_tasks()
+            if not self.tasks:
+                await self._seed_demo_tasks()
+            self._initialized = True
 
     @traced
-    def list_tasks(
+    async def list_tasks(
         self,
         section: WorkbenchSection,
         *,
@@ -68,7 +134,8 @@ class AdminWorkbenchService:
         cursor: str | None,
         limit: int,
     ) -> WorkbenchPage:
-        self._reload_tasks()
+        await self.initialize()
+        (await self._reload_tasks())
         tasks = [
             task
             for task in self.tasks.values()
@@ -86,38 +153,42 @@ class AdminWorkbenchService:
         )
 
     @traced
-    def get_task(self, task_id: str, *, admin_id: str) -> TaskDetail:
-        self._reload_tasks()
+    async def get_task(self, task_id: str, *, admin_id: str) -> TaskDetail:
+        await self.initialize()
+        (await self._reload_tasks())
         task = self.tasks.get(task_id)
         if task is None or task.get("is_deleted", False):
             raise ApiException(404, "NOT_FOUND")
         return self._detail(task)
 
     @traced
-    def record_view(self, task_id: str, *, admin_id: str, request_id: str) -> None:
+    async def record_view(self, task_id: str, *, admin_id: str, request_id: str) -> None:
         """Record a minimal detail-view audit event after the projection is authorized."""
 
-        self._reload_tasks()
+        await self.initialize()
+        (await self._reload_tasks())
         task = self.tasks.get(task_id)
         if task is None or task.get("is_deleted", False):
             return
-        self.audit.write(
-            request_id=request_id,
-            actor_type="admin",
-            actor_id=admin_id,
-            capability="super_admin",
-            action="task_view",
-            resource_type="task",
-            resource_id=task_id,
-            data_scope="necessary_facts,redacted_content",
-            outcome="success",
-            reason_code=None,
-            occurred_at=datetime.now(UTC),
-            facts={"task_kind": task["task_kind"], "object_version": task["version"]},
+        (
+            await self.audit.write(
+                request_id=request_id,
+                actor_type="admin",
+                actor_id=admin_id,
+                capability="super_admin",
+                action="task_view",
+                resource_type="task",
+                resource_id=task_id,
+                data_scope="necessary_facts,redacted_content",
+                outcome="success",
+                reason_code=None,
+                occurred_at=datetime.now(UTC),
+                facts={"task_kind": task["task_kind"], "object_version": task["version"]},
+            )
         )
 
     @traced
-    def record_task_outcome(
+    async def record_task_outcome(
         self,
         task_id: str,
         *,
@@ -127,27 +198,31 @@ class AdminWorkbenchService:
         outcome: Literal["denied", "conflict", "failure"],
         reason_code: str,
     ) -> None:
-        self._reload_tasks()
+        await self.initialize()
+        (await self._reload_tasks())
         task = self.tasks.get(task_id)
         if task is None or task.get("is_deleted", False):
             return
-        self.audit.write(
-            request_id=request_id,
-            actor_type="admin",
-            actor_id=admin_id,
-            capability="super_admin",
-            action=action,
-            resource_type="task",
-            resource_id=task_id,
-            data_scope="task_state,object_version",
-            outcome=outcome,
-            reason_code=reason_code,
-            occurred_at=datetime.now(UTC),
-            facts={"task_kind": task["task_kind"], "object_version": task["version"]},
+        (
+            await self.audit.write(
+                request_id=request_id,
+                actor_type="admin",
+                actor_id=admin_id,
+                capability="super_admin",
+                action=action,
+                resource_type="task",
+                resource_id=task_id,
+                data_scope="task_state,object_version",
+                outcome=outcome,
+                reason_code=reason_code,
+                occurred_at=datetime.now(UTC),
+                facts={"task_kind": task["task_kind"], "object_version": task["version"]},
+            )
         )
 
+    @task_mutation
     @traced
-    def claim(
+    async def claim(
         self,
         task_id: str,
         *,
@@ -156,7 +231,7 @@ class AdminWorkbenchService:
         request_id: str,
         idempotency_key: str,
     ) -> TaskMutationResult:
-        task = self._get_mutable(task_id, object_version, admin_id, idempotency_key)
+        task = await self._get_mutable(task_id, object_version, admin_id, idempotency_key)
         if task["state"] != "needs_action":
             raise ApiException(409, "VERSION_CONFLICT", current_version=task["version"])
         task.update(
@@ -167,14 +242,14 @@ class AdminWorkbenchService:
                 "updated_at": datetime.now(UTC),
             }
         )
-        self._save_task(task, expected_version=object_version)
+        (await self._save_task(task, expected_version=object_version))
         result = self._result(task, request_id)
-        self._remember(admin_id, idempotency_key, result)
-        self._write_audit(request_id, task, "task_claim", "success")
+        (await self._write_audit(request_id, task, "task_claim", "success"))
         return result
 
+    @task_mutation
     @traced
-    def release(
+    async def release(
         self,
         task_id: str,
         *,
@@ -183,7 +258,7 @@ class AdminWorkbenchService:
         request_id: str,
         idempotency_key: str,
     ) -> TaskMutationResult:
-        task = self._get_mutable(task_id, object_version, admin_id, idempotency_key)
+        task = await self._get_mutable(task_id, object_version, admin_id, idempotency_key)
         if task.get("assigned_admin_id") != admin_id or task["state"] != "claimed":
             raise ApiException(403, "FORBIDDEN")
         task.update(
@@ -194,14 +269,14 @@ class AdminWorkbenchService:
                 "updated_at": datetime.now(UTC),
             }
         )
-        self._save_task(task, expected_version=object_version)
+        (await self._save_task(task, expected_version=object_version))
         result = self._result(task, request_id)
-        self._remember(admin_id, idempotency_key, result)
-        self._write_audit(request_id, task, "task_release", "success")
+        (await self._write_audit(request_id, task, "task_release", "success"))
         return result
 
+    @task_mutation
     @traced
-    def decide(
+    async def decide(
         self,
         task_id: str,
         *,
@@ -215,7 +290,7 @@ class AdminWorkbenchService:
         due_at: datetime | None = None,
         internal_reason: str | None = None,
     ) -> TaskMutationResult:
-        task = self._get_mutable(task_id, object_version, admin_id, idempotency_key)
+        task = await self._get_mutable(task_id, object_version, admin_id, idempotency_key)
         if task.get("assigned_admin_id") != admin_id or task["state"] != "claimed":
             raise ApiException(403, "FORBIDDEN")
         allowed = set(self._allowed_actions(task["task_kind"], task.get("source_type")))
@@ -248,11 +323,11 @@ class AdminWorkbenchService:
         task["object_version"] = task["version"]
         try:
             if task["task_kind"] == "content_review" and self.content_repository is not None:
-                with self.content_repository.transaction():
-                    self._apply_content_decision(task, action)
-                    self._save_task(task, expected_version=object_version)
+                async with self.content_repository.transaction():
+                    (await self._apply_content_decision(task, action))
+                    (await self._save_task(task, expected_version=object_version))
             else:
-                self._save_task(task, expected_version=object_version)
+                (await self._save_task(task, expected_version=object_version))
         except RepositoryNotFound as error:
             raise ApiException(404, "NOT_FOUND") from error
         except RepositoryVersionConflict as error:
@@ -262,12 +337,11 @@ class AdminWorkbenchService:
         except RepositoryError as error:
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE") from error
         result = self._result(task, request_id)
-        self._remember(admin_id, idempotency_key, result)
-        self._write_audit(request_id, task, action, "success")
+        (await self._write_audit(request_id, task, action, "success"))
         return result
 
     @traced
-    def list_audit(self) -> list[AuditEvent]:
+    async def list_audit(self) -> list[AuditEvent]:
         return [
             AuditEvent(
                 request_id=event.request_id,
@@ -286,11 +360,11 @@ class AdminWorkbenchService:
                 occurred_at=event.occurred_at,
                 environment_kind=self.settings.environment_kind.value,
             )
-            for event in self.audit.repository.list()
+            for event in (await self.audit.repository.list())
         ]
 
     @traced
-    def list_audit_page(
+    async def list_audit_page(
         self,
         *,
         from_at: datetime | None = None,
@@ -303,7 +377,7 @@ class AdminWorkbenchService:
     ) -> tuple[list[AuditEvent], str | None]:
         """Return a bounded, read-only audit projection with opaque offset cursors."""
 
-        events = self.list_audit()
+        events = await self.list_audit()
         filtered = [
             event
             for event in events
@@ -321,11 +395,32 @@ class AdminWorkbenchService:
         return page, next_cursor
 
     @traced
-    def reset_demo(
+    async def reset_demo(
         self, *, request_id: str, admin_id: str, scopes: list[str]
     ) -> list[dict[str, str]]:
+        await self.initialize()
         if not self.settings.demo_reset_allowed or self.settings.environment_kind.value != "demo":
-            self.audit.write(
+            (
+                await self.audit.write(
+                    request_id=request_id,
+                    actor_type="admin",
+                    actor_id=admin_id,
+                    capability="super_admin",
+                    action="demo_reset",
+                    resource_type="demo",
+                    resource_id="demo_namespace",
+                    data_scope="demo_namespace",
+                    outcome="denied",
+                    reason_code="FORBIDDEN",
+                    occurred_at=datetime.now(UTC),
+                )
+            )
+            raise ApiException(403, "FORBIDDEN")
+        self.tasks.clear()
+        (await self._seed_demo_tasks())
+        results = [{"collection": scope, "state": "completed"} for scope in scopes]
+        (
+            await self.audit.write(
                 request_id=request_id,
                 actor_type="admin",
                 actor_id=admin_id,
@@ -333,33 +428,16 @@ class AdminWorkbenchService:
                 action="demo_reset",
                 resource_type="demo",
                 resource_id="demo_namespace",
-                data_scope="demo_namespace",
-                outcome="denied",
-                reason_code="FORBIDDEN",
+                data_scope=",".join(scopes),
+                outcome="success",
+                reason_code="demo_reset_confirmed",
                 occurred_at=datetime.now(UTC),
             )
-            raise ApiException(403, "FORBIDDEN")
-        self.tasks.clear()
-        self._seed_demo_tasks()
-        self._idempotency.clear()
-        results = [{"collection": scope, "state": "completed"} for scope in scopes]
-        self.audit.write(
-            request_id=request_id,
-            actor_type="admin",
-            actor_id=admin_id,
-            capability="super_admin",
-            action="demo_reset",
-            resource_type="demo",
-            resource_id="demo_namespace",
-            data_scope=",".join(scopes),
-            outcome="success",
-            reason_code="demo_reset_confirmed",
-            occurred_at=datetime.now(UTC),
         )
         return results
 
     @traced
-    def _seed_demo_tasks(self) -> None:
+    async def _seed_demo_tasks(self) -> None:
         """Populate only synthetic, non-identifying tasks in the demo namespace."""
 
         if self.settings.environment_kind.value != "demo":
@@ -425,23 +503,20 @@ class AdminWorkbenchService:
         }
         if self.task_repository is not None:
             for task_id, task in tuple(self.tasks.items()):
-                current = self.task_repository.get(task_id)
+                current = await self.task_repository.get(task_id)
                 if current is None:
-                    self.task_repository.create(task)
+                    (await self.task_repository.create(task))
                     continue
                 task["version"] = int(current["version"]) + 1
                 task["object_version"] = task["version"]
-                self.task_repository.save(task, expected_version=int(current["version"]))
-            self._reload_tasks()
+                (await self.task_repository.save(task, expected_version=int(current["version"])))
+            (await self._reload_tasks())
 
     @traced
-    def _get_mutable(
+    async def _get_mutable(
         self, task_id: str, object_version: int, admin_id: str, key: str
     ) -> dict[str, Any]:
-        remembered = self._idempotency.get((admin_id, key))
-        if remembered is not None:
-            raise ApiException(409, "IDEMPOTENCY_CONFLICT")
-        self._reload_tasks()
+        (await self._reload_tasks())
         task = self.tasks.get(task_id)
         if task is None or task.get("is_deleted", False):
             raise ApiException(404, "NOT_FOUND")
@@ -450,23 +525,23 @@ class AdminWorkbenchService:
         return deepcopy(task)
 
     @traced
-    def _reload_tasks(self) -> None:
+    async def _reload_tasks(self) -> None:
         if self.task_repository is not None:
-            self.tasks = {task["task_id"]: task for task in self.task_repository.list()}
+            self.tasks = {task["task_id"]: task for task in (await self.task_repository.list())}
         elif self.content_repository is not None:
-            for document in self.content_repository.list_work_tasks():
+            for document in await self.content_repository.list_work_tasks():
                 task = document.model_dump(by_alias=True, mode="python")
                 task["task_id"] = task.pop("_id")
                 self.tasks[str(task["task_id"])] = task
 
     @traced
-    def _save_task(self, task: dict[str, Any], *, expected_version: int) -> None:
+    async def _save_task(self, task: dict[str, Any], *, expected_version: int) -> None:
         task["object_version"] = task["version"]
         if self.task_repository is not None:
-            self.task_repository.save(task, expected_version=expected_version)
+            (await self.task_repository.save(task, expected_version=expected_version))
         elif self.content_repository is not None:
             try:
-                self.content_repository.get_work_task(str(task["task_id"]))
+                (await self.content_repository.get_work_task(str(task["task_id"])))
             except RepositoryNotFound:
                 pass
             else:
@@ -474,14 +549,16 @@ class AdminWorkbenchService:
                 for field in WorkTaskDocument.model_fields:
                     if field != "document_id" and field in task:
                         payload[field] = task[field]
-                self.content_repository.save_work_task(
-                    WorkTaskDocument.model_validate(payload),
-                    expected_version=expected_version,
+                (
+                    await self.content_repository.save_work_task(
+                        WorkTaskDocument.model_validate(payload),
+                        expected_version=expected_version,
+                    )
                 )
         self.tasks[str(task["task_id"])] = task
 
     @traced
-    def _apply_content_decision(self, task: dict[str, Any], action: str) -> None:
+    async def _apply_content_decision(self, task: dict[str, Any], action: str) -> None:
         if self.content_repository is None:
             return
         source_type = task.get("source_type")
@@ -491,7 +568,7 @@ class AdminWorkbenchService:
         if source_id == task.get("task_id"):
             return  # Built-in workbench fixture with no student content behind it.
         if source_type == "post":
-            post = self.content_repository.get_treehole_post(source_id)
+            post = await self.content_repository.get_treehole_post(source_id)
             if post.deleted_at is not None:
                 raise RepositoryNotFound("treehole post is deleted")
             target = {
@@ -500,32 +577,36 @@ class AdminWorkbenchService:
                 "unpublish": "unpublished",
                 "safety_review": "safety_priority",
             }[action]
-            self.content_repository.save_treehole_post(
-                post.model_copy(
-                    update={
-                        "visibility_state": target,
-                        "review_state": "decided",
-                        "safety_state": (
-                            "needs_support_review"
-                            if action == "safety_review"
-                            else post.safety_state
-                        ),
-                    }
-                ),
-                expected_version=post.version,
+            (
+                await self.content_repository.save_treehole_post(
+                    post.model_copy(
+                        update={
+                            "visibility_state": target,
+                            "review_state": "decided",
+                            "safety_state": (
+                                "needs_support_review"
+                                if action == "safety_review"
+                                else post.safety_state
+                            ),
+                        }
+                    ),
+                    expected_version=post.version,
+                )
             )
             return
         if action == "protect":
             raise ApiException(422, "VALIDATION_FAILED", "树洞回应不能使用保护展示")
-        response = self.content_repository.get_treehole_response(source_id)
+        response = await self.content_repository.get_treehole_response(source_id)
         if response.deleted_at is not None:
             raise RepositoryNotFound("treehole response is deleted")
         target = "published" if action == "publish" else "unpublished"
         if action == "safety_review":
             target = "checking"
-        self.content_repository.save_treehole_response(
-            response.model_copy(update={"state": target}),
-            expected_version=response.version,
+        (
+            await self.content_repository.save_treehole_response(
+                response.model_copy(update={"state": target}),
+                expected_version=response.version,
+            )
         )
 
     @staticmethod
@@ -608,24 +689,22 @@ class AdminWorkbenchService:
         )
 
     @traced
-    def _remember(self, admin_id: str, key: str, result: TaskMutationResult) -> None:
-        self._idempotency[(admin_id, key)] = result
-
-    @traced
-    def _write_audit(
+    async def _write_audit(
         self, request_id: str, task: dict[str, Any], action: str, outcome: str
     ) -> None:
-        self.audit.write(
-            request_id=request_id,
-            actor_type="admin",
-            actor_id=str(task.get("assigned_admin_id") or "admin"),
-            capability="super_admin",
-            action=action,
-            resource_type="task",
-            resource_id=task["task_id"],
-            data_scope="task_state,object_version",
-            outcome=outcome,
-            reason_code=None,
-            occurred_at=datetime.now(UTC),
-            facts={"task_kind": task["task_kind"], "object_version": task["version"]},
+        (
+            await self.audit.write(
+                request_id=request_id,
+                actor_type="admin",
+                actor_id=str(task.get("assigned_admin_id") or "admin"),
+                capability="super_admin",
+                action=action,
+                resource_type="task",
+                resource_id=task["task_id"],
+                data_scope="task_state,object_version",
+                outcome=outcome,
+                reason_code=None,
+                occurred_at=datetime.now(UTC),
+                facts={"task_kind": task["task_kind"], "object_version": task["version"]},
+            )
         )

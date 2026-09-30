@@ -8,14 +8,14 @@ from app.main import create_app
 from .test_safety_service import build_services, phq9_safety_answers
 
 
-def test_safety_confirmation_api_rejects_client_state_tampering() -> None:
+async def test_safety_confirmation_api_rejects_client_state_tampering() -> None:
     assessment, safety, _, sessions, _, _ = build_services()
     app = create_app()
     app.state.assessment_service = assessment
     app.state.safety_service = safety
     client = TestClient(app)
-    access_token = TokenManager("student-session-secret").issue("student", "user-1", sessions)
-    started = assessment.start_session(
+    access_token = await TokenManager("student-session-secret").issue("student", "user-1", sessions)
+    started = await assessment.start_session(
         access_token.access_token,
         module_code="phq9",
         request_id="req-api-start",
@@ -44,14 +44,16 @@ def test_safety_confirmation_api_rejects_client_state_tampering() -> None:
     assert response.json()["error"]["code"] == "VALIDATION_FAILED"
 
 
-def test_safety_confirmation_and_resource_ack_api_return_enveloped_minimal_projection() -> None:
+async def test_safety_confirmation_and_resource_ack_api_return_enveloped_minimal_projection() -> (
+    None
+):
     assessment, safety, _, sessions, _, _ = build_services()
     app = create_app()
     app.state.assessment_service = assessment
     app.state.safety_service = safety
     client = TestClient(app)
-    access_token = TokenManager("student-session-secret").issue("student", "user-1", sessions)
-    started = assessment.start_session(
+    access_token = await TokenManager("student-session-secret").issue("student", "user-1", sessions)
+    started = await assessment.start_session(
         access_token.access_token,
         module_code="phq9",
         request_id="req-api-start-2",

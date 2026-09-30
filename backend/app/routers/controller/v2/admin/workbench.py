@@ -37,14 +37,14 @@ def _service(request: Request) -> AdminWorkbenchService:
     return cast(AdminWorkbenchService, request.app.state.admin_workbench_service)
 
 
-def _admin(request: Request, authorization: str | None) -> AuthenticatedSubject:
-    subject = admin_subject(request, authorization)
+async def _admin(request: Request, authorization: str | None) -> AuthenticatedSubject:
+    subject = await admin_subject(request, authorization)
     if subject.capability != "super_admin":
         raise ApiException(403, "FORBIDDEN")
     return subject
 
 
-def _record_mutation_error(
+async def _record_mutation_error(
     request: Request,
     task_id: str,
     admin_id: str,
@@ -58,13 +58,15 @@ def _record_mutation_error(
         if error.status_code == 409
         else "failure"
     )
-    _service(request).record_task_outcome(
-        task_id,
-        admin_id=admin_id,
-        request_id=request_id(request),
-        action=action,
-        outcome=outcome,
-        reason_code=error.code,
+    (
+        await _service(request).record_task_outcome(
+            task_id,
+            admin_id=admin_id,
+            request_id=request_id(request),
+            action=action,
+            outcome=outcome,
+            reason_code=error.code,
+        )
     )
 
 
@@ -76,8 +78,8 @@ async def workbench(
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> ApiEnvelope[WorkbenchPage]:
-    subject = _admin(request, authorization)
-    data = _service(request).list_tasks(
+    subject = await _admin(request, authorization)
+    data = await _service(request).list_tasks(
         section,
         admin_id=subject.subject_id,
         cursor=cursor,
@@ -92,10 +94,14 @@ async def task_detail(
     task_id: str,
     authorization: AuthorizationHeader = None,
 ) -> ApiEnvelope[TaskDetail]:
-    subject = _admin(request, authorization)
+    subject = await _admin(request, authorization)
     service = _service(request)
-    data = service.get_task(task_id, admin_id=subject.subject_id)
-    service.record_view(task_id, admin_id=subject.subject_id, request_id=request_id(request))
+    data = await service.get_task(task_id, admin_id=subject.subject_id)
+    (
+        await service.record_view(
+            task_id, admin_id=subject.subject_id, request_id=request_id(request)
+        )
+    )
     return ApiEnvelope.success(request_id(request), data)
 
 
@@ -106,9 +112,9 @@ async def claim_task(
     body: ObjectVersionRequest,
     authorization: AuthorizationHeader = None,
 ) -> ApiEnvelope[TaskMutationResult]:
-    subject = _admin(request, authorization)
+    subject = await _admin(request, authorization)
     try:
-        data = _service(request).claim(
+        data = await _service(request).claim(
             task_id,
             object_version=body.object_version,
             admin_id=subject.subject_id,
@@ -116,7 +122,7 @@ async def claim_task(
             idempotency_key=require_idempotency_key(request),
         )
     except ApiException as error:
-        _record_mutation_error(request, task_id, subject.subject_id, "task_claim", error)
+        (await _record_mutation_error(request, task_id, subject.subject_id, "task_claim", error))
         raise
     return ApiEnvelope.success(request_id(request), data)
 
@@ -128,9 +134,9 @@ async def release_task(
     body: ObjectVersionRequest,
     authorization: AuthorizationHeader = None,
 ) -> ApiEnvelope[TaskMutationResult]:
-    subject = _admin(request, authorization)
+    subject = await _admin(request, authorization)
     try:
-        data = _service(request).release(
+        data = await _service(request).release(
             task_id,
             object_version=body.object_version,
             admin_id=subject.subject_id,
@@ -138,7 +144,7 @@ async def release_task(
             idempotency_key=require_idempotency_key(request),
         )
     except ApiException as error:
-        _record_mutation_error(request, task_id, subject.subject_id, "task_release", error)
+        (await _record_mutation_error(request, task_id, subject.subject_id, "task_release", error))
         raise
     return ApiEnvelope.success(request_id(request), data)
 
@@ -150,9 +156,9 @@ async def decide_task(
     body: dict[str, Any],
     authorization: AuthorizationHeader = None,
 ) -> ApiEnvelope[TaskMutationResult]:
-    subject = _admin(request, authorization)
+    subject = await _admin(request, authorization)
     service = _service(request)
-    task = service.get_task(task_id, admin_id=subject.subject_id)
+    task = await service.get_task(task_id, admin_id=subject.subject_id)
     model = _decision_model(task.task_kind, body)
     action_code = getattr(model, "action_code", None)
     if (
@@ -162,7 +168,7 @@ async def decide_task(
     ):
         raise ApiException(422, "VALIDATION_FAILED", "演示环境不能记录真实联系结果")
     try:
-        data = service.decide(
+        data = await service.decide(
             task_id,
             object_version=model.object_version,
             admin_id=subject.subject_id,
@@ -175,7 +181,7 @@ async def decide_task(
             internal_reason=getattr(model, "internal_reason", None),
         )
     except ApiException as error:
-        _record_mutation_error(request, task_id, subject.subject_id, model.action, error)
+        (await _record_mutation_error(request, task_id, subject.subject_id, model.action, error))
         raise
     return ApiEnvelope.success(request_id(request), data)
 
@@ -209,8 +215,8 @@ async def audit_events(
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
 ) -> ApiEnvelope[AuditPage]:
-    _admin(request, authorization)
-    items, next_cursor = _service(request).list_audit_page(
+    (await _admin(request, authorization))
+    items, next_cursor = await _service(request).list_audit_page(
         from_at=from_at,
         to_at=to_at,
         resource_type=resource_type,
@@ -228,10 +234,10 @@ async def reset_demo(
     body: ResetRequest,
     authorization: AuthorizationHeader = None,
 ) -> ApiEnvelope[ResetResult]:
-    subject = _admin(request, authorization)
+    subject = await _admin(request, authorization)
     _ = require_idempotency_key(request)
     service = _service(request)
-    results = service.reset_demo(
+    results = await service.reset_demo(
         request_id=request_id(request),
         admin_id=subject.subject_id,
         scopes=list(body.reset_scope),

@@ -9,9 +9,9 @@ from pydantic import BaseModel, ConfigDict
 
 from app.infra.config.settings import Settings
 from app.infra.config.validation import EnvironmentKind
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
+from app.services.v2.repositories import DomainRepository
 
 ResourceContext = Literal["normal", "safety"]
 ResourceStatus = Literal["available", "unconfigured", "empty"]
@@ -48,7 +48,7 @@ class SupportResourceService:
         self,
         *,
         settings: Settings,
-        repository: InMemoryDomainDataRepository,
+        repository: DomainRepository,
         now_provider: object | None = None,
     ) -> None:
         self.settings = settings
@@ -56,7 +56,7 @@ class SupportResourceService:
         self._now_provider = now_provider
 
     @traced
-    def list_resources(self, *, context: str) -> SupportResourceList:
+    async def list_resources(self, *, context: str) -> SupportResourceList:
         if context not in {"normal", "safety"}:
             raise ApiException(422, "VALIDATION_FAILED")
         if (
@@ -69,7 +69,7 @@ class SupportResourceService:
                 resources=[],
             )
         resources = list(
-            self.repository.list_support_resources(
+            await self.repository.list_support_resources(
                 self.settings.environment_kind.value,
                 resource_set_version=self.settings.support_resource_version,
                 now=self._now(),

@@ -8,12 +8,10 @@ from datetime import UTC, datetime, timedelta
 from typing import Literal
 from uuid import uuid4
 
-from app.infra.database.memory.session import (
-    AuthSessionRecord,
-    InMemorySessionRepository,
-)
+from app.infra.database.records import AuthSessionRecord
 from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
+from app.services.v2.repositories import SessionRepository
 
 TokenSubjectType = Literal["student", "admin"]
 
@@ -51,11 +49,11 @@ class TokenManager:
         )
 
     @traced
-    def issue(
+    async def issue(
         self,
         subject_type: TokenSubjectType,
         subject_id: str,
-        repository: InMemorySessionRepository,
+        repository: SessionRepository,
         *,
         capability: str | None = None,
         now: datetime | None = None,
@@ -71,33 +69,37 @@ class TokenManager:
             access_expires_at=issued_at + access_ttl,
             refresh_expires_at=issued_at + refresh_ttl,
         )
-        repository.save(
-            AuthSessionRecord(
-                session_id=pair.session_id,
-                subject_type=subject_type,
-                subject_id=subject_id,
-                capability=capability,
-                access_token_hash=self.hash_token(access_token),
-                refresh_token_hash=self.hash_token(refresh_token),
-                access_expires_at=pair.access_expires_at,
-                refresh_expires_at=pair.refresh_expires_at,
-                status="active",
-                created_at=issued_at,
-                updated_at=issued_at,
-                credential_version=self._credential_version if subject_type == "admin" else None,
+        (
+            await repository.save(
+                AuthSessionRecord(
+                    session_id=pair.session_id,
+                    subject_type=subject_type,
+                    subject_id=subject_id,
+                    capability=capability,
+                    access_token_hash=self.hash_token(access_token),
+                    refresh_token_hash=self.hash_token(refresh_token),
+                    access_expires_at=pair.access_expires_at,
+                    refresh_expires_at=pair.refresh_expires_at,
+                    status="active",
+                    created_at=issued_at,
+                    updated_at=issued_at,
+                    credential_version=self._credential_version
+                    if subject_type == "admin"
+                    else None,
+                )
             )
         )
         return pair
 
     @traced
-    def authenticate_access(
+    async def authenticate_access(
         self,
         access_token: str,
-        repository: InMemorySessionRepository,
+        repository: SessionRepository,
         *,
         now: datetime | None = None,
     ) -> AuthenticatedSubject:
-        record = repository.get_by_access_token_hash(self.hash_token(access_token))
+        record = await repository.get_by_access_token_hash(self.hash_token(access_token))
         current = _utc(now or datetime.now(UTC))
         if record is None:
             raise ApiException(401, "AUTH_REQUIRED")
@@ -113,16 +115,16 @@ class TokenManager:
         )
 
     @traced
-    def refresh(
+    async def refresh(
         self,
         refresh_token: str,
-        repository: InMemorySessionRepository,
+        repository: SessionRepository,
         *,
         expected_subject_type: TokenSubjectType | None = None,
         now: datetime | None = None,
     ) -> TokenPair:
         current = _utc(now or datetime.now(UTC))
-        record = repository.get_by_refresh_token_hash(self.hash_token(refresh_token))
+        record = await repository.get_by_refresh_token_hash(self.hash_token(refresh_token))
         if record is None or record.status != "active" or record.refresh_expires_at <= current:
             raise ApiException(401, "SESSION_EXPIRED")
         if expected_subject_type is not None and record.subject_type != expected_subject_type:
@@ -139,40 +141,42 @@ class TokenManager:
             access_expires_at=current + access_ttl,
             refresh_expires_at=current + refresh_ttl,
         )
-        repository.replace(
-            AuthSessionRecord(
-                session_id=record.session_id,
-                subject_type=record.subject_type,
-                subject_id=record.subject_id,
-                capability=record.capability,
-                access_token_hash=self.hash_token(access_token),
-                refresh_token_hash=self.hash_token(new_refresh_token),
-                access_expires_at=pair.access_expires_at,
-                refresh_expires_at=pair.refresh_expires_at,
-                status="active",
-                created_at=record.created_at,
-                updated_at=current,
-                version=record.version + 1,
-                credential_version=record.credential_version,
+        (
+            await repository.replace(
+                AuthSessionRecord(
+                    session_id=record.session_id,
+                    subject_type=record.subject_type,
+                    subject_id=record.subject_id,
+                    capability=record.capability,
+                    access_token_hash=self.hash_token(access_token),
+                    refresh_token_hash=self.hash_token(new_refresh_token),
+                    access_expires_at=pair.access_expires_at,
+                    refresh_expires_at=pair.refresh_expires_at,
+                    status="active",
+                    created_at=record.created_at,
+                    updated_at=current,
+                    version=record.version + 1,
+                    credential_version=record.credential_version,
+                )
             )
         )
         return pair
 
     @traced
-    def logout(
+    async def logout(
         self,
         access_token: str,
-        repository: InMemorySessionRepository,
+        repository: SessionRepository,
         *,
         expected_subject_type: TokenSubjectType | None = None,
         now: datetime | None = None,
     ) -> None:
-        record = repository.get_by_access_token_hash(self.hash_token(access_token))
+        record = await repository.get_by_access_token_hash(self.hash_token(access_token))
         if record is None:
             raise ApiException(401, "AUTH_REQUIRED")
         if expected_subject_type is not None and record.subject_type != expected_subject_type:
             raise ApiException(403, "FORBIDDEN")
-        repository.revoke(record.session_id, now=_utc(now or datetime.now(UTC)))
+        (await repository.revoke(record.session_id, now=_utc(now or datetime.now(UTC))))
 
     @traced
     def hash_token(self, token: str) -> str:

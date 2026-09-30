@@ -13,8 +13,7 @@ from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryVersionConflict,
 )
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
@@ -26,6 +25,7 @@ from app.services.v2.idempotency_service import (
     deserialize_api_error,
     serialize_api_error,
 )
+from app.services.v2.repositories import DomainRepository, SessionRepository
 
 logger = get_logger(__name__)
 
@@ -43,8 +43,8 @@ class ConsentService:
         self,
         *,
         settings: Settings,
-        repository: InMemoryDomainDataRepository,
-        session_repository: InMemorySessionRepository,
+        repository: DomainRepository,
+        session_repository: SessionRepository,
         token_manager: TokenManager,
         idempotency_service: IdempotencyService,
         audit_writer: AuditWriter,
@@ -55,9 +55,12 @@ class ConsentService:
         self.tokens = token_manager
         self.idempotency = idempotency_service
         self.audit = audit_writer
+        share_memory_transaction(
+            self.repository, self.idempotency.repository, self.audit.repository, self.sessions
+        )
 
     @traced
-    def accept_base_consent(
+    async def accept_base_consent(
         self,
         access_token: str,
         *,
@@ -66,7 +69,7 @@ class ConsentService:
         request_id: str,
         idempotency_key: str,
     ) -> ConsentState:
-        return self._apply_consent(
+        return await self._apply_consent(
             access_token,
             consent_kind="base_service",
             action="accepted",
@@ -77,7 +80,7 @@ class ConsentService:
         )
 
     @traced
-    def accept_community_consent(
+    async def accept_community_consent(
         self,
         access_token: str,
         *,
@@ -86,7 +89,7 @@ class ConsentService:
         request_id: str,
         idempotency_key: str,
     ) -> ConsentState:
-        return self._apply_consent(
+        return await self._apply_consent(
             access_token,
             consent_kind="community_content",
             action="accepted",
@@ -97,7 +100,7 @@ class ConsentService:
         )
 
     @traced
-    def withdraw_community_consent(
+    async def withdraw_community_consent(
         self,
         access_token: str,
         *,
@@ -106,7 +109,7 @@ class ConsentService:
         request_id: str,
         idempotency_key: str,
     ) -> ConsentState:
-        return self._apply_consent(
+        return await self._apply_consent(
             access_token,
             consent_kind="community_content",
             action="withdrawn",
@@ -117,11 +120,11 @@ class ConsentService:
         )
 
     @traced
-    def ensure_community_write_allowed(self, access_token: str) -> None:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+    async def ensure_community_write_allowed(self, access_token: str) -> None:
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        user = self.repository.get_user(subject.subject_id)
+        user = await self.repository.get_user(subject.subject_id)
         if user.status != "active":
             raise ApiException(403, "FORBIDDEN")
         if user.base_consent_status != "accepted" or user.community_consent_status != "accepted":
@@ -129,7 +132,7 @@ class ConsentService:
         if not user.identity_record_id:
             raise ApiException(403, "IDENTITY_REQUIRED")
         try:
-            identity = self.repository.get_identity_record(user.identity_record_id)
+            identity = await self.repository.get_identity_record(user.identity_record_id)
         except RepositoryNotFound:
             identity = None
         if identity is not None and identity.user_id != user.document_id:
@@ -138,7 +141,7 @@ class ConsentService:
             raise ApiException(403, "IDENTITY_REQUIRED")
 
     @traced
-    def _apply_consent(
+    async def _apply_consent(
         self,
         access_token: str,
         *,
@@ -149,10 +152,10 @@ class ConsentService:
         request_id: str,
         idempotency_key: str,
     ) -> ConsentState:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        reservation = self.idempotency.begin(
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/consents/{consent_kind}",
@@ -167,92 +170,97 @@ class ConsentService:
             return _state_from_digest(reservation.record.response_digest)
 
         try:
-            with self.repository.transaction():
-                user = self.repository.get_user(subject.subject_id)
-                if user.status != "active":
-                    raise ApiException(403, "FORBIDDEN")
-                if consent_kind == "community_content" and user.base_consent_status != "accepted":
-                    raise ApiException(403, "CONSENT_REQUIRED")
-                if user.version != user_version:
-                    raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
-                current = datetime.now(UTC)
-                updated_user = _updated_consent_user(
-                    user,
-                    consent_kind=consent_kind,
-                    action=action,
-                    document_version=document_version,
-                    occurred_at=current,
+            async with self.repository.transaction():
+                async with self.repository.transaction():
+                    user = await self.repository.get_user(subject.subject_id)
+                    if user.status != "active":
+                        raise ApiException(403, "FORBIDDEN")
+                    if (
+                        consent_kind == "community_content"
+                        and user.base_consent_status != "accepted"
+                    ):
+                        raise ApiException(403, "CONSENT_REQUIRED")
+                    if user.version != user_version:
+                        raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
+                    current = datetime.now(UTC)
+                    updated_user = _updated_consent_user(
+                        user,
+                        consent_kind=consent_kind,
+                        action=action,
+                        document_version=document_version,
+                        occurred_at=current,
+                    )
+                    saved_user = await self.repository.save_user(
+                        updated_user,
+                        expected_version=user_version,
+                    )
+                    event = ConsentEventDocument(
+                        _id=(await self.repository.next_consent_id()),
+                        user_id=user.document_id,
+                        consent_kind=consent_kind,
+                        action="accepted" if action == "accepted" else "withdrawn",
+                        document_version=document_version,
+                        source="mini_program",
+                        occurred_at=current,
+                        request_id=request_id,
+                        created_at=current,
+                        updated_at=current,
+                        version=1,
+                    )
+                    (await self.repository.append_consent_event(event))
+                    state = ConsentState(
+                        base_consent_status=saved_user.base_consent_status,
+                        base_consent_version=saved_user.base_consent_version,
+                        community_consent_status=saved_user.community_consent_status,
+                        community_consent_version=saved_user.community_consent_version,
+                    )
+                response_digest = _digest_state(state)
+                (
+                    await self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response_digest,
+                    )
                 )
-                saved_user = self.repository.save_user(
-                    updated_user,
-                    expected_version=user_version,
+                (
+                    await self.audit.write(
+                        request_id=request_id,
+                        actor_type="student",
+                        actor_id=user.document_id,
+                        capability=None,
+                        action="consent_update",
+                        resource_type="user",
+                        resource_id=user.document_id,
+                        data_scope="necessary_facts",
+                        outcome="success",
+                        reason_code=action,
+                        occurred_at=current,
+                        facts={
+                            "action_code": action,
+                            "object_version": saved_user.version,
+                            "resource_version": document_version,
+                            "status": state.community_consent_status
+                            if consent_kind == "community_content"
+                            else state.base_consent_status,
+                        },
+                    )
                 )
-                event = ConsentEventDocument(
-                    _id=self.repository.next_consent_id(),
-                    user_id=user.document_id,
-                    consent_kind=consent_kind,
-                    action="accepted" if action == "accepted" else "withdrawn",
-                    document_version=document_version,
-                    source="mini_program",
-                    occurred_at=current,
-                    request_id=request_id,
-                    created_at=current,
-                    updated_at=current,
-                    version=1,
-                )
-                self.repository.append_consent_event(event)
-                state = ConsentState(
-                    base_consent_status=saved_user.base_consent_status,
-                    base_consent_version=saved_user.base_consent_version,
-                    community_consent_status=saved_user.community_consent_status,
-                    community_consent_version=saved_user.community_consent_version,
-                )
-            response_digest = _digest_state(state)
-            self.idempotency.complete(
-                reservation,
-                status_code=200,
-                response_digest=response_digest,
-            )
         except RepositoryVersionConflict as error:
             conflict = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, conflict)
+            (await _complete_failure(self.idempotency, reservation, conflict))
             raise conflict from error
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
-        try:
-            self.audit.write(
-                request_id=request_id,
-                actor_type="student",
-                actor_id=user.document_id,
-                capability=None,
-                action="consent_update",
-                resource_type="user",
-                resource_id=user.document_id,
-                data_scope="necessary_facts",
-                outcome="success",
-                reason_code=action,
-                occurred_at=current,
-                facts={
-                    "action_code": action,
-                    "object_version": saved_user.version,
-                    "resource_version": document_version,
-                    "status": state.community_consent_status
-                    if consent_kind == "community_content"
-                    else state.base_consent_status,
-                },
-            )
-        except Exception:
-            logger.warning("audit_write_failed")
         return state
 
 
@@ -304,16 +312,18 @@ def _state_from_digest(response_digest: str | None) -> ConsentState:
 
 
 @traced
-def _complete_failure(
+async def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
     error: ApiException,
 ) -> None:
-    idempotency.complete(
-        reservation,
-        status_code=error.status_code,
-        response_digest=serialize_api_error(error),
-        outcome="failure",
+    (
+        await idempotency.complete(
+            reservation,
+            status_code=error.status_code,
+            response_digest=serialize_api_error(error),
+            outcome="failure",
+        )
     )
 
 

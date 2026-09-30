@@ -1,52 +1,33 @@
 """Read-only audit event persistence contract and local implementation."""
 
-from dataclasses import dataclass
-from datetime import datetime
-from threading import RLock
-from typing import Any, Protocol
+from typing import Protocol
 
+from app.infra.database.memory.transaction import MemoryUnitOfWork
+from app.infra.database.records import AuditEventRecord as AuditEventRecord
 from app.infra.logger.common import traced
-
-
-@dataclass(frozen=True, slots=True)
-class AuditEventRecord:
-    event_id: str
-    request_id: str
-    environment_id: str
-    actor_type: str
-    actor_id: str
-    capability: str | None
-    action: str
-    resource_type: str
-    resource_id: str
-    data_scope: str
-    outcome: str
-    reason_code: str | None
-    occurred_at: datetime
-    details: dict[str, Any]
-    version: int = 1
 
 
 class AuditRepository(Protocol):
     @traced
-    def append(self, event: AuditEventRecord) -> AuditEventRecord: ...
+    async def append(self, event: AuditEventRecord) -> AuditEventRecord: ...
 
     @traced
-    def list(self) -> tuple[AuditEventRecord, ...]: ...
+    async def list(self) -> tuple[AuditEventRecord, ...]: ...
 
 
 class InMemoryAuditRepository:
     def __init__(self) -> None:
         self._events: list[AuditEventRecord] = []
-        self._lock = RLock()
+        self._lock = MemoryUnitOfWork()
+        self._lock.register(self)
 
     @traced
-    def append(self, event: AuditEventRecord) -> AuditEventRecord:
-        with self._lock:
+    async def append(self, event: AuditEventRecord) -> AuditEventRecord:
+        async with self._lock:
             self._events.append(event)
         return event
 
     @traced
-    def list(self) -> tuple[AuditEventRecord, ...]:
-        with self._lock:
+    async def list(self) -> tuple[AuditEventRecord, ...]:
+        async with self._lock:
             return tuple(self._events)

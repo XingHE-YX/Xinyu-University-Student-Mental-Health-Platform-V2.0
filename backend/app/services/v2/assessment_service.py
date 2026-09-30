@@ -13,8 +13,7 @@ from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryVersionConflict,
 )
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
@@ -49,6 +48,7 @@ from app.services.v2.idempotency_service import (
     deserialize_api_error,
     serialize_api_error,
 )
+from app.services.v2.repositories import DomainRepository, SessionRepository
 from app.services.v2.rules.assessment import (
     AssessmentValidationError,
     CatalogQuestion,
@@ -66,8 +66,8 @@ class AssessmentService:
         self,
         *,
         settings: Settings,
-        repository: InMemoryDomainDataRepository,
-        session_repository: InMemorySessionRepository,
+        repository: DomainRepository,
+        session_repository: SessionRepository,
         token_manager: TokenManager,
         idempotency_service: IdempotencyService,
         audit_writer: AuditWriter,
@@ -80,13 +80,16 @@ class AssessmentService:
         self.idempotency = idempotency_service
         self.audit = audit_writer
         self.ai_assist = ai_assist_service
+        share_memory_transaction(
+            self.repository, self.idempotency.repository, self.audit.repository, self.sessions
+        )
 
     @traced
     async def attach_ai_assist(self, access_token: str, *, result_id: str) -> None:
         if self.ai_assist is None:
             return
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
-        result = self.repository.get_assessment_result(result_id)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
+        result = await self.repository.get_assessment_result(result_id)
         if (
             subject.subject_type != "student"
             or result.user_id != subject.subject_id
@@ -115,16 +118,18 @@ class AssessmentService:
         )
         if assist.snapshot_id is None:
             return
-        latest = self.repository.get_assessment_result(result_id)
+        latest = await self.repository.get_assessment_result(result_id)
         if latest.ai_assist_snapshot_id is not None:
             return
-        self.repository.save_assessment_result(
-            latest.model_copy(update={"ai_assist_snapshot_id": assist.snapshot_id}),
-            expected_version=latest.version,
+        (
+            await self.repository.save_assessment_result(
+                latest.model_copy(update={"ai_assist_snapshot_id": assist.snapshot_id}),
+                expected_version=latest.version,
+            )
         )
 
     @traced
-    def start_session(
+    async def start_session(
         self,
         access_token: str,
         *,
@@ -132,11 +137,11 @@ class AssessmentService:
         request_id: str,
         idempotency_key: str,
     ) -> StartAssessmentSessionResponse:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_assessment_access(subject.subject_id)
-        reservation = self.idempotency.begin(
+        (await self._ensure_assessment_access(subject.subject_id))
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             "/assessment-sessions",
@@ -147,104 +152,117 @@ class AssessmentService:
             return self._decode_start_response(reservation.record.response_digest)
 
         try:
-            module, questionnaire, questions = self._load_published_questionnaire(module_code)
-            current = datetime.now(UTC)
-            session = AssessmentSessionDocument(
-                _id=self.repository.next_assessment_session_id(),
-                user_id=subject.subject_id,
-                module_code=module.module_code,
-                questionnaire_version=questionnaire.questionnaire_version,
-                state="in_progress",
-                answers=None,
-                answered_count=None,
-                safety_triggered=False,
-                safety_confirmation_state=None,
-                safety_resource_version=None,
-                safety_resource_acknowledged_at=None,
-                client_idempotency_key=idempotency_key,
-                started_at=current,
-                completed_at=None,
-                abandoned_at=None,
-                expires_at=current + self.SESSION_TTL,
-                created_at=current,
-                updated_at=current,
-                version=1,
-            )
-            self.repository.create_assessment_session(session)
-            response = StartAssessmentSessionResponse(
-                session_id=session.document_id,
-                module_code=session.module_code,
-                questionnaire_version=session.questionnaire_version,
-                questions=[
-                    PublicQuestion(
-                        question_key=question.question_key,
-                        order=question.order,
-                        text=question.text,
-                        options=[
-                            PublicQuestionOption(option_key=option.option_key, label=option.label)
-                            for option in question.options
-                        ],
+            async with self.repository.transaction():
+                module, questionnaire, questions = await self._load_published_questionnaire(
+                    module_code
+                )
+                current = datetime.now(UTC)
+                session = AssessmentSessionDocument(
+                    _id=(await self.repository.next_assessment_session_id()),
+                    user_id=subject.subject_id,
+                    module_code=module.module_code,
+                    questionnaire_version=questionnaire.questionnaire_version,
+                    state="in_progress",
+                    answers=None,
+                    answered_count=None,
+                    safety_triggered=False,
+                    safety_confirmation_state=None,
+                    safety_resource_version=None,
+                    safety_resource_acknowledged_at=None,
+                    client_idempotency_key=idempotency_key,
+                    started_at=current,
+                    completed_at=None,
+                    abandoned_at=None,
+                    expires_at=current + self.SESSION_TTL,
+                    created_at=current,
+                    updated_at=current,
+                    version=1,
+                )
+                (await self.repository.create_assessment_session(session))
+                response = StartAssessmentSessionResponse(
+                    session_id=session.document_id,
+                    module_code=session.module_code,
+                    questionnaire_version=session.questionnaire_version,
+                    questions=[
+                        PublicQuestion(
+                            question_key=question.question_key,
+                            order=question.order,
+                            text=question.text,
+                            options=[
+                                PublicQuestionOption(
+                                    option_key=option.option_key, label=option.label
+                                )
+                                for option in question.options
+                            ],
+                        )
+                        for question in questions
+                    ],
+                    state="in_progress",
+                    expires_at=session.expires_at,
+                    object_version=session.version,
+                )
+                (
+                    await self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response.model_dump_json(),
                     )
-                    for question in questions
-                ],
-                state="in_progress",
-                expires_at=session.expires_at,
-                object_version=session.version,
-            )
-            self.idempotency.complete(
-                reservation,
-                status_code=200,
-                response_digest=response.model_dump_json(),
-            )
-            self._audit(
-                request_id=request_id,
-                actor_id=subject.subject_id,
-                action="assessment_session",
-                resource_id=session.document_id,
-                reason_code="started",
-                facts={
-                    "action_code": "start",
-                    "object_version": session.version,
-                    "resource_version": session.questionnaire_version,
-                    "status": session.state,
-                },
-            )
-            return response
+                )
+                (
+                    await self._audit(
+                        request_id=request_id,
+                        actor_id=subject.subject_id,
+                        action="assessment_session",
+                        resource_id=session.document_id,
+                        reason_code="started",
+                        facts={
+                            "action_code": "start",
+                            "object_version": session.version,
+                            "resource_version": session.questionnaire_version,
+                            "status": session.state,
+                        },
+                    )
+                )
+                return response
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def list_modules(self, access_token: str) -> AssessmentModuleListResponse:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+    async def list_modules(self, access_token: str) -> AssessmentModuleListResponse:
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_assessment_access(subject.subject_id)
+        (await self._ensure_assessment_access(subject.subject_id))
         modules: list[AssessmentModuleProjection] = []
         for module_code in ("phq9", "gad7", "sleep_observation"):
             try:
-                module = self.repository.get_assessment_module(module_code)
+                module = await self.repository.get_assessment_module(module_code)
             except RepositoryNotFound:
                 continue
             latest = next(
-                (
-                    result
-                    for result in self.repository.list_assessment_results_by_user(
-                        subject.subject_id
-                    )
-                    if result.module_code == module_code
+                iter(
+                    [
+                        result
+                        for result in (
+                            await self.repository.list_assessment_results_by_user(
+                                subject.subject_id
+                            )
+                        )
+                        if result.module_code == module_code
+                    ]
                 ),
                 None,
             )
@@ -264,7 +282,7 @@ class AssessmentService:
         return AssessmentModuleListResponse(modules=modules)
 
     @traced
-    def abandon_session(
+    async def abandon_session(
         self,
         access_token: str,
         *,
@@ -273,11 +291,11 @@ class AssessmentService:
         request_id: str,
         idempotency_key: str,
     ) -> AssessmentSessionStateResponse:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_assessment_access(subject.subject_id)
-        reservation = self.idempotency.begin(
+        (await self._ensure_assessment_access(subject.subject_id))
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/assessment-sessions/{session_id}/abandon",
@@ -287,85 +305,92 @@ class AssessmentService:
         if reservation.replayed:
             return _decode_session_state_response(reservation.record.response_digest)
         try:
-            with self.repository.transaction():
-                session = self.repository.get_assessment_session(session_id)
-                if session.user_id != subject.subject_id:
-                    raise ApiException(404, "NOT_FOUND")
-                if session.version != object_version:
-                    raise ApiException(409, "VERSION_CONFLICT", current_version=session.version)
-                if session.state in {"abandoned", "expired"}:
-                    response = _session_state(session)
-                elif session.state == "completed":
-                    response = _session_state(session)
-                else:
-                    now = datetime.now(UTC)
-                    saved = self.repository.save_assessment_session(
-                        session.model_copy(
-                            update={
-                                "state": "abandoned",
-                                "abandoned_at": now,
-                                "answers": None,
-                                "answered_count": None,
-                                "safety_triggered": False,
-                                "safety_confirmation_state": None,
-                                "safety_resource_version": None,
-                                "safety_resource_acknowledged_at": None,
-                            }
-                        ),
-                        expected_version=session.version,
+            async with self.repository.transaction():
+                async with self.repository.transaction():
+                    session = await self.repository.get_assessment_session(session_id)
+                    if session.user_id != subject.subject_id:
+                        raise ApiException(404, "NOT_FOUND")
+                    if session.version != object_version:
+                        raise ApiException(409, "VERSION_CONFLICT", current_version=session.version)
+                    if session.state in {"abandoned", "expired"}:
+                        response = _session_state(session)
+                    elif session.state == "completed":
+                        response = _session_state(session)
+                    else:
+                        now = datetime.now(UTC)
+                        saved = await self.repository.save_assessment_session(
+                            session.model_copy(
+                                update={
+                                    "state": "abandoned",
+                                    "abandoned_at": now,
+                                    "answers": None,
+                                    "answered_count": None,
+                                    "safety_triggered": False,
+                                    "safety_confirmation_state": None,
+                                    "safety_resource_version": None,
+                                    "safety_resource_acknowledged_at": None,
+                                }
+                            ),
+                            expected_version=session.version,
+                        )
+                        response = _session_state(saved)
+                (
+                    await self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response.model_dump_json(),
                     )
-                    response = _session_state(saved)
-            self.idempotency.complete(
-                reservation,
-                status_code=200,
-                response_digest=response.model_dump_json(),
-            )
-            self._audit(
-                request_id=request_id,
-                actor_id=subject.subject_id,
-                action="assessment_abandon",
-                resource_id=session_id,
-                reason_code="abandoned" if response.state == "abandoned" else response.state,
-                facts={"action_code": "abandon", "object_version": response.object_version},
-            )
-            return response
+                )
+                (
+                    await self._audit(
+                        request_id=request_id,
+                        actor_id=subject.subject_id,
+                        action="assessment_abandon",
+                        resource_id=session_id,
+                        reason_code="abandoned"
+                        if response.state == "abandoned"
+                        else response.state,
+                        facts={"action_code": "abandon", "object_version": response.object_version},
+                    )
+                )
+                return response
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def get_result(self, access_token: str, *, result_id: str) -> AssessmentResultProjection:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+    async def get_result(self, access_token: str, *, result_id: str) -> AssessmentResultProjection:
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_assessment_access(subject.subject_id)
+        (await self._ensure_assessment_access(subject.subject_id))
         try:
-            result = self.repository.get_assessment_result(result_id)
+            result = await self.repository.get_assessment_result(result_id)
         except RepositoryNotFound as error:
             raise ApiException(404, "NOT_FOUND") from error
         if result.user_id != subject.subject_id or result.deleted_at is not None:
             raise ApiException(404, "NOT_FOUND")
         ai_assist = (
-            self.ai_assist.snapshot_projection(result.ai_assist_snapshot_id)
+            (await self.ai_assist.snapshot_projection(result.ai_assist_snapshot_id))
             if self.ai_assist is not None
             else None
         )
         return _result_projection(result, ai_assist=ai_assist)
 
     @traced
-    def list_results(
+    async def list_results(
         self,
         access_token: str,
         *,
@@ -375,10 +400,10 @@ class AssessmentService:
         cursor: str | None = None,
         limit: int = 20,
     ) -> AssessmentResultListResponse:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_assessment_access(subject.subject_id)
+        (await self._ensure_assessment_access(subject.subject_id))
         if module_code is not None and module_code not in {"phq9", "gad7", "sleep_observation"}:
             raise ApiException(422, "VALIDATION_FAILED")
         if limit < 1:
@@ -389,7 +414,9 @@ class AssessmentService:
             raise ApiException(422, "VALIDATION_FAILED") from error
         results = [
             result
-            for result in self.repository.list_assessment_results_by_user(subject.subject_id)
+            for result in (
+                await self.repository.list_assessment_results_by_user(subject.subject_id)
+            )
             if (module_code is None or result.module_code == module_code)
             and (from_date is None or result.created_at.date().isoformat() >= from_date)
             and (to_date is None or result.created_at.date().isoformat() <= to_date)
@@ -403,7 +430,7 @@ class AssessmentService:
         )
 
     @traced
-    def delete_result(
+    async def delete_result(
         self,
         access_token: str,
         *,
@@ -412,11 +439,11 @@ class AssessmentService:
         request_id: str,
         idempotency_key: str,
     ) -> AssessmentResultDeleteResponse:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_assessment_access(subject.subject_id)
-        reservation = self.idempotency.begin(
+        (await self._ensure_assessment_access(subject.subject_id))
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/assessment-results/{result_id}",
@@ -426,54 +453,59 @@ class AssessmentService:
         if reservation.replayed:
             return _decode_result_delete_response(reservation.record.response_digest)
         try:
-            with self.repository.transaction():
-                result = self.repository.get_assessment_result(result_id)
-                if result.user_id != subject.subject_id or result.deleted_at is not None:
-                    raise ApiException(404, "NOT_FOUND")
-                if result.version != object_version:
-                    raise ApiException(409, "VERSION_CONFLICT", current_version=result.version)
-                now = datetime.now(UTC)
-                saved = self.repository.save_assessment_result(
-                    result.model_copy(update={"deleted_at": now}),
-                    expected_version=result.version,
+            async with self.repository.transaction():
+                async with self.repository.transaction():
+                    result = await self.repository.get_assessment_result(result_id)
+                    if result.user_id != subject.subject_id or result.deleted_at is not None:
+                        raise ApiException(404, "NOT_FOUND")
+                    if result.version != object_version:
+                        raise ApiException(409, "VERSION_CONFLICT", current_version=result.version)
+                    now = datetime.now(UTC)
+                    saved = await self.repository.save_assessment_result(
+                        result.model_copy(update={"deleted_at": now}),
+                        expected_version=result.version,
+                    )
+                    response = AssessmentResultDeleteResponse(
+                        result_id=saved.document_id,
+                        deleted_at=saved.deleted_at or now,
+                        object_version=saved.version,
+                    )
+                (
+                    await self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response.model_dump_json(),
+                    )
                 )
-                response = AssessmentResultDeleteResponse(
-                    result_id=saved.document_id,
-                    deleted_at=saved.deleted_at or now,
-                    object_version=saved.version,
+                (
+                    await self._audit(
+                        request_id=request_id,
+                        actor_id=subject.subject_id,
+                        action="assessment_result_delete",
+                        resource_id=result_id,
+                        reason_code="deleted",
+                        facts={"action_code": "delete", "object_version": response.object_version},
+                    )
                 )
-            self.idempotency.complete(
-                reservation,
-                status_code=200,
-                response_digest=response.model_dump_json(),
-            )
-            self._audit(
-                request_id=request_id,
-                actor_id=subject.subject_id,
-                action="assessment_result_delete",
-                resource_id=result_id,
-                reason_code="deleted",
-                facts={"action_code": "delete", "object_version": response.object_version},
-            )
-            return response
+                return response
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def complete_session(
+    async def complete_session(
         self,
         access_token: str,
         *,
@@ -489,11 +521,11 @@ class AssessmentService:
             )
         except ValidationError as error:
             raise ApiException(422, "VALIDATION_FAILED") from error
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_assessment_access(subject.subject_id)
-        reservation = self.idempotency.begin(
+        (await self._ensure_assessment_access(subject.subject_id))
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/assessment-sessions/{session_id}/complete",
@@ -504,252 +536,278 @@ class AssessmentService:
             return self._decode_complete_response(reservation.record.response_digest)
 
         try:
-            session = self.repository.get_assessment_session(session_id)
-            if session.user_id != subject.subject_id:
-                raise ApiException(404, "NOT_FOUND")
-            if session.version != request.object_version:
-                raise ApiException(409, "VERSION_CONFLICT", current_version=session.version)
-            existing_result = self.repository.get_assessment_result_by_session(session_id)
-            if existing_result is not None:
+            async with self.repository.transaction():
+                session = await self.repository.get_assessment_session(session_id)
+                if session.user_id != subject.subject_id:
+                    raise ApiException(404, "NOT_FOUND")
+                if session.version != request.object_version:
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=session.version)
+                existing_result = await self.repository.get_assessment_result_by_session(session_id)
+                if existing_result is not None:
+                    response = CompleteAssessmentSessionResponse(
+                        completion_state="result_ready",
+                        session_id=session.document_id,
+                        result_id=existing_result.document_id,
+                        safety_triggered=session.safety_triggered,
+                        score=existing_result.score,
+                        result_state=existing_result.result_state,
+                    )
+                    (
+                        await self.idempotency.complete(
+                            reservation,
+                            status_code=200,
+                            response_digest=response.model_dump_json(),
+                        )
+                    )
+                    return response
+                if session.state == "abandoned":
+                    raise ApiException(404, "NOT_FOUND")
+                if session.state == "completed":
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=session.version)
+                if datetime.now(UTC) > session.expires_at:
+                    expired = session.model_copy(
+                        update={
+                            "state": "expired",
+                            "updated_at": datetime.now(UTC),
+                        }
+                    )
+                    (
+                        await self.repository.save_assessment_session(
+                            expired, expected_version=session.version
+                        )
+                    )
+                    raise ApiException(404, "NOT_FOUND")
+
+                module = await self.repository.get_assessment_module(session.module_code)
+                if module.current_questionnaire_version != session.questionnaire_version:
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=module.version)
+                if not module.enabled:
+                    raise ApiException(404, "NOT_FOUND")
+
+                questionnaire = await self.repository.get_assessment_questionnaire(
+                    session.module_code,
+                    session.questionnaire_version,
+                )
+                self._validate_questionnaire(module, questionnaire)
+                scored = score_questionnaire(
+                    questionnaire,
+                    [(answer.question_key, answer.option_key) for answer in request.answers],
+                )
+                if session.module_code == "phq9" and scored.safety_triggered:
+                    if session.safety_confirmation_state == "cannot_be_safe":
+                        response = CompleteAssessmentSessionResponse(
+                            completion_state="safety_support_blocked",
+                            session_id=session.document_id,
+                            result_id=None,
+                            safety_triggered=True,
+                        )
+                        (
+                            await self.idempotency.complete(
+                                reservation,
+                                status_code=200,
+                                response_digest=response.model_dump_json(),
+                            )
+                        )
+                        (
+                            await self._audit(
+                                request_id=request_id,
+                                actor_id=subject.subject_id,
+                                action="assessment_complete",
+                                resource_id=session.document_id,
+                                reason_code="safety_support_blocked",
+                                facts={
+                                    "action_code": "complete",
+                                    "object_version": session.version,
+                                    "resource_version": session.questionnaire_version,
+                                    "status": "in_progress",
+                                },
+                            )
+                        )
+                        return response
+                    elif session.safety_confirmation_state == "uncertain":
+                        if (
+                            session.safety_resource_version
+                            != self.settings.support_resource_version
+                            or session.safety_resource_acknowledged_at is None
+                        ):
+                            raise ApiException(422, "SAFETY_CONFIRMATION_REQUIRED")
+                    elif session.safety_confirmation_state != "can_be_safe":
+                        updated_session = session.model_copy(update={"safety_triggered": True})
+                        (
+                            await self.repository.save_assessment_session(
+                                updated_session,
+                                expected_version=session.version,
+                            )
+                        )
+                        response = CompleteAssessmentSessionResponse(
+                            completion_state="safety_confirmation_required",
+                            session_id=session.document_id,
+                            result_id=None,
+                            safety_triggered=True,
+                        )
+                        (
+                            await self.idempotency.complete(
+                                reservation,
+                                status_code=200,
+                                response_digest=response.model_dump_json(),
+                            )
+                        )
+                        (
+                            await self._audit(
+                                request_id=request_id,
+                                actor_id=subject.subject_id,
+                                action="assessment_complete",
+                                resource_id=session.document_id,
+                                reason_code="safety_confirmation_required",
+                                facts={
+                                    "action_code": "complete",
+                                    "object_version": session.version + 1,
+                                    "resource_version": session.questionnaire_version,
+                                    "status": "in_progress",
+                                },
+                            )
+                        )
+                        return response
+                answer_snapshot = [
+                    AssessmentAnswerModel.model_validate(item) for item in scored.answers_snapshot
+                ]
+                current = datetime.now(UTC)
+                async with self.repository.transaction():
+                    latest_session = await self.repository.get_assessment_session(session_id)
+                    if latest_session.version != request.object_version:
+                        raise ApiException(
+                            409, "VERSION_CONFLICT", current_version=latest_session.version
+                        )
+                    is_uncertain_safety_support = (
+                        scored.safety_triggered
+                        and latest_session.safety_confirmation_state == "uncertain"
+                    )
+                    resource_categories = (
+                        (await self._resource_categories()) if is_uncertain_safety_support else []
+                    )
+                    completed_session = latest_session.model_copy(
+                        update={
+                            "state": "completed",
+                            "answers": None if is_uncertain_safety_support else answer_snapshot,
+                            "answered_count": len(answer_snapshot),
+                            "safety_triggered": scored.safety_triggered,
+                            "safety_confirmation_state": latest_session.safety_confirmation_state
+                            if scored.safety_triggered
+                            else None,
+                            "safety_resource_version": latest_session.safety_resource_version
+                            if scored.safety_triggered
+                            else None,
+                            "safety_resource_acknowledged_at": (
+                                latest_session.safety_resource_acknowledged_at
+                                if scored.safety_triggered
+                                else None
+                            ),
+                            "completed_at": current,
+                            "updated_at": current,
+                        }
+                    )
+                    saved_session = await self.repository.save_assessment_session(
+                        completed_session,
+                        expected_version=latest_session.version,
+                    )
+                    result = AssessmentResultDocument(
+                        _id=(await self.repository.next_assessment_result_id()),
+                        session_id=saved_session.document_id,
+                        user_id=saved_session.user_id,
+                        module_code=saved_session.module_code,
+                        scoring_rule_version=scored.scoring_rule_version,
+                        answers_snapshot=None if is_uncertain_safety_support else answer_snapshot,
+                        fixed_summary="已优先进入安全支持流程，本次仅保存必要的支持事实。"
+                        if is_uncertain_safety_support
+                        else scored.fixed_summary,
+                        reference_band=None
+                        if is_uncertain_safety_support
+                        else scored.reference_band,
+                        boundary_notice=scored.boundary_notice,
+                        ai_assist_snapshot_id=None,
+                        result_state="safety_support"
+                        if is_uncertain_safety_support
+                        else scored.result_state,
+                        score=None if is_uncertain_safety_support else scored.score,
+                        dimension_summary=_safety_support_dimension_summary(
+                            saved_session,
+                            resource_categories=resource_categories,
+                        )
+                        if is_uncertain_safety_support
+                        else scored.dimension_summary,
+                        safety_state="can_be_safe"
+                        if scored.safety_triggered
+                        and saved_session.safety_confirmation_state == "can_be_safe"
+                        else "uncertain"
+                        if is_uncertain_safety_support
+                        else "not_triggered",
+                        visible_copy_version=scored.visible_copy_version,
+                        deleted_at=None,
+                        created_at=current,
+                        updated_at=current,
+                        version=1,
+                    )
+                    saved_result = await self.repository.create_assessment_result(result)
+                    if is_uncertain_safety_support:
+                        (
+                            await self._create_safety_tasks(
+                                user_id=subject.subject_id,
+                                source_result_id=saved_result.document_id,
+                                safety_fact="uncertain",
+                                now=current,
+                            )
+                        )
+
                 response = CompleteAssessmentSessionResponse(
                     completion_state="result_ready",
-                    session_id=session.document_id,
-                    result_id=existing_result.document_id,
-                    safety_triggered=session.safety_triggered,
-                    score=existing_result.score,
-                    result_state=existing_result.result_state,
+                    session_id=saved_session.document_id,
+                    result_id=saved_result.document_id,
+                    safety_triggered=scored.safety_triggered,
+                    score=saved_result.score,
+                    result_state=saved_result.result_state,
                 )
-                self.idempotency.complete(
-                    reservation,
-                    status_code=200,
-                    response_digest=response.model_dump_json(),
+                (
+                    await self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response.model_dump_json(),
+                    )
+                )
+                (
+                    await self._audit(
+                        request_id=request_id,
+                        actor_id=subject.subject_id,
+                        action="assessment_complete",
+                        resource_id=saved_session.document_id,
+                        reason_code="completed",
+                        facts={
+                            "action_code": "complete",
+                            "object_version": saved_session.version,
+                            "resource_version": saved_session.questionnaire_version,
+                            "status": saved_result.result_state,
+                        },
+                    )
                 )
                 return response
-            if session.state == "abandoned":
-                raise ApiException(404, "NOT_FOUND")
-            if session.state == "completed":
-                raise ApiException(409, "VERSION_CONFLICT", current_version=session.version)
-            if datetime.now(UTC) > session.expires_at:
-                expired = session.model_copy(
-                    update={
-                        "state": "expired",
-                        "updated_at": datetime.now(UTC),
-                    }
-                )
-                self.repository.save_assessment_session(expired, expected_version=session.version)
-                raise ApiException(404, "NOT_FOUND")
-
-            module = self.repository.get_assessment_module(session.module_code)
-            if module.current_questionnaire_version != session.questionnaire_version:
-                raise ApiException(409, "VERSION_CONFLICT", current_version=module.version)
-            if not module.enabled:
-                raise ApiException(404, "NOT_FOUND")
-
-            questionnaire = self.repository.get_assessment_questionnaire(
-                session.module_code,
-                session.questionnaire_version,
-            )
-            self._validate_questionnaire(module, questionnaire)
-            scored = score_questionnaire(
-                questionnaire,
-                [(answer.question_key, answer.option_key) for answer in request.answers],
-            )
-            if session.module_code == "phq9" and scored.safety_triggered:
-                if session.safety_confirmation_state == "cannot_be_safe":
-                    response = CompleteAssessmentSessionResponse(
-                        completion_state="safety_support_blocked",
-                        session_id=session.document_id,
-                        result_id=None,
-                        safety_triggered=True,
-                    )
-                    self.idempotency.complete(
-                        reservation,
-                        status_code=200,
-                        response_digest=response.model_dump_json(),
-                    )
-                    self._audit(
-                        request_id=request_id,
-                        actor_id=subject.subject_id,
-                        action="assessment_complete",
-                        resource_id=session.document_id,
-                        reason_code="safety_support_blocked",
-                        facts={
-                            "action_code": "complete",
-                            "object_version": session.version,
-                            "resource_version": session.questionnaire_version,
-                            "status": "in_progress",
-                        },
-                    )
-                    return response
-                elif session.safety_confirmation_state == "uncertain":
-                    if (
-                        session.safety_resource_version != self.settings.support_resource_version
-                        or session.safety_resource_acknowledged_at is None
-                    ):
-                        raise ApiException(422, "SAFETY_CONFIRMATION_REQUIRED")
-                elif session.safety_confirmation_state != "can_be_safe":
-                    updated_session = session.model_copy(update={"safety_triggered": True})
-                    self.repository.save_assessment_session(
-                        updated_session,
-                        expected_version=session.version,
-                    )
-                    response = CompleteAssessmentSessionResponse(
-                        completion_state="safety_confirmation_required",
-                        session_id=session.document_id,
-                        result_id=None,
-                        safety_triggered=True,
-                    )
-                    self.idempotency.complete(
-                        reservation,
-                        status_code=200,
-                        response_digest=response.model_dump_json(),
-                    )
-                    self._audit(
-                        request_id=request_id,
-                        actor_id=subject.subject_id,
-                        action="assessment_complete",
-                        resource_id=session.document_id,
-                        reason_code="safety_confirmation_required",
-                        facts={
-                            "action_code": "complete",
-                            "object_version": session.version + 1,
-                            "resource_version": session.questionnaire_version,
-                            "status": "in_progress",
-                        },
-                    )
-                    return response
-            answer_snapshot = [
-                AssessmentAnswerModel.model_validate(item) for item in scored.answers_snapshot
-            ]
-            current = datetime.now(UTC)
-            with self.repository.transaction():
-                latest_session = self.repository.get_assessment_session(session_id)
-                if latest_session.version != request.object_version:
-                    raise ApiException(
-                        409, "VERSION_CONFLICT", current_version=latest_session.version
-                    )
-                is_uncertain_safety_support = (
-                    scored.safety_triggered
-                    and latest_session.safety_confirmation_state == "uncertain"
-                )
-                resource_categories = (
-                    self._resource_categories() if is_uncertain_safety_support else []
-                )
-                completed_session = latest_session.model_copy(
-                    update={
-                        "state": "completed",
-                        "answers": None if is_uncertain_safety_support else answer_snapshot,
-                        "answered_count": len(answer_snapshot),
-                        "safety_triggered": scored.safety_triggered,
-                        "safety_confirmation_state": latest_session.safety_confirmation_state
-                        if scored.safety_triggered
-                        else None,
-                        "safety_resource_version": latest_session.safety_resource_version
-                        if scored.safety_triggered
-                        else None,
-                        "safety_resource_acknowledged_at": (
-                            latest_session.safety_resource_acknowledged_at
-                            if scored.safety_triggered
-                            else None
-                        ),
-                        "completed_at": current,
-                        "updated_at": current,
-                    }
-                )
-                saved_session = self.repository.save_assessment_session(
-                    completed_session,
-                    expected_version=latest_session.version,
-                )
-                result = AssessmentResultDocument(
-                    _id=self.repository.next_assessment_result_id(),
-                    session_id=saved_session.document_id,
-                    user_id=saved_session.user_id,
-                    module_code=saved_session.module_code,
-                    scoring_rule_version=scored.scoring_rule_version,
-                    answers_snapshot=None if is_uncertain_safety_support else answer_snapshot,
-                    fixed_summary="已优先进入安全支持流程，本次仅保存必要的支持事实。"
-                    if is_uncertain_safety_support
-                    else scored.fixed_summary,
-                    reference_band=None if is_uncertain_safety_support else scored.reference_band,
-                    boundary_notice=scored.boundary_notice,
-                    ai_assist_snapshot_id=None,
-                    result_state="safety_support"
-                    if is_uncertain_safety_support
-                    else scored.result_state,
-                    score=None if is_uncertain_safety_support else scored.score,
-                    dimension_summary=_safety_support_dimension_summary(
-                        saved_session,
-                        resource_categories=resource_categories,
-                    )
-                    if is_uncertain_safety_support
-                    else scored.dimension_summary,
-                    safety_state="can_be_safe"
-                    if scored.safety_triggered
-                    and saved_session.safety_confirmation_state == "can_be_safe"
-                    else "uncertain"
-                    if is_uncertain_safety_support
-                    else "not_triggered",
-                    visible_copy_version=scored.visible_copy_version,
-                    deleted_at=None,
-                    created_at=current,
-                    updated_at=current,
-                    version=1,
-                )
-                saved_result = self.repository.create_assessment_result(result)
-                if is_uncertain_safety_support:
-                    self._create_safety_tasks(
-                        user_id=subject.subject_id,
-                        source_result_id=saved_result.document_id,
-                        safety_fact="uncertain",
-                        now=current,
-                    )
-
-            response = CompleteAssessmentSessionResponse(
-                completion_state="result_ready",
-                session_id=saved_session.document_id,
-                result_id=saved_result.document_id,
-                safety_triggered=scored.safety_triggered,
-                score=saved_result.score,
-                result_state=saved_result.result_state,
-            )
-            self.idempotency.complete(
-                reservation,
-                status_code=200,
-                response_digest=response.model_dump_json(),
-            )
-            self._audit(
-                request_id=request_id,
-                actor_id=subject.subject_id,
-                action="assessment_complete",
-                resource_id=saved_session.document_id,
-                reason_code="completed",
-                facts={
-                    "action_code": "complete",
-                    "object_version": saved_session.version,
-                    "resource_version": saved_session.questionnaire_version,
-                    "status": saved_result.result_state,
-                },
-            )
-            return response
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
     @traced
-    def _create_safety_tasks(
+    async def _create_safety_tasks(
         self,
         *,
         user_id: str,
@@ -759,7 +817,7 @@ class AssessmentService:
     ) -> None:
         if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
             return
-        resources = self.repository.list_support_resources(
+        resources = await self.repository.list_support_resources(
             self.settings.environment_kind.value,
             resource_set_version=self.settings.support_resource_version,
             now=now,
@@ -774,7 +832,7 @@ class AssessmentService:
             )
             for resource in resources
         ]
-        safety_task_id = self.repository.next_safety_support_task_id()
+        safety_task_id = await self.repository.next_safety_support_task_id()
         safety_task = SafetySupportTaskDocument(
             _id=safety_task_id,
             task_kind="safety_support",
@@ -792,30 +850,32 @@ class AssessmentService:
             updated_at=now,
             version=1,
         )
-        self.repository.create_safety_support_task(safety_task)
-        self.repository.create_work_task(
-            WorkTaskDocument(
-                _id=safety_task_id,
-                task_kind="safety_support",
-                source_type="support_task",
-                source_id=safety_task.document_id,
-                available_capability="safety_support",
-                state="needs_action",
-                assigned_admin_id=None,
-                safe_summary="安全支持任务待处理",
-                object_version=safety_task.version,
-                last_action=None,
-                created_at=now,
-                updated_at=now,
-                version=1,
+        (await self.repository.create_safety_support_task(safety_task))
+        (
+            await self.repository.create_work_task(
+                WorkTaskDocument(
+                    _id=safety_task_id,
+                    task_kind="safety_support",
+                    source_type="support_task",
+                    source_id=safety_task.document_id,
+                    available_capability="safety_support",
+                    state="needs_action",
+                    assigned_admin_id=None,
+                    safe_summary="安全支持任务待处理",
+                    object_version=safety_task.version,
+                    last_action=None,
+                    created_at=now,
+                    updated_at=now,
+                    version=1,
+                )
             )
         )
 
     @traced
-    def _resource_categories(self) -> list[str]:
+    async def _resource_categories(self) -> list[str]:
         if self.settings.environment_kind not in {EnvironmentKind.DEMO, EnvironmentKind.AUTHORIZED}:
             return []
-        resources = self.repository.list_support_resources(
+        resources = await self.repository.list_support_resources(
             self.settings.environment_kind.value,
             resource_set_version=self.settings.support_resource_version,
             now=datetime.now(UTC),
@@ -823,7 +883,7 @@ class AssessmentService:
         return sorted({resource.category for resource in resources})
 
     @traced
-    def _load_published_questionnaire(
+    async def _load_published_questionnaire(
         self,
         module_code: str,
     ) -> tuple[
@@ -831,10 +891,10 @@ class AssessmentService:
         AssessmentQuestionnaireDocument,
         tuple[CatalogQuestion, ...],
     ]:
-        module = self.repository.get_assessment_module(module_code)
+        module = await self.repository.get_assessment_module(module_code)
         if module.module_code != module_code or not module.enabled:
             raise ApiException(404, "NOT_FOUND")
-        questionnaire = self.repository.get_assessment_questionnaire(
+        questionnaire = await self.repository.get_assessment_questionnaire(
             module.module_code,
             module.current_questionnaire_version,
         )
@@ -859,8 +919,8 @@ class AssessmentService:
             raise ApiException(404, "NOT_FOUND") from error
 
     @traced
-    def _ensure_assessment_access(self, user_id: str) -> None:
-        user = self.repository.get_user(user_id)
+    async def _ensure_assessment_access(self, user_id: str) -> None:
+        user = await self.repository.get_user(user_id)
         if user.status != "active":
             raise ApiException(403, "FORBIDDEN")
         if user.base_consent_status != "accepted":
@@ -868,14 +928,14 @@ class AssessmentService:
         if not user.identity_record_id:
             raise ApiException(403, "IDENTITY_REQUIRED")
         try:
-            identity = self.repository.get_identity_record(user.identity_record_id)
+            identity = await self.repository.get_identity_record(user.identity_record_id)
         except RepositoryNotFound as error:
             raise ApiException(403, "IDENTITY_REQUIRED") from error
         if identity.user_id != user.document_id or identity.verification_status != "verified":
             raise ApiException(403, "IDENTITY_REQUIRED")
 
     @traced
-    def _audit(
+    async def _audit(
         self,
         *,
         request_id: str,
@@ -885,8 +945,8 @@ class AssessmentService:
         reason_code: str,
         facts: dict[str, object],
     ) -> None:
-        try:
-            self.audit.write(
+        (
+            await self.audit.write(
                 request_id=request_id,
                 actor_type="student",
                 actor_id=actor_id,
@@ -900,8 +960,7 @@ class AssessmentService:
                 occurred_at=datetime.now(UTC),
                 facts=facts,
             )
-        except Exception:
-            logger.warning("audit_write_failed")
+        )
 
     @traced
     def _decode_start_response(self, response_digest: str | None) -> StartAssessmentSessionResponse:
@@ -925,16 +984,18 @@ class AssessmentService:
 
 
 @traced
-def _complete_failure(
+async def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
     error: ApiException,
 ) -> None:
-    idempotency.complete(
-        reservation,
-        status_code=error.status_code,
-        response_digest=serialize_api_error(error),
-        outcome="failure",
+    (
+        await idempotency.complete(
+            reservation,
+            status_code=error.status_code,
+            response_digest=serialize_api_error(error),
+            outcome="failure",
+        )
     )
 
 

@@ -11,7 +11,9 @@ from app.infra.database.cloudbase.gateway import (
 from app.infra.database.memory.documents import InMemoryDocumentRepository
 
 
-def test_in_memory_repository_supports_cursor_query_versioned_update_and_logical_delete() -> None:
+async def test_in_memory_repository_supports_cursor_query_versioned_update_and_logical_delete() -> (
+    None
+):
     repository = InMemoryDocumentRepository(
         {
             "treehole_posts": [
@@ -21,10 +23,10 @@ def test_in_memory_repository_supports_cursor_query_versioned_update_and_logical
         }
     )
 
-    first_page = repository.query("treehole_posts", {"state": "published"}, limit=1)
+    first_page = await repository.query("treehole_posts", {"state": "published"}, limit=1)
     assert [item["_id"] for item in first_page.items] == ["post-1"]
     assert first_page.next_cursor is not None
-    second_page = repository.query(
+    second_page = await repository.query(
         "treehole_posts",
         {"state": "published"},
         cursor=first_page.next_cursor,
@@ -33,7 +35,7 @@ def test_in_memory_repository_supports_cursor_query_versioned_update_and_logical
     assert [item["_id"] for item in second_page.items] == ["post-2"]
     assert second_page.next_cursor is None
 
-    updated = repository.conditional_update(
+    updated = await repository.conditional_update(
         "treehole_posts",
         "post-1",
         expected_version=1,
@@ -43,15 +45,17 @@ def test_in_memory_repository_supports_cursor_query_versioned_update_and_logical
     assert updated["version"] == 2
 
     with pytest.raises(RepositoryVersionConflict) as error:
-        repository.conditional_update(
-            "treehole_posts",
-            "post-1",
-            expected_version=1,
-            updates={"state": "deleted"},
+        (
+            await repository.conditional_update(
+                "treehole_posts",
+                "post-1",
+                expected_version=1,
+                updates={"state": "deleted"},
+            )
         )
     assert error.value.current_version == 2
 
-    deleted = repository.logical_delete("treehole_posts", "post-1", expected_version=2)
+    deleted = await repository.logical_delete("treehole_posts", "post-1", expected_version=2)
     assert deleted["is_deleted"] is True
 
 

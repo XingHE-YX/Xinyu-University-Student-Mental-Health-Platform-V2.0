@@ -34,7 +34,7 @@ async def assessment_modules(
     request: Request,
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[AssessmentModuleListResponse]:
-    data = request.app.state.assessment_service.list_modules(bearer_token(authorization))
+    data = await request.app.state.assessment_service.list_modules(bearer_token(authorization))
     return ApiEnvelope.success(request_id(request), data=data)
 
 
@@ -44,7 +44,7 @@ async def start_assessment_session(
     body: StartAssessmentSessionRequest,
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[StartAssessmentSessionResponse]:
-    data = request.app.state.assessment_service.start_session(
+    data = await request.app.state.assessment_service.start_session(
         bearer_token(authorization),
         module_code=body.module_code,
         request_id=request_id(request),
@@ -61,7 +61,7 @@ async def complete_assessment_session(
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[object]:
     access_token = bearer_token(authorization)
-    data = request.app.state.assessment_service.complete_session(
+    data = await request.app.state.assessment_service.complete_session(
         access_token,
         session_id=session_id,
         object_version=body.object_version,
@@ -84,7 +84,7 @@ async def abandon_assessment_session(
     body: AbandonAssessmentSessionRequest,
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[AssessmentSessionStateResponse]:
-    data = request.app.state.assessment_service.abandon_session(
+    data = await request.app.state.assessment_service.abandon_session(
         bearer_token(authorization),
         session_id=session_id,
         object_version=body.object_version,
@@ -100,7 +100,7 @@ async def assessment_result(
     result_id: str,
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[AssessmentResultProjection]:
-    data = request.app.state.assessment_service.get_result(
+    data = await request.app.state.assessment_service.get_result(
         bearer_token(authorization), result_id=result_id
     )
     return ApiEnvelope.success(request_id(request), data=data)
@@ -116,7 +116,7 @@ async def assessment_results(
     cursor: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> ApiEnvelope[AssessmentResultListResponse]:
-    data = request.app.state.assessment_service.list_results(
+    data = await request.app.state.assessment_service.list_results(
         bearer_token(authorization),
         module_code=module_code,
         from_date=from_date,
@@ -134,7 +134,7 @@ async def delete_assessment_result(
     body: AssessmentResultDeleteRequest,
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[AssessmentResultDeleteResponse]:
-    data = request.app.state.assessment_service.delete_result(
+    data = await request.app.state.assessment_service.delete_result(
         bearer_token(authorization),
         result_id=result_id,
         object_version=body.object_version,
@@ -153,7 +153,7 @@ async def safety_confirmation(
 ) -> ApiEnvelope[SafetyConfirmationResponse]:
     access_token = bearer_token(authorization)
     idempotency_key = require_idempotency_key(request)
-    data = request.app.state.safety_service.confirm_safety(
+    data = await request.app.state.safety_service.confirm_safety(
         access_token,
         session_id=session_id,
         state=body.state,
@@ -174,7 +174,7 @@ async def support_resource_ack(
 ) -> ApiEnvelope[SupportResourceAckResponse]:
     access_token = bearer_token(authorization)
     idempotency_key = require_idempotency_key(request)
-    data = request.app.state.safety_service.acknowledge_support_resource(
+    data = await request.app.state.safety_service.acknowledge_support_resource(
         access_token,
         session_id=session_id,
         resource_context=body.resource_context,

@@ -5,7 +5,6 @@ from datetime import UTC, datetime
 from typing import Any, Literal, Protocol
 
 from app.infra.config.settings import Settings
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.integrations.wechat import WechatAuthClient, WechatIdentity
 from app.infra.logger.common import traced
@@ -19,6 +18,7 @@ from app.infra.security.tokens import (
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import UserAccountDocument
 from app.models.v2.responses.auth import AdminSessionData, StudentSessionData, TokenData
+from app.services.v2.repositories import DomainRepository, SessionRepository
 
 
 class WechatClient(Protocol):
@@ -36,10 +36,10 @@ class AuthService:
         self,
         settings: Settings,
         *,
-        session_repository: InMemorySessionRepository | None = None,
+        session_repository: SessionRepository | None = None,
         token_manager: TokenManager | None = None,
         wechat_client: WechatClient | None = None,
-        domain_repository: InMemoryDomainDataRepository | None = None,
+        domain_repository: DomainRepository | None = None,
     ) -> None:
         self.settings = settings
         self.passwords = PasswordManager(settings.password)
@@ -59,8 +59,8 @@ class AuthService:
         del client_version
         self._require_student_login_ready()
         identity = await self.wechat.exchange_code(code)
-        user = self._ensure_student_user(identity.subject_id)
-        pair = self.tokens.issue("student", identity.subject_id, self.sessions)
+        user = await self._ensure_student_user(identity.subject_id)
+        pair = await self.tokens.issue("student", identity.subject_id, self.sessions)
         return StudentSessionData(
             **_pair_data(pair),
             account_status=_session_account_status(user.status),
@@ -80,7 +80,7 @@ class AuthService:
             raise ApiException(401, "INVALID_CREDENTIALS")
         if not await self.passwords.verify(password, self.settings.password_hash):
             raise ApiException(401, "INVALID_CREDENTIALS")
-        pair = self.tokens.issue(
+        pair = await self.tokens.issue(
             "admin",
             "admin:fixed-super-admin",
             self.sessions,
@@ -93,18 +93,18 @@ class AuthService:
         )
 
     @traced
-    def refresh(
+    async def refresh(
         self,
         refresh_token: str,
         *,
         expected_subject_type: TokenSubjectType | None = None,
     ) -> TokenData | StudentSessionData | AdminSessionData:
-        pair = self.tokens.refresh(
+        pair = await self.tokens.refresh(
             refresh_token,
             self.sessions,
             expected_subject_type=expected_subject_type,
         )
-        record = self.sessions.get_by_session_id(pair.session_id)
+        record = await self.sessions.get_by_session_id(pair.session_id)
         if record is None:
             raise ApiException(401, "SESSION_EXPIRED")
         if record.subject_type == "admin":
@@ -122,20 +122,22 @@ class AuthService:
         )
 
     @traced
-    def authenticate(self, access_token: str) -> AuthenticatedSubject:
-        return self.tokens.authenticate_access(access_token, self.sessions)
+    async def authenticate(self, access_token: str) -> AuthenticatedSubject:
+        return await self.tokens.authenticate_access(access_token, self.sessions)
 
     @traced
-    def logout(
+    async def logout(
         self,
         access_token: str,
         *,
         expected_subject_type: TokenSubjectType | None = None,
     ) -> None:
-        self.tokens.logout(
-            access_token,
-            self.sessions,
-            expected_subject_type=expected_subject_type,
+        (
+            await self.tokens.logout(
+                access_token,
+                self.sessions,
+                expected_subject_type=expected_subject_type,
+            )
         )
 
     @traced
@@ -149,10 +151,10 @@ class AuthService:
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "微信登录暂未完成配置")
 
     @traced
-    def _ensure_student_user(self, subject_id: str) -> UserAccountDocument:
+    async def _ensure_student_user(self, subject_id: str) -> UserAccountDocument:
         if self.domain_repository is None:
             return _ephemeral_user(subject_id)
-        existing = self.domain_repository.get_user_by_auth_subject_hash(subject_id)
+        existing = await self.domain_repository.get_user_by_auth_subject_hash(subject_id)
         if existing is not None:
             return existing
         now = datetime.now(UTC)
@@ -167,9 +169,9 @@ class AuthService:
             version=1,
         )
         try:
-            return self.domain_repository.create_user(user)
+            return await self.domain_repository.create_user(user)
         except Exception:
-            existing = self.domain_repository.get_user_by_auth_subject_hash(subject_id)
+            existing = await self.domain_repository.get_user_by_auth_subject_hash(subject_id)
             if existing is not None:
                 return existing
             raise

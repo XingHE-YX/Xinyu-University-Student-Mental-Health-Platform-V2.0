@@ -51,7 +51,10 @@ async def test_concurrent_contexts_are_isolated_and_traced_errors_are_safe() -> 
         finally:
             request_id_context.reset(token)
 
-    assert tuple(await asyncio.gather(current("req_a"), current("req_b"))) == ("req_a", "req_b")
+    assert tuple(await asyncio.gather((current("req_a")), (current("req_b")))) == (
+        "req_a",
+        "req_b",
+    )
     assert request_id_context.get() is None
 
 

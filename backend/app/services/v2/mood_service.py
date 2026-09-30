@@ -16,8 +16,7 @@ from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryVersionConflict,
 )
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import get_logger, traced
 from app.infra.security.tokens import TokenManager
@@ -29,6 +28,7 @@ from app.services.v2.idempotency_service import (
     deserialize_api_error,
     serialize_api_error,
 )
+from app.services.v2.repositories import DomainRepository, SessionRepository
 
 logger = get_logger(__name__)
 
@@ -74,8 +74,8 @@ class MoodService:
     def __init__(
         self,
         *,
-        repository: InMemoryDomainDataRepository,
-        session_repository: InMemorySessionRepository,
+        repository: DomainRepository,
+        session_repository: SessionRepository,
         token_manager: TokenManager,
         idempotency_service: IdempotencyService,
         audit_writer: AuditWriter,
@@ -87,9 +87,12 @@ class MoodService:
         self.idempotency = idempotency_service
         self.audit = audit_writer
         self._now_provider = now_provider
+        share_memory_transaction(
+            self.repository, self.idempotency.repository, self.audit.repository, self.sessions
+        )
 
     @traced
-    def record_today_mood(
+    async def record_today_mood(
         self,
         access_token: str,
         *,
@@ -102,10 +105,10 @@ class MoodService:
             raise ApiException(422, "VALIDATION_FAILED")
         if record_date != self._today():
             raise ApiException(422, "VALIDATION_FAILED")
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        reservation = self.idempotency.begin(
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             "/daily-moods",
@@ -116,68 +119,73 @@ class MoodService:
             return _mood_fact_from_digest(reservation.record.response_digest)
 
         try:
-            self._ensure_private_access(subject.subject_id)
-            current = self._now()
-            with self.repository.transaction():
-                existing = self.repository.get_daily_mood_by_user_date(
-                    subject.subject_id,
-                    record_date,
-                )
-                if existing is None:
-                    record = DailyMoodRecordDocument(
-                        _id=self.repository.next_daily_mood_id(),
-                        user_id=subject.subject_id,
-                        record_date=record_date,
-                        mood_code=mood_code,  # type: ignore[arg-type]
-                        source="mini_program",
-                        deleted_at=None,
-                        created_at=current,
-                        updated_at=current,
-                        version=1,
+            async with self.repository.transaction():
+                (await self._ensure_private_access(subject.subject_id))
+                current = self._now()
+                async with self.repository.transaction():
+                    existing = await self.repository.get_daily_mood_by_user_date(
+                        subject.subject_id,
+                        record_date,
                     )
-                    saved = self.repository.create_daily_mood_record(record)
-                    reason_code = "saved"
-                else:
-                    saved = existing
-                    reason_code = "existing"
-                response = _mood_fact(saved)
-            self.idempotency.complete(
-                reservation,
-                status_code=200,
-                response_digest=response.model_dump_json(),
-            )
+                    if existing is None:
+                        record = DailyMoodRecordDocument(
+                            _id=(await self.repository.next_daily_mood_id()),
+                            user_id=subject.subject_id,
+                            record_date=record_date,
+                            mood_code=mood_code,  # type: ignore[arg-type]
+                            source="mini_program",
+                            deleted_at=None,
+                            created_at=current,
+                            updated_at=current,
+                            version=1,
+                        )
+                        saved = await self.repository.create_daily_mood_record(record)
+                        reason_code = "saved"
+                    else:
+                        saved = existing
+                        reason_code = "existing"
+                    response = _mood_fact(saved)
+                (
+                    await self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response.model_dump_json(),
+                    )
+                )
+                (
+                    await self._audit(
+                        request_id=request_id,
+                        actor_id=subject.subject_id,
+                        action="mood_record",
+                        resource_id=response.record_id,
+                        reason_code=reason_code,
+                        facts={
+                            "action_code": "record",
+                            "object_version": response.version,
+                            "status": reason_code,
+                        },
+                    )
+                )
         except RepositoryVersionConflict as error:
             failure = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
-        self._audit(
-            request_id=request_id,
-            actor_id=subject.subject_id,
-            action="mood_record",
-            resource_id=response.record_id,
-            reason_code=reason_code,
-            facts={
-                "action_code": "record",
-                "object_version": response.version,
-                "status": reason_code,
-            },
-        )
         return response
 
     @traced
-    def list_history(
+    async def list_history(
         self,
         access_token: str,
         *,
@@ -186,17 +194,17 @@ class MoodService:
         cursor: str | None = None,
         limit: int = 20,
     ) -> MoodHistoryPage:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_private_access(subject.subject_id)
+        (await self._ensure_private_access(subject.subject_id))
         if limit < 1:
             raise ApiException(422, "VALIDATION_FAILED")
         offset = _decode_cursor(cursor)
         page_size = min(limit, 100)
         records = [
             record
-            for record in self.repository.list_daily_mood_records(subject.subject_id)
+            for record in (await self.repository.list_daily_mood_records(subject.subject_id))
             if (from_date is None or record.record_date >= from_date)
             and (to_date is None or record.record_date <= to_date)
         ]
@@ -209,7 +217,7 @@ class MoodService:
         )
 
     @traced
-    def delete_mood(
+    async def delete_mood(
         self,
         access_token: str,
         *,
@@ -218,10 +226,10 @@ class MoodService:
         request_id: str,
         idempotency_key: str,
     ) -> DeletedMoodFact:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        reservation = self.idempotency.begin(
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             f"/daily-moods/{record_id}",
@@ -232,75 +240,80 @@ class MoodService:
             return _deleted_mood_fact_from_digest(reservation.record.response_digest)
 
         try:
-            self._ensure_private_access(subject.subject_id)
-            with self.repository.transaction():
-                record = self.repository.get_daily_mood(record_id)
-                if record.user_id != subject.subject_id:
-                    raise ApiException(404, "NOT_FOUND")
-                if record.version != object_version:
-                    raise ApiException(
-                        409,
-                        "VERSION_CONFLICT",
-                        current_version=record.version,
+            async with self.repository.transaction():
+                (await self._ensure_private_access(subject.subject_id))
+                async with self.repository.transaction():
+                    record = await self.repository.get_daily_mood(record_id)
+                    if record.user_id != subject.subject_id:
+                        raise ApiException(404, "NOT_FOUND")
+                    if record.version != object_version:
+                        raise ApiException(
+                            409,
+                            "VERSION_CONFLICT",
+                            current_version=record.version,
+                        )
+                    if record.deleted_at is not None:
+                        raise ApiException(404, "NOT_FOUND")
+                    current = self._now()
+                    saved = await self.repository.save_daily_mood_record(
+                        record.model_copy(update={"deleted_at": current, "updated_at": current}),
+                        expected_version=record.version,
                     )
-                if record.deleted_at is not None:
-                    raise ApiException(404, "NOT_FOUND")
-                current = self._now()
-                saved = self.repository.save_daily_mood_record(
-                    record.model_copy(update={"deleted_at": current, "updated_at": current}),
-                    expected_version=record.version,
+                response = DeletedMoodFact(
+                    record_id=saved.document_id,
+                    deleted_at=saved.deleted_at or self._now(),
+                    version=saved.version,
                 )
-            response = DeletedMoodFact(
-                record_id=saved.document_id,
-                deleted_at=saved.deleted_at or self._now(),
-                version=saved.version,
-            )
-            self.idempotency.complete(
-                reservation,
-                status_code=200,
-                response_digest=response.model_dump_json(),
-            )
+                (
+                    await self.idempotency.complete(
+                        reservation,
+                        status_code=200,
+                        response_digest=response.model_dump_json(),
+                    )
+                )
+                (
+                    await self._audit(
+                        request_id=request_id,
+                        actor_id=subject.subject_id,
+                        action="mood_delete",
+                        resource_id=response.record_id,
+                        reason_code="deleted",
+                        facts={
+                            "action_code": "delete",
+                            "object_version": response.version,
+                            "status": "deleted",
+                        },
+                    )
+                )
         except RepositoryVersionConflict as error:
             failure = ApiException(
                 409,
                 "VERSION_CONFLICT",
                 current_version=error.current_version,
             )
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryNotFound as error:
             failure = ApiException(404, "NOT_FOUND")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
-        self._audit(
-            request_id=request_id,
-            actor_id=subject.subject_id,
-            action="mood_delete",
-            resource_id=response.record_id,
-            reason_code="deleted",
-            facts={
-                "action_code": "delete",
-                "object_version": response.version,
-                "status": "deleted",
-            },
-        )
         return response
 
     @traced
-    def _ensure_private_access(self, user_id: str) -> None:
-        user = self.repository.get_user(user_id)
+    async def _ensure_private_access(self, user_id: str) -> None:
+        user = await self.repository.get_user(user_id)
         if user.status != "active":
             raise ApiException(403, "FORBIDDEN")
         if user.base_consent_status != "accepted":
@@ -308,14 +321,14 @@ class MoodService:
         if not user.identity_record_id:
             raise ApiException(403, "IDENTITY_REQUIRED")
         try:
-            identity = self.repository.get_identity_record(user.identity_record_id)
+            identity = await self.repository.get_identity_record(user.identity_record_id)
         except RepositoryNotFound as error:
             raise ApiException(403, "IDENTITY_REQUIRED") from error
         if identity.user_id != user.document_id or identity.verification_status != "verified":
             raise ApiException(403, "IDENTITY_REQUIRED")
 
     @traced
-    def _audit(
+    async def _audit(
         self,
         *,
         request_id: str,
@@ -325,8 +338,8 @@ class MoodService:
         reason_code: str,
         facts: dict[str, object],
     ) -> None:
-        try:
-            self.audit.write(
+        (
+            await self.audit.write(
                 request_id=request_id,
                 actor_type="student",
                 actor_id=actor_id,
@@ -340,8 +353,7 @@ class MoodService:
                 occurred_at=self._now(),
                 facts=facts,
             )
-        except Exception:
-            logger.warning("audit_write_failed")
+        )
 
     @traced
     def _now(self) -> datetime:
@@ -391,16 +403,18 @@ def _deleted_mood_fact_from_digest(response_digest: str | None) -> DeletedMoodFa
 
 
 @traced
-def _complete_failure(
+async def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
     error: ApiException,
 ) -> None:
-    idempotency.complete(
-        reservation,
-        status_code=error.status_code,
-        response_digest=serialize_api_error(error),
-        outcome="failure",
+    (
+        await idempotency.complete(
+            reservation,
+            status_code=error.status_code,
+            response_digest=serialize_api_error(error),
+            outcome="failure",
+        )
     )
 
 

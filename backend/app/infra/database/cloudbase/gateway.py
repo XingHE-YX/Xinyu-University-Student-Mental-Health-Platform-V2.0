@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import base64
 import binascii
 from collections.abc import Mapping
+from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime
 from typing import Any
 
@@ -41,7 +41,7 @@ class CloudBaseGateway:
         api_key: str,
         base_url: str | None = None,
         session_token: str | None = None,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = 8.0,
     ) -> None:
         if session_token:
@@ -54,6 +54,21 @@ class CloudBaseGateway:
             timeout=timeout,
         )
 
+    def transaction(self) -> AbstractAsyncContextManager[None]:
+        return self.store.transaction()
+
+    @traced
+    async def aclose(self) -> None:
+        await self.store.aclose()
+
+    @traced
+    async def get(self, collection: str, document_id: str) -> JsonDocument:
+        return await self.store.get(collection, document_id)
+
+    @traced
+    async def insert(self, collection: str, document: Mapping[str, Any]) -> None:
+        await self.store.insert(collection, document)
+
     @traced
     async def query(
         self,
@@ -65,8 +80,7 @@ class CloudBaseGateway:
     ) -> DocumentPage:
         page_size = max(1, min(limit, 100))
         offset = _decode_cursor(cursor)
-        documents = await asyncio.to_thread(
-            self.store.query,
+        documents = await self.store.query(
             collection,
             where,
             limit=page_size,
@@ -88,7 +102,7 @@ class CloudBaseGateway:
     ) -> JsonDocument:
         if "_id" in updates or "version" in updates:
             raise ValueError("_id and version are managed by the repository")
-        current = await asyncio.to_thread(self.store.get, collection, document_id)
+        current = await self.store.get(collection, document_id)
         if current.get("version") != expected_version:
             raise RepositoryVersionConflict(_version(current))
         updated = {
@@ -97,7 +111,7 @@ class CloudBaseGateway:
             "updated_at": datetime.now(UTC),
             "version": expected_version + 1,
         }
-        await asyncio.to_thread(self.store.replace, collection, updated, expected_version)
+        await self.store.replace(collection, updated, expected_version)
         return updated
 
     @traced

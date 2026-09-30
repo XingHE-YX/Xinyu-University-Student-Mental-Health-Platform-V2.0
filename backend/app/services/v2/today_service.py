@@ -10,14 +10,13 @@ from pydantic import BaseModel, ConfigDict
 
 from app.infra.config.settings import Settings
 from app.infra.database.common import RepositoryNotFound
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.common import traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.documents import AssessmentResultDocument
 from app.services.v2.mood_service import MoodFact
 from app.services.v2.quote_service import QuoteProjection, QuoteService
+from app.services.v2.repositories import DomainRepository, SessionRepository
 from app.services.v2.support_resource_service import SupportResourceService
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -62,8 +61,8 @@ class TodayService:
         self,
         *,
         settings: Settings,
-        repository: InMemoryDomainDataRepository,
-        session_repository: InMemorySessionRepository,
+        repository: DomainRepository,
+        session_repository: SessionRepository,
         token_manager: TokenManager,
         quote_service: QuoteService,
         support_resource_service: SupportResourceService,
@@ -78,23 +77,23 @@ class TodayService:
         self._now_provider = now_provider
 
     @traced
-    def get_today(
+    async def get_today(
         self,
         access_token: str,
         *,
         previous_quote_id: str | None = None,
     ) -> TodayProjection:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        self._ensure_private_access(subject.subject_id)
+        (await self._ensure_private_access(subject.subject_id))
         today = self._today()
-        mood = self.repository.get_daily_mood_by_user_date(subject.subject_id, today)
-        quote = self.quote_service.get_daily_quote(
+        mood = await self.repository.get_daily_mood_by_user_date(subject.subject_id, today)
+        quote = await self.quote_service.get_daily_quote(
             now=self._now(),
             previous_quote_id=previous_quote_id,
         )
-        resources = self.support_resources.list_resources(context="normal")
+        resources = await self.support_resources.list_resources(context="normal")
         return TodayProjection(
             quote=quote.quote,
             mood_today=MoodFact(
@@ -106,7 +105,7 @@ class TodayService:
             )
             if mood is not None and mood.deleted_at is None
             else None,
-            assessment_shortcuts=self._assessment_shortcuts(subject.subject_id),
+            assessment_shortcuts=(await self._assessment_shortcuts(subject.subject_id)),
             support_entry=SupportEntry(
                 status=resources.status,
                 resource_version=resources.resource_version,
@@ -115,13 +114,13 @@ class TodayService:
         )
 
     @traced
-    def _assessment_shortcuts(self, user_id: str) -> list[AssessmentShortcut]:
+    async def _assessment_shortcuts(self, user_id: str) -> list[AssessmentShortcut]:
         ordinary_results: dict[
             Literal["phq9", "gad7", "sleep_observation"],
             AssessmentResultDocument,
         ] = {}
         safety_entry_required = False
-        for result in self.repository.list_assessment_results_by_user(user_id):
+        for result in await self.repository.list_assessment_results_by_user(user_id):
             if result.result_state == "safety_support":
                 safety_entry_required = True
                 continue
@@ -148,8 +147,8 @@ class TodayService:
         return shortcuts
 
     @traced
-    def _ensure_private_access(self, user_id: str) -> None:
-        user = self.repository.get_user(user_id)
+    async def _ensure_private_access(self, user_id: str) -> None:
+        user = await self.repository.get_user(user_id)
         if user.status != "active":
             raise ApiException(403, "FORBIDDEN")
         if user.base_consent_status != "accepted":
@@ -157,7 +156,7 @@ class TodayService:
         if not user.identity_record_id:
             raise ApiException(403, "IDENTITY_REQUIRED")
         try:
-            identity = self.repository.get_identity_record(user.identity_record_id)
+            identity = await self.repository.get_identity_record(user.identity_record_id)
         except RepositoryNotFound as error:
             raise ApiException(403, "IDENTITY_REQUIRED") from error
         if identity.user_id != user.document_id or identity.verification_status != "verified":

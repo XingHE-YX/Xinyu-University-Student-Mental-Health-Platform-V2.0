@@ -57,21 +57,21 @@ def bearer_token(authorization: str | None) -> str:
     return token.strip()
 
 
-def current_subject(request: Request, authorization: str | None) -> AuthenticatedSubject:
+async def current_subject(request: Request, authorization: str | None) -> AuthenticatedSubject:
     token = bearer_token(authorization)
     service = cast(AuthService, request.app.state.auth_service)
-    return service.authenticate(token)
+    return await service.authenticate(token)
 
 
-def student_subject(request: Request, authorization: str | None) -> AuthenticatedSubject:
-    subject = current_subject(request, authorization)
+async def student_subject(request: Request, authorization: str | None) -> AuthenticatedSubject:
+    subject = await current_subject(request, authorization)
     if subject.subject_type != "student":
         raise ApiException(403, "FORBIDDEN")
     return subject
 
 
-def admin_subject(request: Request, authorization: str | None) -> AuthenticatedSubject:
-    subject = current_subject(request, authorization)
+async def admin_subject(request: Request, authorization: str | None) -> AuthenticatedSubject:
+    subject = await current_subject(request, authorization)
     if subject.subject_type != "admin":
         raise ApiException(403, "FORBIDDEN")
     return subject

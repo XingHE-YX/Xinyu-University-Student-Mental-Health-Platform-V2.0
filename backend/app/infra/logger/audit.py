@@ -46,7 +46,7 @@ class AuditWriter:
         self.environment_id = environment_id
 
     @traced
-    def write(
+    async def write(
         self,
         *,
         request_id: str,
@@ -78,7 +78,7 @@ class AuditWriter:
             occurred_at=occurred_at,
             details=_safe_details(facts or {}),
         )
-        return self.repository.append(event)
+        return await self.repository.append(event)
 
 
 @traced

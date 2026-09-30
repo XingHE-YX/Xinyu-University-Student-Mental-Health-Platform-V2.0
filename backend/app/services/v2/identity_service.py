@@ -18,8 +18,7 @@ from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryVersionConflict,
 )
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.integrations.school_identity import (
     DemoSchoolIdentityProvider,
     HttpSchoolIdentityProvider,
@@ -42,6 +41,7 @@ from app.services.v2.idempotency_service import (
     deserialize_api_error,
     serialize_api_error,
 )
+from app.services.v2.repositories import DomainRepository, SessionRepository
 
 logger = get_logger(__name__)
 
@@ -133,8 +133,8 @@ class IdentityService:
         self,
         *,
         settings: Settings,
-        repository: InMemoryDomainDataRepository,
-        session_repository: InMemorySessionRepository,
+        repository: DomainRepository,
+        session_repository: SessionRepository,
         token_manager: TokenManager,
         school_identity_provider: SchoolIdentityProvider | None = None,
         idempotency_service: IdempotencyService,
@@ -150,6 +150,9 @@ class IdentityService:
         self.audit = audit_writer
         self._identity_secret = settings.session_secret or secrets.token_urlsafe(32)
         self.identity_cipher = identity_cipher or HmacIdentityCipher(self._identity_secret)
+        share_memory_transaction(
+            self.repository, self.idempotency.repository, self.audit.repository, self.sessions
+        )
 
     @traced
     async def verify_student_identity(
@@ -162,7 +165,7 @@ class IdentityService:
         request_id: str,
         idempotency_key: str,
     ) -> IdentityVerificationState:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
         if not isinstance(student_name, str) or not student_name.strip():
@@ -171,7 +174,7 @@ class IdentityService:
             raise ApiException(422, "VALIDATION_FAILED")
         student_name = student_name.strip()
         student_number = student_number.strip()
-        reservation = self.idempotency.begin(
+        reservation = await self.idempotency.begin(
             "student",
             subject.subject_id,
             "/identity/verify",
@@ -187,181 +190,187 @@ class IdentityService:
             return _verification_state_from_digest(reservation.record.response_digest)
 
         try:
-            user = self.repository.get_user(subject.subject_id)
-            if user.status != "active":
-                raise ApiException(403, "FORBIDDEN")
-            if user.base_consent_status != "accepted":
-                raise ApiException(403, "CONSENT_REQUIRED")
-            if user.version != user_version:
-                raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
-
-            existing_record = _get_bound_identity_record(self.repository, user)
-            if user.identity_record_id is not None and existing_record is None:
-                raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
-            if existing_record is not None and existing_record.verification_status in {
-                "pending",
-                "verified",
-            }:
-                raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
-
-            result = await _verify_school_identity(
-                self.school,
-                student_name=student_name,
-                student_number=student_number,
-            )
-            current = datetime.now(UTC)
-            with self.repository.transaction():
-                current_user = self.repository.get_user(subject.subject_id)
-                if current_user.status != "active":
+            async with self.repository.transaction():
+                user = await self.repository.get_user(subject.subject_id)
+                if user.status != "active":
                     raise ApiException(403, "FORBIDDEN")
-                if current_user.base_consent_status != "accepted":
+                if user.base_consent_status != "accepted":
                     raise ApiException(403, "CONSENT_REQUIRED")
-                if current_user.version != user_version:
-                    raise ApiException(
-                        409,
-                        "VERSION_CONFLICT",
-                        current_version=current_user.version,
-                    )
-                if current_user.identity_record_id != user.identity_record_id:
-                    raise ApiException(
-                        409,
-                        "VERSION_CONFLICT",
-                        current_version=current_user.version,
-                    )
+                if user.version != user_version:
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
 
-                current_record = _get_bound_identity_record(self.repository, current_user)
-                if current_user.identity_record_id is not None and current_record is None:
-                    raise ApiException(
-                        409,
-                        "VERSION_CONFLICT",
-                        current_version=current_user.version,
-                    )
-                if existing_record is None:
-                    if current_record is not None:
+                existing_record = await _get_bound_identity_record(self.repository, user)
+                if user.identity_record_id is not None and existing_record is None:
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
+                if existing_record is not None and existing_record.verification_status in {
+                    "pending",
+                    "verified",
+                }:
+                    raise ApiException(409, "VERSION_CONFLICT", current_version=user.version)
+
+                result = await _verify_school_identity(
+                    self.school,
+                    student_name=student_name,
+                    student_number=student_number,
+                )
+                current = datetime.now(UTC)
+                async with self.repository.transaction():
+                    current_user = await self.repository.get_user(subject.subject_id)
+                    if current_user.status != "active":
+                        raise ApiException(403, "FORBIDDEN")
+                    if current_user.base_consent_status != "accepted":
+                        raise ApiException(403, "CONSENT_REQUIRED")
+                    if current_user.version != user_version:
                         raise ApiException(
                             409,
                             "VERSION_CONFLICT",
                             current_version=current_user.version,
                         )
-                elif (
-                    current_record is None
-                    or current_record.document_id != existing_record.document_id
-                    or current_record.version != existing_record.version
-                ):
-                    raise ApiException(
-                        409,
-                        "VERSION_CONFLICT",
-                        current_version=current_user.version,
-                    )
-                if current_record is not None and current_record.verification_status in {
-                    "pending",
-                    "verified",
-                }:
-                    raise ApiException(
-                        409,
-                        "VERSION_CONFLICT",
-                        current_version=current_user.version,
-                    )
+                    if current_user.identity_record_id != user.identity_record_id:
+                        raise ApiException(
+                            409,
+                            "VERSION_CONFLICT",
+                            current_version=current_user.version,
+                        )
 
-                identity_record = _build_identity_record(
-                    repository=self.repository,
-                    user_id=current_user.document_id,
-                    verification=result,
-                    occurred_at=current,
-                    cipher=self.identity_cipher,
-                    student_name=student_name,
-                    student_number=student_number,
-                    existing_record=current_record,
-                )
-                if current_record is None:
-                    saved_identity = self.repository.create_identity_record(identity_record)
-                else:
-                    saved_identity = self.repository.save_identity_record(
-                        identity_record,
-                        expected_version=current_record.version,
-                    )
+                    current_record = await _get_bound_identity_record(self.repository, current_user)
+                    if current_user.identity_record_id is not None and current_record is None:
+                        raise ApiException(
+                            409,
+                            "VERSION_CONFLICT",
+                            current_version=current_user.version,
+                        )
+                    if existing_record is None:
+                        if current_record is not None:
+                            raise ApiException(
+                                409,
+                                "VERSION_CONFLICT",
+                                current_version=current_user.version,
+                            )
+                    elif (
+                        current_record is None
+                        or current_record.document_id != existing_record.document_id
+                        or current_record.version != existing_record.version
+                    ):
+                        raise ApiException(
+                            409,
+                            "VERSION_CONFLICT",
+                            current_version=current_user.version,
+                        )
+                    if current_record is not None and current_record.verification_status in {
+                        "pending",
+                        "verified",
+                    }:
+                        raise ApiException(
+                            409,
+                            "VERSION_CONFLICT",
+                            current_version=current_user.version,
+                        )
 
-                anonymous_id = current_user.anonymous_identity_id
-                if result.status == "verified" and anonymous_id is None:
-                    anonymous = AnonymousIdentityDocument(
-                        _id=self.repository.next_anonymous_identity_id(),
+                    identity_record = await _build_identity_record(
+                        repository=self.repository,
                         user_id=current_user.document_id,
-                        display_name=_generate_display_name(current_user.document_id),
-                        generation_version=self.ANONYMOUS_GENERATION_VERSION,
-                        status="active",
-                        created_at=current,
-                        updated_at=current,
-                        version=1,
+                        verification=result,
+                        occurred_at=current,
+                        cipher=self.identity_cipher,
+                        student_name=student_name,
+                        student_number=student_number,
+                        existing_record=current_record,
                     )
-                    self.repository.create_anonymous_identity(anonymous)
-                    anonymous_id = anonymous.document_id
-                saved_user = self.repository.save_user(
-                    current_user.model_copy(
-                        update={
-                            "identity_record_id": saved_identity.document_id,
-                            "anonymous_identity_id": anonymous_id,
-                        }
-                    ),
-                    expected_version=current_user.version,
+                    if current_record is None:
+                        saved_identity = await self.repository.create_identity_record(
+                            identity_record
+                        )
+                    else:
+                        saved_identity = await self.repository.save_identity_record(
+                            identity_record,
+                            expected_version=current_record.version,
+                        )
+
+                    anonymous_id = current_user.anonymous_identity_id
+                    if result.status == "verified" and anonymous_id is None:
+                        anonymous = AnonymousIdentityDocument(
+                            _id=(await self.repository.next_anonymous_identity_id()),
+                            user_id=current_user.document_id,
+                            display_name=_generate_display_name(current_user.document_id),
+                            generation_version=self.ANONYMOUS_GENERATION_VERSION,
+                            status="active",
+                            created_at=current,
+                            updated_at=current,
+                            version=1,
+                        )
+                        (await self.repository.create_anonymous_identity(anonymous))
+                        anonymous_id = anonymous.document_id
+                    saved_user = await self.repository.save_user(
+                        current_user.model_copy(
+                            update={
+                                "identity_record_id": saved_identity.document_id,
+                                "anonymous_identity_id": anonymous_id,
+                            }
+                        ),
+                        expected_version=current_user.version,
+                    )
+                    state = IdentityVerificationState(
+                        verification_status=saved_identity.verification_status,
+                        identity_record_id=saved_identity.document_id,
+                        anonymous_identity_id=saved_user.anonymous_identity_id,
+                    )
+                response_digest = json.dumps(
+                    asdict(state),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
                 )
-                state = IdentityVerificationState(
-                    verification_status=saved_identity.verification_status,
-                    identity_record_id=saved_identity.document_id,
-                    anonymous_identity_id=saved_user.anonymous_identity_id,
+                (
+                    await self.idempotency.complete(
+                        reservation, status_code=200, response_digest=response_digest
+                    )
                 )
-            response_digest = json.dumps(
-                asdict(state),
-                ensure_ascii=False,
-                sort_keys=True,
-                separators=(",", ":"),
-            )
-            self.idempotency.complete(reservation, status_code=200, response_digest=response_digest)
+                (
+                    await self.audit.write(
+                        request_id=request_id,
+                        actor_type="student",
+                        actor_id=subject.subject_id,
+                        capability=None,
+                        action="identity_verification",
+                        resource_type="identity",
+                        resource_id=saved_identity.document_id,
+                        data_scope="necessary_facts",
+                        outcome="success",
+                        reason_code=result.status,
+                        occurred_at=current,
+                        facts={
+                            "action_code": "verify",
+                            "object_version": saved_identity.version,
+                            "status": saved_identity.verification_status,
+                        },
+                    )
+                )
         except RepositoryVersionConflict as error:
             conflict = ApiException(409, "VERSION_CONFLICT", current_version=error.current_version)
-            _complete_failure(self.idempotency, reservation, conflict)
+            (await _complete_failure(self.idempotency, reservation, conflict))
             raise conflict from error
         except RepositoryError as error:
             failure = _repository_failure(error)
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
         except ApiException as error:
-            _complete_failure(self.idempotency, reservation, error)
+            (await _complete_failure(self.idempotency, reservation, error))
             raise
         except Exception as error:
             failure = ApiException(500, "INTERNAL_ERROR")
-            _complete_failure(self.idempotency, reservation, failure)
+            (await _complete_failure(self.idempotency, reservation, failure))
             raise failure from error
 
-        try:
-            self.audit.write(
-                request_id=request_id,
-                actor_type="student",
-                actor_id=subject.subject_id,
-                capability=None,
-                action="identity_verification",
-                resource_type="identity",
-                resource_id=saved_identity.document_id,
-                data_scope="necessary_facts",
-                outcome="success",
-                reason_code=result.status,
-                occurred_at=current,
-                facts={
-                    "action_code": "verify",
-                    "object_version": saved_identity.version,
-                    "status": saved_identity.verification_status,
-                },
-            )
-        except Exception:
-            logger.warning("audit_write_failed")
         return state
 
     @traced
-    def get_identity_status(self, access_token: str) -> dict[str, str]:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+    async def get_identity_status(self, access_token: str) -> dict[str, str]:
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        user = self.repository.get_user(subject.subject_id)
-        record = _get_bound_identity_record(self.repository, user)
+        user = await self.repository.get_user(subject.subject_id)
+        record = await _get_bound_identity_record(self.repository, user)
         verification_status: IdentityVerificationStatus = (
             record.verification_status if record is not None else "not_started"
         )
@@ -371,14 +380,14 @@ class IdentityService:
         }
 
     @traced
-    def get_verification(
+    async def get_verification(
         self, access_token: str, verification_id: str
     ) -> dict[str, str | int | None]:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        user = self.repository.get_user(subject.subject_id)
-        record = _get_bound_identity_record(self.repository, user)
+        user = await self.repository.get_user(subject.subject_id)
+        record = await _get_bound_identity_record(self.repository, user)
         if record is None or record.document_id != verification_id:
             raise ApiException(404, "NOT_FOUND")
         return {
@@ -388,15 +397,15 @@ class IdentityService:
         }
 
     @traced
-    def get_anonymous_identity(self, access_token: str) -> dict[str, str]:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+    async def get_anonymous_identity(self, access_token: str) -> dict[str, str]:
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        user = self.repository.get_user(subject.subject_id)
+        user = await self.repository.get_user(subject.subject_id)
         if not user.anonymous_identity_id:
             raise ApiException(404, "NOT_FOUND")
         try:
-            anonymous = self.repository.get_anonymous_identity(user.anonymous_identity_id)
+            anonymous = await self.repository.get_anonymous_identity(user.anonymous_identity_id)
         except RepositoryNotFound as error:
             raise ApiException(404, "NOT_FOUND") from error
         if anonymous.user_id != user.document_id:
@@ -421,9 +430,9 @@ class IdentityService:
 
 
 @traced
-def _build_identity_record(
+async def _build_identity_record(
     *,
-    repository: InMemoryDomainDataRepository,
+    repository: DomainRepository,
     user_id: str,
     verification: SchoolIdentityVerificationResult,
     occurred_at: datetime,
@@ -435,7 +444,7 @@ def _build_identity_record(
     failed_reason_code = _safe_failed_reason_code(verification)
     if existing_record is None:
         return IdentityRecordDocument(
-            _id=repository.next_identity_record_id(),
+            _id=(await repository.next_identity_record_id()),
             user_id=user_id,
             verification_status=verification.status,
             student_name_ciphertext=(
@@ -520,28 +529,30 @@ def _keyed_digest(secret: str, field_name: str, value: str) -> str:
 
 
 @traced
-def _complete_failure(
+async def _complete_failure(
     idempotency: IdempotencyService,
     reservation: IdempotencyReservation,
     error: ApiException,
 ) -> None:
-    idempotency.complete(
-        reservation,
-        status_code=error.status_code,
-        response_digest=serialize_api_error(error),
-        outcome="failure",
+    (
+        await idempotency.complete(
+            reservation,
+            status_code=error.status_code,
+            response_digest=serialize_api_error(error),
+            outcome="failure",
+        )
     )
 
 
 @traced
-def _get_bound_identity_record(
-    repository: InMemoryDomainDataRepository,
+async def _get_bound_identity_record(
+    repository: DomainRepository,
     user: UserAccountDocument,
 ) -> IdentityRecordDocument | None:
     if not user.identity_record_id:
         return None
     try:
-        record = repository.get_identity_record(user.identity_record_id)
+        record = await repository.get_identity_record(user.identity_record_id)
     except RepositoryNotFound:
         return None
     if record.user_id != user.document_id:

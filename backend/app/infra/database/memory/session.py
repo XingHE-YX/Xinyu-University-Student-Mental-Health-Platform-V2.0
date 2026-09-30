@@ -1,31 +1,14 @@
 """Server-side session records; raw access and refresh tokens are never stored."""
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import datetime
-from threading import RLock
-from typing import Literal
 
+from app.infra.database.memory.transaction import MemoryUnitOfWork
+from app.infra.database.records import AuthSessionRecord as AuthSessionRecord
+from app.infra.database.records import SessionStatus as SessionStatus
+from app.infra.database.records import SubjectType as SubjectType
 from app.infra.logger.common import traced
-
-SubjectType = Literal["student", "admin"]
-SessionStatus = Literal["active", "revoked"]
-
-
-@dataclass(frozen=True, slots=True)
-class AuthSessionRecord:
-    session_id: str
-    subject_type: SubjectType
-    subject_id: str
-    capability: str | None
-    access_token_hash: str
-    refresh_token_hash: str
-    access_expires_at: datetime
-    refresh_expires_at: datetime
-    status: SessionStatus
-    created_at: datetime
-    updated_at: datetime
-    version: int = 1
-    credential_version: str | None = None
+from app.infra.serializer.error.common import ApiException
 
 
 class InMemorySessionRepository:
@@ -33,44 +16,47 @@ class InMemorySessionRepository:
         self._records: dict[str, AuthSessionRecord] = {}
         self._access_index: dict[str, str] = {}
         self._refresh_index: dict[str, str] = {}
-        self._lock = RLock()
+        self._lock = MemoryUnitOfWork()
+        self._lock.register(self)
 
     @traced
-    def save(self, record: AuthSessionRecord) -> None:
-        with self._lock:
+    async def save(self, record: AuthSessionRecord) -> None:
+        async with self._lock:
             self._records[record.session_id] = record
             self._access_index[record.access_token_hash] = record.session_id
             self._refresh_index[record.refresh_token_hash] = record.session_id
 
     @traced
-    def replace(self, record: AuthSessionRecord) -> None:
-        with self._lock:
+    async def replace(self, record: AuthSessionRecord) -> None:
+        async with self._lock:
             old = self._records.get(record.session_id)
+            if old is None or old.version != record.version - 1 or old.status != "active":
+                raise ApiException(401, "SESSION_EXPIRED")
             if old is not None:
                 self._access_index.pop(old.access_token_hash, None)
                 self._refresh_index.pop(old.refresh_token_hash, None)
-            self.save(record)
+            (await self.save(record))
 
     @traced
-    def get_by_session_id(self, session_id: str) -> AuthSessionRecord | None:
-        with self._lock:
+    async def get_by_session_id(self, session_id: str) -> AuthSessionRecord | None:
+        async with self._lock:
             return self._records.get(session_id)
 
     @traced
-    def get_by_access_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
-        with self._lock:
+    async def get_by_access_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
+        async with self._lock:
             session_id = self._access_index.get(token_hash)
             return self._records.get(session_id) if session_id else None
 
     @traced
-    def get_by_refresh_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
-        with self._lock:
+    async def get_by_refresh_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
+        async with self._lock:
             session_id = self._refresh_index.get(token_hash)
             return self._records.get(session_id) if session_id else None
 
     @traced
-    def revoke(self, session_id: str, *, now: datetime) -> AuthSessionRecord | None:
-        with self._lock:
+    async def revoke(self, session_id: str, *, now: datetime) -> AuthSessionRecord | None:
+        async with self._lock:
             record = self._records.get(session_id)
             if record is None:
                 return None

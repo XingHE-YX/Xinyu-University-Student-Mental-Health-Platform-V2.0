@@ -3,8 +3,6 @@ from __future__ import annotations
 from typing import Literal, cast
 
 from app.infra.config.settings import Settings
-from app.infra.database.memory.domain import InMemoryDomainDataRepository
-from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.logger.common import traced
 from app.infra.security.tokens import TokenManager
 from app.infra.serializer.error.common import ApiException
@@ -14,6 +12,7 @@ from app.models.v2.responses.student_core import (
     ConsentProjection,
 )
 from app.services.v2.identity_service import IdentityService
+from app.services.v2.repositories import DomainRepository, SessionRepository
 from app.services.v2.today_service import TodayService
 
 
@@ -22,8 +21,8 @@ class BootstrapService:
         self,
         *,
         settings: Settings,
-        repository: InMemoryDomainDataRepository,
-        session_repository: InMemorySessionRepository,
+        repository: DomainRepository,
+        session_repository: SessionRepository,
         token_manager: TokenManager,
         identity_service: IdentityService,
         today_service: TodayService | None = None,
@@ -36,19 +35,19 @@ class BootstrapService:
         self.today = today_service
 
     @traced
-    def get(self, access_token: str) -> BootstrapProjection:
-        subject = self.tokens.authenticate_access(access_token, self.sessions)
+    async def get(self, access_token: str) -> BootstrapProjection:
+        subject = await self.tokens.authenticate_access(access_token, self.sessions)
         if subject.subject_type != "student":
             raise ApiException(403, "FORBIDDEN")
-        user = self.repository.get_user(subject.subject_id)
+        user = await self.repository.get_user(subject.subject_id)
         identity_status = cast(
             Literal["unverified", "pending", "verified"],
-            self.identity.get_identity_status(access_token)["identity_status"],
+            (await self.identity.get_identity_status(access_token))["identity_status"],
         )
         anonymous = None
         if user.anonymous_identity_id:
             try:
-                item = self.repository.get_anonymous_identity(user.anonymous_identity_id)
+                item = await self.repository.get_anonymous_identity(user.anonymous_identity_id)
                 if item.user_id == user.document_id:
                     anonymous = AnonymousIdentityProjection(
                         anonymous_identity_id=item.document_id,
@@ -63,7 +62,7 @@ class BootstrapService:
         today_summary = None
         if complete and self.today is not None and identity_status == "verified":
             try:
-                today_summary = self.today.get_today(access_token).model_dump(mode="json")
+                today_summary = (await self.today.get_today(access_token)).model_dump(mode="json")
             except Exception:
                 today_summary = None
         raw_community_status = user.community_consent_status

@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping
-from contextlib import contextmanager
+from collections.abc import AsyncIterator, Mapping
+from contextlib import asynccontextmanager
 from copy import deepcopy
-from dataclasses import dataclass
 from datetime import UTC, datetime
-from threading import RLock
 from typing import Any
 
 from app.infra.database.common import RepositoryNotFound, RepositoryVersionConflict
+from app.infra.database.memory.transaction import MemoryUnitOfWork
 from app.infra.logger.common import traced
 from app.models.v2.documents import (
     AnonymousIdentityDocument,
@@ -30,38 +29,6 @@ from app.models.v2.documents import (
     UserAccountDocument,
     WorkTaskDocument,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class _DomainDataSnapshot:
-    users: dict[str, UserAccountDocument]
-    consents: dict[str, ConsentEventDocument]
-    identities: dict[str, IdentityRecordDocument]
-    anonymous: dict[str, AnonymousIdentityDocument]
-    assessment_modules: dict[str, AssessmentModuleDocument]
-    assessment_questionnaires: dict[tuple[str, str], AssessmentQuestionnaireDocument]
-    assessment_sessions: dict[str, AssessmentSessionDocument]
-    assessment_results: dict[str, AssessmentResultDocument]
-    daily_moods: dict[str, DailyMoodRecordDocument]
-    quote_entries: dict[str, QuoteEntryDocument]
-    support_resources: dict[str, SupportResourceDocument]
-    safety_support_tasks: dict[str, SafetySupportTaskDocument]
-    work_tasks: dict[str, WorkTaskDocument]
-    treehole_posts: dict[str, TreeholePostDocument]
-    treehole_responses: dict[str, TreeholeResponseDocument]
-    extra_collections: dict[str, list[dict[str, Any]]]
-    identity_counter: int
-    consent_counter: int
-    anonymous_counter: int
-    assessment_session_counter: int
-    assessment_result_counter: int
-    daily_mood_counter: int
-    safety_support_task_counter: int
-    work_task_counter: int
-    treehole_post_counter: int
-    treehole_response_counter: int
-    identity_access_requests: dict[str, IdentityAccessRequestDocument]
-    identity_access_request_counter: int
 
 
 class InMemoryDomainDataRepository:
@@ -86,7 +53,8 @@ class InMemoryDomainDataRepository:
         identity_access_requests: list[IdentityAccessRequestDocument] | None = None,
         extra_collections: Mapping[str, list[Mapping[str, Any]]] | None = None,
     ) -> None:
-        self._lock = RLock()
+        self._lock = MemoryUnitOfWork()
+        self._lock.register(self)
         self._users = {user.document_id: user for user in users or []}
         self._consents = {consent.document_id: consent for consent in consents or []}
         self._identities = {identity.document_id: identity for identity in identities or []}
@@ -137,112 +105,45 @@ class InMemoryDomainDataRepository:
         self._treehole_response_counter = len(self._treehole_responses)
         self._identity_access_request_counter = len(self._identity_access_requests)
 
-    @contextmanager
-    def transaction(self) -> Iterator[None]:
+    @asynccontextmanager
+    async def transaction(self) -> AsyncIterator[None]:
         """Run a domain write atomically across all in-memory collections."""
 
-        with self._lock:
-            snapshot = self._snapshot()
-            try:
-                yield
-            except BaseException:
-                self._restore(snapshot)
-                raise
+        async with self._lock.transaction():
+            yield
 
     @traced
-    def _snapshot(self) -> _DomainDataSnapshot:
-        return _DomainDataSnapshot(
-            users=deepcopy(self._users),
-            consents=deepcopy(self._consents),
-            identities=deepcopy(self._identities),
-            anonymous=deepcopy(self._anonymous),
-            assessment_modules=deepcopy(self._assessment_modules),
-            assessment_questionnaires=deepcopy(self._assessment_questionnaires),
-            assessment_sessions=deepcopy(self._assessment_sessions),
-            assessment_results=deepcopy(self._assessment_results),
-            daily_moods=deepcopy(self._daily_moods),
-            quote_entries=deepcopy(self._quote_entries),
-            support_resources=deepcopy(self._support_resources),
-            safety_support_tasks=deepcopy(self._safety_support_tasks),
-            work_tasks=deepcopy(self._work_tasks),
-            treehole_posts=deepcopy(self._treehole_posts),
-            treehole_responses=deepcopy(self._treehole_responses),
-            extra_collections=deepcopy(self._extra_collections),
-            identity_counter=self._identity_counter,
-            consent_counter=self._consent_counter,
-            anonymous_counter=self._anonymous_counter,
-            assessment_session_counter=self._assessment_session_counter,
-            assessment_result_counter=self._assessment_result_counter,
-            daily_mood_counter=self._daily_mood_counter,
-            safety_support_task_counter=self._safety_support_task_counter,
-            work_task_counter=self._work_task_counter,
-            treehole_post_counter=self._treehole_post_counter,
-            treehole_response_counter=self._treehole_response_counter,
-            identity_access_requests=deepcopy(self._identity_access_requests),
-            identity_access_request_counter=self._identity_access_request_counter,
-        )
-
-    @traced
-    def _restore(self, snapshot: _DomainDataSnapshot) -> None:
-        self._users = snapshot.users
-        self._consents = snapshot.consents
-        self._identities = snapshot.identities
-        self._anonymous = snapshot.anonymous
-        self._assessment_modules = snapshot.assessment_modules
-        self._assessment_questionnaires = snapshot.assessment_questionnaires
-        self._assessment_sessions = snapshot.assessment_sessions
-        self._assessment_results = snapshot.assessment_results
-        self._daily_moods = snapshot.daily_moods
-        self._quote_entries = snapshot.quote_entries
-        self._support_resources = snapshot.support_resources
-        self._safety_support_tasks = snapshot.safety_support_tasks
-        self._work_tasks = snapshot.work_tasks
-        self._treehole_posts = snapshot.treehole_posts
-        self._treehole_responses = snapshot.treehole_responses
-        self._extra_collections = snapshot.extra_collections
-        self._identity_counter = snapshot.identity_counter
-        self._consent_counter = snapshot.consent_counter
-        self._anonymous_counter = snapshot.anonymous_counter
-        self._assessment_session_counter = snapshot.assessment_session_counter
-        self._assessment_result_counter = snapshot.assessment_result_counter
-        self._daily_mood_counter = snapshot.daily_mood_counter
-        self._safety_support_task_counter = snapshot.safety_support_task_counter
-        self._work_task_counter = snapshot.work_task_counter
-        self._treehole_post_counter = snapshot.treehole_post_counter
-        self._treehole_response_counter = snapshot.treehole_response_counter
-        self._identity_access_requests = snapshot.identity_access_requests
-        self._identity_access_request_counter = snapshot.identity_access_request_counter
-
-    @traced
-    def get_user(self, user_id: str) -> UserAccountDocument:
-        with self._lock:
+    async def get_user(self, user_id: str) -> UserAccountDocument:
+        async with self._lock:
             try:
                 return self._users[user_id]
             except KeyError as error:
                 raise RepositoryNotFound("user not found") from error
 
     @traced
-    def get_user_by_auth_subject_hash(self, subject_hash: str) -> UserAccountDocument | None:
-        with self._lock:
+    async def get_user_by_auth_subject_hash(self, subject_hash: str) -> UserAccountDocument | None:
+        async with self._lock:
             return next(
                 (user for user in self._users.values() if user.auth_subject_hash == subject_hash),
                 None,
             )
 
     @traced
-    def create_user(self, user: UserAccountDocument) -> UserAccountDocument:
-        with self._lock:
+    async def create_user(self, user: UserAccountDocument) -> UserAccountDocument:
+        async with self._lock:
             if user.document_id in self._users:
                 raise RepositoryVersionConflict(self._users[user.document_id].version)
-            if self.get_user_by_auth_subject_hash(user.auth_subject_hash) is not None:
+            if (await self.get_user_by_auth_subject_hash(user.auth_subject_hash)) is not None:
                 raise RepositoryVersionConflict(1)
             self._users[user.document_id] = user
             return user
 
     @traced
-    def save_user(self, user: UserAccountDocument, *, expected_version: int) -> UserAccountDocument:
-        with self._lock:
-            current = self.get_user(user.document_id)
+    async def save_user(
+        self, user: UserAccountDocument, *, expected_version: int
+    ) -> UserAccountDocument:
+        async with self._lock:
+            current = await self.get_user(user.document_id)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = user.model_copy(
@@ -255,33 +156,35 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def append_consent_event(self, consent: ConsentEventDocument) -> ConsentEventDocument:
-        with self._lock:
+    async def append_consent_event(self, consent: ConsentEventDocument) -> ConsentEventDocument:
+        async with self._lock:
             self._consents[consent.document_id] = consent
             return consent
 
     @traced
-    def list_consent_events(self, user_id: str) -> tuple[ConsentEventDocument, ...]:
-        with self._lock:
+    async def list_consent_events(self, user_id: str) -> tuple[ConsentEventDocument, ...]:
+        async with self._lock:
             events = [event for event in self._consents.values() if event.user_id == user_id]
             events.sort(key=lambda event: (event.occurred_at, event.document_id))
             return tuple(events)
 
     @traced
-    def create_identity_record(self, identity: IdentityRecordDocument) -> IdentityRecordDocument:
-        with self._lock:
+    async def create_identity_record(
+        self, identity: IdentityRecordDocument
+    ) -> IdentityRecordDocument:
+        async with self._lock:
             self._identities[identity.document_id] = identity
             return identity
 
     @traced
-    def save_identity_record(
+    async def save_identity_record(
         self,
         identity: IdentityRecordDocument,
         *,
         expected_version: int,
     ) -> IdentityRecordDocument:
-        with self._lock:
-            current = self.get_identity_record(identity.document_id)
+        async with self._lock:
+            current = await self.get_identity_record(identity.document_id)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = identity.model_copy(
@@ -294,52 +197,54 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def get_identity_record(self, identity_record_id: str) -> IdentityRecordDocument:
-        with self._lock:
+    async def get_identity_record(self, identity_record_id: str) -> IdentityRecordDocument:
+        async with self._lock:
             try:
                 return self._identities[identity_record_id]
             except KeyError as error:
                 raise RepositoryNotFound("identity record not found") from error
 
     @traced
-    def get_identity_record_by_user(self, user_id: str) -> IdentityRecordDocument | None:
-        with self._lock:
+    async def get_identity_record_by_user(self, user_id: str) -> IdentityRecordDocument | None:
+        async with self._lock:
             for record in self._identities.values():
                 if record.user_id == user_id:
                     return record
             return None
 
     @traced
-    def create_anonymous_identity(
+    async def create_anonymous_identity(
         self,
         anonymous_identity: AnonymousIdentityDocument,
     ) -> AnonymousIdentityDocument:
-        with self._lock:
+        async with self._lock:
             self._anonymous[anonymous_identity.document_id] = anonymous_identity
             return anonymous_identity
 
     @traced
-    def get_anonymous_identity(self, anonymous_identity_id: str) -> AnonymousIdentityDocument:
-        with self._lock:
+    async def get_anonymous_identity(self, anonymous_identity_id: str) -> AnonymousIdentityDocument:
+        async with self._lock:
             try:
                 return self._anonymous[anonymous_identity_id]
             except KeyError as error:
                 raise RepositoryNotFound("anonymous identity not found") from error
 
     @traced
-    def get_active_anonymous_identity_by_user(
+    async def get_active_anonymous_identity_by_user(
         self,
         user_id: str,
     ) -> AnonymousIdentityDocument | None:
-        with self._lock:
+        async with self._lock:
             for identity in self._anonymous.values():
                 if identity.user_id == user_id and identity.status == "active":
                     return identity
             return None
 
     @traced
-    def list_anonymous_identities(self, user_id: str) -> tuple[AnonymousIdentityDocument, ...]:
-        with self._lock:
+    async def list_anonymous_identities(
+        self, user_id: str
+    ) -> tuple[AnonymousIdentityDocument, ...]:
+        async with self._lock:
             identities = [
                 identity for identity in self._anonymous.values() if identity.user_id == user_id
             ]
@@ -347,40 +252,40 @@ class InMemoryDomainDataRepository:
             return tuple(identities)
 
     @traced
-    def next_consent_id(self) -> str:
-        with self._lock:
+    async def next_consent_id(self) -> str:
+        async with self._lock:
             self._consent_counter += 1
             return f"consent_{self._consent_counter:04d}"
 
     @traced
-    def next_identity_record_id(self) -> str:
-        with self._lock:
+    async def next_identity_record_id(self) -> str:
+        async with self._lock:
             self._identity_counter += 1
             return f"identity_{self._identity_counter:04d}"
 
     @traced
-    def next_anonymous_identity_id(self) -> str:
-        with self._lock:
+    async def next_anonymous_identity_id(self) -> str:
+        async with self._lock:
             self._anonymous_counter += 1
             return f"anonymous_{self._anonymous_counter:04d}"
 
     @traced
-    def get_assessment_module(self, module_code: str) -> AssessmentModuleDocument:
-        with self._lock:
+    async def get_assessment_module(self, module_code: str) -> AssessmentModuleDocument:
+        async with self._lock:
             try:
                 return self._assessment_modules[module_code]
             except KeyError as error:
                 raise RepositoryNotFound("assessment module not found") from error
 
     @traced
-    def replace_assessment_module(
+    async def replace_assessment_module(
         self,
         module: AssessmentModuleDocument,
         *,
         expected_version: int,
     ) -> AssessmentModuleDocument:
-        with self._lock:
-            current = self.get_assessment_module(module.module_code)
+        async with self._lock:
+            current = await self.get_assessment_module(module.module_code)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = module.model_copy(
@@ -390,12 +295,12 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def get_assessment_questionnaire(
+    async def get_assessment_questionnaire(
         self,
         module_code: str,
         questionnaire_version: str,
     ) -> AssessmentQuestionnaireDocument:
-        with self._lock:
+        async with self._lock:
             key = (module_code, questionnaire_version)
             try:
                 return self._assessment_questionnaires[key]
@@ -403,30 +308,30 @@ class InMemoryDomainDataRepository:
                 raise RepositoryNotFound("assessment questionnaire not found") from error
 
     @traced
-    def create_assessment_session(
+    async def create_assessment_session(
         self, session: AssessmentSessionDocument
     ) -> AssessmentSessionDocument:
-        with self._lock:
+        async with self._lock:
             self._assessment_sessions[session.document_id] = session
             return session
 
     @traced
-    def get_assessment_session(self, session_id: str) -> AssessmentSessionDocument:
-        with self._lock:
+    async def get_assessment_session(self, session_id: str) -> AssessmentSessionDocument:
+        async with self._lock:
             try:
                 return self._assessment_sessions[session_id]
             except KeyError as error:
                 raise RepositoryNotFound("assessment session not found") from error
 
     @traced
-    def save_assessment_session(
+    async def save_assessment_session(
         self,
         session: AssessmentSessionDocument,
         *,
         expected_version: int,
     ) -> AssessmentSessionDocument:
-        with self._lock:
-            current = self.get_assessment_session(session.document_id)
+        async with self._lock:
+            current = await self.get_assessment_session(session.document_id)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = session.model_copy(
@@ -436,44 +341,44 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def create_assessment_result(
+    async def create_assessment_result(
         self,
         result: AssessmentResultDocument,
     ) -> AssessmentResultDocument:
-        with self._lock:
-            if self.get_assessment_result_by_session(result.session_id) is not None:
+        async with self._lock:
+            if (await self.get_assessment_result_by_session(result.session_id)) is not None:
                 raise RepositoryVersionConflict(1)
             self._assessment_results[result.document_id] = result
             return result
 
     @traced
-    def get_assessment_result(self, result_id: str) -> AssessmentResultDocument:
-        with self._lock:
+    async def get_assessment_result(self, result_id: str) -> AssessmentResultDocument:
+        async with self._lock:
             try:
                 return self._assessment_results[result_id]
             except KeyError as error:
                 raise RepositoryNotFound("assessment result not found") from error
 
     @traced
-    def get_assessment_result_by_session(
+    async def get_assessment_result_by_session(
         self,
         session_id: str,
     ) -> AssessmentResultDocument | None:
-        with self._lock:
+        async with self._lock:
             for result in self._assessment_results.values():
                 if result.session_id == session_id:
                     return result
             return None
 
     @traced
-    def save_assessment_result(
+    async def save_assessment_result(
         self,
         result: AssessmentResultDocument,
         *,
         expected_version: int,
     ) -> AssessmentResultDocument:
-        with self._lock:
-            current = self.get_assessment_result(result.document_id)
+        async with self._lock:
+            current = await self.get_assessment_result(result.document_id)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = result.model_copy(
@@ -483,11 +388,11 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def list_assessment_results_by_session(
+    async def list_assessment_results_by_session(
         self,
         session_id: str,
     ) -> tuple[AssessmentResultDocument, ...]:
-        with self._lock:
+        async with self._lock:
             results = [
                 result
                 for result in self._assessment_results.values()
@@ -497,11 +402,11 @@ class InMemoryDomainDataRepository:
             return tuple(results)
 
     @traced
-    def list_assessment_results_by_user(
+    async def list_assessment_results_by_user(
         self,
         user_id: str,
     ) -> tuple[AssessmentResultDocument, ...]:
-        with self._lock:
+        async with self._lock:
             results = [
                 result
                 for result in self._assessment_results.values()
@@ -511,40 +416,40 @@ class InMemoryDomainDataRepository:
             return tuple(results)
 
     @traced
-    def create_daily_mood_record(
+    async def create_daily_mood_record(
         self,
         record: DailyMoodRecordDocument,
     ) -> DailyMoodRecordDocument:
-        with self._lock:
-            existing = self.get_daily_mood_by_user_date(record.user_id, record.record_date)
+        async with self._lock:
+            existing = await self.get_daily_mood_by_user_date(record.user_id, record.record_date)
             if existing is not None:
                 raise RepositoryVersionConflict(existing.version)
             self._daily_moods[record.document_id] = record
             return record
 
     @traced
-    def get_daily_mood(self, record_id: str) -> DailyMoodRecordDocument:
-        with self._lock:
+    async def get_daily_mood(self, record_id: str) -> DailyMoodRecordDocument:
+        async with self._lock:
             try:
                 return self._daily_moods[record_id]
             except KeyError as error:
                 raise RepositoryNotFound("daily mood record not found") from error
 
     @traced
-    def get_daily_mood_by_user_date(
+    async def get_daily_mood_by_user_date(
         self,
         user_id: str,
         record_date: str,
     ) -> DailyMoodRecordDocument | None:
-        with self._lock:
+        async with self._lock:
             for record in self._daily_moods.values():
                 if record.user_id == user_id and record.record_date == record_date:
                     return record
             return None
 
     @traced
-    def list_daily_mood_records(self, user_id: str) -> tuple[DailyMoodRecordDocument, ...]:
-        with self._lock:
+    async def list_daily_mood_records(self, user_id: str) -> tuple[DailyMoodRecordDocument, ...]:
+        async with self._lock:
             records = [
                 record
                 for record in self._daily_moods.values()
@@ -554,14 +459,14 @@ class InMemoryDomainDataRepository:
             return tuple(records)
 
     @traced
-    def save_daily_mood_record(
+    async def save_daily_mood_record(
         self,
         record: DailyMoodRecordDocument,
         *,
         expected_version: int,
     ) -> DailyMoodRecordDocument:
-        with self._lock:
-            current = self.get_daily_mood(record.document_id)
+        async with self._lock:
+            current = await self.get_daily_mood(record.document_id)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = record.model_copy(
@@ -571,8 +476,10 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def list_available_quote_entries(self, record_date: str) -> tuple[QuoteEntryDocument, ...]:
-        with self._lock:
+    async def list_available_quote_entries(
+        self, record_date: str
+    ) -> tuple[QuoteEntryDocument, ...]:
+        async with self._lock:
             quotes = [
                 quote
                 for quote in self._quote_entries.values()
@@ -586,14 +493,14 @@ class InMemoryDomainDataRepository:
             return tuple(quotes)
 
     @traced
-    def list_support_resources(
+    async def list_support_resources(
         self,
         environment_scope: str,
         *,
         resource_set_version: str | None = None,
         now: datetime | None = None,
     ) -> tuple[SupportResourceDocument, ...]:
-        with self._lock:
+        async with self._lock:
             current = now or datetime.now(UTC)
             resources = [
                 resource
@@ -610,46 +517,48 @@ class InMemoryDomainDataRepository:
             return tuple(resources)
 
     @traced
-    def create_safety_support_task(
+    async def create_safety_support_task(
         self,
         task: SafetySupportTaskDocument,
     ) -> SafetySupportTaskDocument:
-        with self._lock:
+        async with self._lock:
             self._safety_support_tasks[task.document_id] = task
             return task
 
     @traced
-    def list_safety_support_tasks(self) -> tuple[SafetySupportTaskDocument, ...]:
-        with self._lock:
+    async def list_safety_support_tasks(self) -> tuple[SafetySupportTaskDocument, ...]:
+        async with self._lock:
             tasks = list(self._safety_support_tasks.values())
             tasks.sort(key=lambda task: (task.created_at, task.document_id))
             return tuple(tasks)
 
     @traced
-    def create_work_task(self, task: WorkTaskDocument) -> WorkTaskDocument:
-        with self._lock:
+    async def create_work_task(self, task: WorkTaskDocument) -> WorkTaskDocument:
+        async with self._lock:
             self._work_tasks[task.document_id] = task
             return task
 
     @traced
-    def get_work_task(self, task_id: str) -> WorkTaskDocument:
-        with self._lock:
+    async def get_work_task(self, task_id: str) -> WorkTaskDocument:
+        async with self._lock:
             try:
                 return self._work_tasks[task_id]
             except KeyError as error:
                 raise RepositoryNotFound("work task not found") from error
 
     @traced
-    def list_work_tasks(self) -> tuple[WorkTaskDocument, ...]:
-        with self._lock:
+    async def list_work_tasks(self) -> tuple[WorkTaskDocument, ...]:
+        async with self._lock:
             tasks = list(self._work_tasks.values())
             tasks.sort(key=lambda task: (task.created_at, task.document_id), reverse=True)
             return tuple(tasks)
 
     @traced
-    def save_work_task(self, task: WorkTaskDocument, *, expected_version: int) -> WorkTaskDocument:
-        with self._lock:
-            current = self.get_work_task(task.document_id)
+    async def save_work_task(
+        self, task: WorkTaskDocument, *, expected_version: int
+    ) -> WorkTaskDocument:
+        async with self._lock:
+            current = await self.get_work_task(task.document_id)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = task.model_copy(
@@ -659,28 +568,28 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def create_treehole_post(self, post: TreeholePostDocument) -> TreeholePostDocument:
-        with self._lock:
+    async def create_treehole_post(self, post: TreeholePostDocument) -> TreeholePostDocument:
+        async with self._lock:
             self._treehole_posts[post.document_id] = post
             return post
 
     @traced
-    def get_treehole_post(self, post_id: str) -> TreeholePostDocument:
-        with self._lock:
+    async def get_treehole_post(self, post_id: str) -> TreeholePostDocument:
+        async with self._lock:
             try:
                 return self._treehole_posts[post_id]
             except KeyError as error:
                 raise RepositoryNotFound("treehole post not found") from error
 
     @traced
-    def save_treehole_post(
+    async def save_treehole_post(
         self,
         post: TreeholePostDocument,
         *,
         expected_version: int,
     ) -> TreeholePostDocument:
-        with self._lock:
-            current = self.get_treehole_post(post.document_id)
+        async with self._lock:
+            current = await self.get_treehole_post(post.document_id)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = post.model_copy(
@@ -690,37 +599,37 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def list_treehole_posts(self) -> tuple[TreeholePostDocument, ...]:
-        with self._lock:
+    async def list_treehole_posts(self) -> tuple[TreeholePostDocument, ...]:
+        async with self._lock:
             posts = list(self._treehole_posts.values())
             posts.sort(key=lambda post: (post.created_at, post.document_id), reverse=True)
             return tuple(posts)
 
     @traced
-    def create_treehole_response(
+    async def create_treehole_response(
         self, response: TreeholeResponseDocument
     ) -> TreeholeResponseDocument:
-        with self._lock:
+        async with self._lock:
             self._treehole_responses[response.document_id] = response
             return response
 
     @traced
-    def get_treehole_response(self, response_id: str) -> TreeholeResponseDocument:
-        with self._lock:
+    async def get_treehole_response(self, response_id: str) -> TreeholeResponseDocument:
+        async with self._lock:
             try:
                 return self._treehole_responses[response_id]
             except KeyError as error:
                 raise RepositoryNotFound("treehole response not found") from error
 
     @traced
-    def save_treehole_response(
+    async def save_treehole_response(
         self,
         response: TreeholeResponseDocument,
         *,
         expected_version: int,
     ) -> TreeholeResponseDocument:
-        with self._lock:
-            current = self.get_treehole_response(response.document_id)
+        async with self._lock:
+            current = await self.get_treehole_response(response.document_id)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = response.model_copy(
@@ -730,8 +639,8 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def list_treehole_responses(self, post_id: str) -> tuple[TreeholeResponseDocument, ...]:
-        with self._lock:
+    async def list_treehole_responses(self, post_id: str) -> tuple[TreeholeResponseDocument, ...]:
+        async with self._lock:
             responses = [
                 response
                 for response in self._treehole_responses.values()
@@ -741,72 +650,72 @@ class InMemoryDomainDataRepository:
             return tuple(responses)
 
     @traced
-    def next_assessment_session_id(self) -> str:
-        with self._lock:
+    async def next_assessment_session_id(self) -> str:
+        async with self._lock:
             self._assessment_session_counter += 1
             return f"assessment_session_{self._assessment_session_counter:04d}"
 
     @traced
-    def next_assessment_result_id(self) -> str:
-        with self._lock:
+    async def next_assessment_result_id(self) -> str:
+        async with self._lock:
             self._assessment_result_counter += 1
             return f"assessment_result_{self._assessment_result_counter:04d}"
 
     @traced
-    def next_daily_mood_id(self) -> str:
-        with self._lock:
+    async def next_daily_mood_id(self) -> str:
+        async with self._lock:
             self._daily_mood_counter += 1
             return f"daily_mood_{self._daily_mood_counter:04d}"
 
     @traced
-    def next_safety_support_task_id(self) -> str:
-        with self._lock:
+    async def next_safety_support_task_id(self) -> str:
+        async with self._lock:
             self._safety_support_task_counter += 1
             return f"safety_support_task_{self._safety_support_task_counter:04d}"
 
     @traced
-    def next_work_task_id(self) -> str:
-        with self._lock:
+    async def next_work_task_id(self) -> str:
+        async with self._lock:
             self._work_task_counter += 1
             return f"work_task_{self._work_task_counter:04d}"
 
     @traced
-    def next_treehole_post_id(self) -> str:
-        with self._lock:
+    async def next_treehole_post_id(self) -> str:
+        async with self._lock:
             self._treehole_post_counter += 1
             return f"treehole_post_{self._treehole_post_counter:04d}"
 
     @traced
-    def next_treehole_response_id(self) -> str:
-        with self._lock:
+    async def next_treehole_response_id(self) -> str:
+        async with self._lock:
             self._treehole_response_counter += 1
             return f"treehole_response_{self._treehole_response_counter:04d}"
 
     @traced
-    def create_identity_access_request(
+    async def create_identity_access_request(
         self, request: IdentityAccessRequestDocument
     ) -> IdentityAccessRequestDocument:
-        with self._lock:
+        async with self._lock:
             self._identity_access_requests[request.document_id] = request
             return request
 
     @traced
-    def get_identity_access_request(self, request_id: str) -> IdentityAccessRequestDocument:
-        with self._lock:
+    async def get_identity_access_request(self, request_id: str) -> IdentityAccessRequestDocument:
+        async with self._lock:
             try:
                 return self._identity_access_requests[request_id]
             except KeyError as error:
                 raise RepositoryNotFound("identity access request not found") from error
 
     @traced
-    def save_identity_access_request(
+    async def save_identity_access_request(
         self,
         request: IdentityAccessRequestDocument,
         *,
         expected_version: int,
     ) -> IdentityAccessRequestDocument:
-        with self._lock:
-            current = self.get_identity_access_request(request.document_id)
+        async with self._lock:
+            current = await self.get_identity_access_request(request.document_id)
             if current.version != expected_version:
                 raise RepositoryVersionConflict(current.version)
             updated = request.model_copy(
@@ -816,21 +725,21 @@ class InMemoryDomainDataRepository:
             return updated
 
     @traced
-    def next_identity_access_request_id(self) -> str:
-        with self._lock:
+    async def next_identity_access_request_id(self) -> str:
+        async with self._lock:
             self._identity_access_request_counter += 1
             return f"identity_access_request_{self._identity_access_request_counter:04d}"
 
     @traced
-    def list_identity_access_requests(self) -> tuple[IdentityAccessRequestDocument, ...]:
-        with self._lock:
+    async def list_identity_access_requests(self) -> tuple[IdentityAccessRequestDocument, ...]:
+        async with self._lock:
             items = list(self._identity_access_requests.values())
             items.sort(key=lambda item: (item.created_at, item.document_id), reverse=True)
             return tuple(items)
 
     @traced
-    def extra_collection(self, name: str) -> list[dict[str, Any]]:
-        with self._lock:
+    async def extra_collection(self, name: str) -> list[dict[str, Any]]:
+        async with self._lock:
             if name == "work_tasks":
                 return [
                     task.model_dump(by_alias=True, mode="json")
@@ -891,6 +800,6 @@ class InMemoryDomainDataRepository:
             return deepcopy(self._extra_collections.get(name, []))
 
     @traced
-    def append_extra_document(self, name: str, document: Mapping[str, Any]) -> None:
-        with self._lock:
+    async def append_extra_document(self, name: str, document: Mapping[str, Any]) -> None:
+        async with self._lock:
             self._extra_collections.setdefault(name, []).append(deepcopy(dict(document)))

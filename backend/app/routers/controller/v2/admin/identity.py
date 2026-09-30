@@ -22,7 +22,7 @@ async def create_identity_access_request(
     body: IdentityAccessRequestCreate,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[IdentityAccessRequestProjection]:
-    data = request.app.state.identity_access_service.create_request(
+    data = await request.app.state.identity_access_service.create_request(
         bearer_token(authorization),
         payload=body,
         request_id=request_id(request),
@@ -37,7 +37,7 @@ async def get_identity_access_request(
     identity_request_id: str,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[IdentityAccessRequestProjection]:
-    data = request.app.state.identity_access_service.get_request(
+    data = await request.app.state.identity_access_service.get_request(
         bearer_token(authorization), request_id=identity_request_id
     )
     return ApiEnvelope.success(request_id(request), data=data)
@@ -49,7 +49,7 @@ async def read_identity(
     identity_request_id: str,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[IdentityAccessIdentityProjection]:
-    data = request.app.state.identity_access_service.read_identity(
+    data = await request.app.state.identity_access_service.read_identity(
         bearer_token(authorization),
         request_id=identity_request_id,
         audit_request_id=request_id(request),
