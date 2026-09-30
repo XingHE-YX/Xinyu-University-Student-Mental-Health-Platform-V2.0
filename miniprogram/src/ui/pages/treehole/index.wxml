@@ -1,32 +1,32 @@
-<view class="page-container page-container--padded page-container--main">
-  <view class="page-heading">
-    <text class="page-heading__title">树洞</text>
-    <text class="page-heading__greeting">想先读一会儿也可以。</text>
+<view class="page-treehole app-page app-page--padded page-treehole--main">
+  <view class="page-treehole__page-heading">
+    <text class="page-treehole__page-heading-title">树洞</text>
+    <text class="page-treehole__page-heading-greeting">想先读一会儿也可以。</text>
   </view>
 
-  <view class="treehole-action" bindtap="publish">
-    <view><text class="treehole-action__title">写下此刻</text><text class="treehole-action__body">把想说的话留在这里，内容会经过规则检查。</text></view>
-    <text class="treehole-action__chevron">›</text>
+  <view class="page-treehole__treehole-action" bindtap="publish">
+    <view><text class="page-treehole__treehole-action-title">写下此刻</text><text class="page-treehole__treehole-action-body">把想说的话留在这里，内容会经过规则检查。</text></view>
+    <text class="page-treehole__treehole-action-chevron">›</text>
   </view>
 
-  <view class="treehole-toolbar">
-    <text class="treehole-toolbar__label">全部话题</text>
-    <text class="treehole-toolbar__sort">按最近发布</text>
+  <view class="page-treehole__treehole-toolbar">
+    <text class="page-treehole__treehole-toolbar-label">全部话题</text>
+    <text class="page-treehole__treehole-toolbar-sort">按最近发布</text>
   </view>
 
   <state-message wx:if="{{error && posts.length}}" title="内容可能不是最新" message="你可以继续阅读，也可以重新加载。" action-label="重新试试" bindaction="load"></state-message>
-  <view wx:if="{{loading && !posts.length}}" class="treehole-empty"><text>正在准备可以展示的内容…</text></view>
+  <view wx:if="{{loading && !posts.length}}" class="page-treehole__treehole-empty"><text>正在准备可以展示的内容…</text></view>
   <state-message wx:elif="{{error && !posts.length}}" title="暂时没有加载到内容" message="请稍后重新试试。" action-label="重新试试" bindaction="load"></state-message>
   <empty-state wx:elif="{{!posts.length}}" title="这里还安静着。" action-label="写下此刻" bindaction="publish"></empty-state>
-  <view wx:else class="post-list">
-    <view wx:for="{{posts}}" wx:key="id" class="treehole-post" data-id="{{item.id}}" bindtap="open">
-      <view class="treehole-post__meta">
+  <view wx:else class="page-treehole__post-list">
+    <view wx:for="{{posts}}" wx:key="id" class="page-treehole__treehole-post" data-id="{{item.id}}" bindtap="open">
+      <view class="page-treehole__treehole-post-meta">
         <text>{{item.displayName}}</text>
-        <text class="treehole-post__time">{{item.displayTime}}</text>
+        <text class="page-treehole__treehole-post-time">{{item.displayTime}}</text>
       </view>
-      <text wx:if="{{item.status === 'protected'}}" class="treehole-post__status">有同学正在经历一段不容易的时期</text>
-      <text wx:if="{{item.status !== 'protected'}}" class="treehole-post__excerpt">{{item.excerpt || '这条内容暂时没有可展示的摘要。'}}</text>
-      <view class="treehole-post__footer"><text>{{item.status === 'protected' ? '展开后阅读' : '读一读'}}</text><text class="treehole-post__chevron">›</text></view>
+      <text wx:if="{{item.status === 'protected'}}" class="page-treehole__treehole-post-status">有同学正在经历一段不容易的时期</text>
+      <text wx:if="{{item.status !== 'protected'}}" class="page-treehole__treehole-post-excerpt">{{item.excerpt || '这条内容暂时没有可展示的摘要。'}}</text>
+      <view class="page-treehole__treehole-post-footer"><text>{{item.status === 'protected' ? '展开后阅读' : '读一读'}}</text><text class="page-treehole__treehole-post-chevron">›</text></view>
     </view>
   </view>
 </view>

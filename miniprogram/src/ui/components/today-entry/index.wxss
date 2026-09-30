@@ -1,1 +1,19 @@
-.today-entry{position:relative;min-height:52px;padding:12px 32px 12px 0;border-bottom:1px solid var(--xinyu-color-divider)}.today-entry>text{position:absolute;right:0;top:18px;color:var(--xinyu-color-text-secondary)}
+.today-entry__muted {
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.today-entry {
+  position: relative;
+  min-height: 52px;
+  padding: 12px 32px 12px 0;
+  border-bottom: 1px solid var(--xinyu-color-divider);
+}
+
+.today-entry>text {
+  position: absolute;
+  right: 0;
+  top: 18px;
+  color: var(--xinyu-color-text-secondary);
+}

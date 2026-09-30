@@ -1,5 +1,80 @@
-.post-body { margin:16px 0; font-size:16px; line-height:26px; white-space:pre-wrap; }
-.response + .response { margin-top:12px; }
-.response-input { min-height:96px; }
-.manage-action { margin:0; padding:0; border:0; background:transparent; color:var(--xinyu-color-primary); font-size:16px; text-align:left; }
-.manage-action::after { border:0; }
+.page-treehole-detail__section-title {
+  margin: 24px 0 12px;
+  color: var(--xinyu-color-text);
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 500;
+}
+
+.page-treehole-detail__muted {
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.page-treehole-detail__surface {
+  padding: 20px;
+  background: var(--xinyu-color-surface);
+  border: 1px solid var(--xinyu-color-divider);
+  border-radius: 8px;
+}
+
+.page-treehole-detail__surface + .page-treehole-detail__surface {
+  margin-top: 12px;
+}
+
+.page-treehole-detail__status-chip {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--xinyu-color-primary-soft);
+  color: var(--xinyu-color-primary-pressed);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.page-treehole-detail__textarea {
+  width: 100%;
+  min-height: 180px;
+  box-sizing: border-box;
+  padding: 12px;
+  background: var(--xinyu-color-surface);
+  border: 1px solid var(--xinyu-color-divider);
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 26px;
+}
+
+.page-treehole-detail__post-body {
+  margin: 16px 0;
+  font-size: 16px;
+  line-height: 26px;
+  white-space: pre-wrap;
+}
+
+.page-treehole-detail__response + .page-treehole-detail__response {
+  margin-top: 12px;
+}
+
+.page-treehole-detail__response-input {
+  min-height: 96px;
+}
+
+.page-treehole-detail__manage-action {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--xinyu-color-primary);
+  font-size: 16px;
+  text-align: left;
+}
+
+.page-treehole-detail__manage-action::after {
+  border: 0;
+}
+.page-treehole-detail__post-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

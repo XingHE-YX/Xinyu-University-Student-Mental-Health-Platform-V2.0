@@ -1,1 +1,1 @@
-<view class="surface history-item" bindtap="tap"><view class="post__meta"><text>{{title}}</text><text class="status-chip">{{category}}</text></view><view class="muted">{{summary}}</view><view class="muted">{{recordedAt}}</view></view>
+<view class="history-item__surface history-item" bindtap="tap"><view class="history-item__post-meta"><text>{{title}}</text><text class="history-item__status-chip">{{category}}</text></view><view class="history-item__muted">{{summary}}</view><view class="history-item__muted">{{recordedAt}}</view></view>

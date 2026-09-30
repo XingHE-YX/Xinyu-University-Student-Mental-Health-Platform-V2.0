@@ -1,7 +1,77 @@
-.question { font-size:18px; line-height:28px; font-weight:500; margin-bottom:16px; }
-.answer-actions { display:flex; gap:8px; align-items:center; margin-top:16px; }
-.answer-actions .primary-button { flex:1; margin-top:0; }
-.secondary-action { flex:1; height:48px; border:1px solid var(--xinyu-color-divider); border-radius:8px; background:var(--xinyu-color-surface); color:var(--xinyu-color-text); font-size:16px; line-height:46px; }
-.secondary-action::after { border:0; }
-.leave-action { width:100%; margin-top:16px; padding:0; border:0; background:transparent; color:var(--xinyu-color-text-secondary); font-size:14px; }
-.leave-action::after { border:0; }
+.page-assessment-answer__surface {
+  padding: 20px;
+  background: var(--xinyu-color-surface);
+  border: 1px solid var(--xinyu-color-divider);
+  border-radius: 8px;
+}
+
+.page-assessment-answer__surface + .page-assessment-answer__surface {
+  margin-top: 12px;
+}
+
+.page-assessment-answer__option {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  margin-top: 8px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  background: var(--xinyu-color-surface);
+  border: 1px solid var(--xinyu-color-divider);
+  border-radius: 8px;
+  color: var(--xinyu-color-text);
+}
+
+.page-assessment-answer__option--selected {
+  border: 2px solid var(--xinyu-color-primary);
+  background: var(--xinyu-color-primary-soft);
+  color: var(--xinyu-color-primary-pressed);
+}
+
+.page-assessment-answer__question {
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.page-assessment-answer__answer-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+}
+
+.page-assessment-answer__submit {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-assessment-answer__secondary-action {
+  flex: 1;
+  height: 48px;
+  border: 1px solid var(--xinyu-color-divider);
+  border-radius: 8px;
+  background: var(--xinyu-color-surface);
+  color: var(--xinyu-color-text);
+  font-size: 16px;
+  line-height: 46px;
+}
+
+.page-assessment-answer__secondary-action::after {
+  border: 0;
+}
+
+.page-assessment-answer__leave-action {
+  width: 100%;
+  margin-top: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+}
+
+.page-assessment-answer__leave-action::after {
+  border: 0;
+}

@@ -1,0 +1,21 @@
+.page-delete-confirmation__description {
+  margin: var(--xinyu-space-3) 0 0;
+  color: var(--xinyu-color-text-secondary);
+  font-size: 16px;
+  line-height: 26px;
+}
+
+.page-delete-confirmation__description--first {
+  margin-top: 0;
+}
+
+.page-delete-confirmation__surface {
+  padding: 20px;
+  background: var(--xinyu-color-surface);
+  border: 1px solid var(--xinyu-color-divider);
+  border-radius: 8px;
+}
+
+.page-delete-confirmation__surface + .page-delete-confirmation__surface {
+  margin-top: 12px;
+}

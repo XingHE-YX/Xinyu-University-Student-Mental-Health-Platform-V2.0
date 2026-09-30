@@ -1,1 +1,28 @@
-.mood-picker{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mood-picker .option{margin-top:0}
+.mood-picker__option {
+  display: flex;
+  align-items: center;
+  min-height: 52px;
+  margin-top: 8px;
+  padding: 0 16px;
+  box-sizing: border-box;
+  background: var(--xinyu-color-surface);
+  border: 1px solid var(--xinyu-color-divider);
+  border-radius: 8px;
+  color: var(--xinyu-color-text);
+}
+
+.mood-picker__option--selected {
+  border: 2px solid var(--xinyu-color-primary);
+  background: var(--xinyu-color-primary-soft);
+  color: var(--xinyu-color-primary-pressed);
+}
+
+.mood-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mood-picker .mood-picker__option {
+  margin-top: 0;
+}

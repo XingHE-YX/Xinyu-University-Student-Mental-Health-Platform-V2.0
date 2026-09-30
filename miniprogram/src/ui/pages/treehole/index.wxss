@@ -1,18 +1,155 @@
-.treehole-action { display: flex; align-items: center; justify-content: space-between; min-height: 72px; padding: 16px 0; border-top: 1px solid var(--xinyu-color-divider); border-bottom: 1px solid var(--xinyu-color-divider); box-sizing: border-box; }
-.treehole-action__title { display: block; color: var(--xinyu-color-primary); font-size: 18px; line-height: 28px; font-weight: 500; }
-.treehole-action__body { display: block; margin-top: 2px; color: var(--xinyu-color-text-secondary); font-size: 14px; line-height: 22px; }
-.treehole-action > view { flex: 1; min-width: 0; }
-.treehole-action__chevron { flex: 0 0 auto; margin-left: 16px; color: var(--xinyu-color-primary); font-size: 24px; line-height: 24px; }
-.treehole-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 24px 0 12px; }
-.treehole-toolbar__label { color: var(--xinyu-color-text); font-size: 16px; line-height: 26px; font-weight: 500; }
-.treehole-toolbar__sort { color: var(--xinyu-color-text-secondary); font-size: 14px; line-height: 22px; }
-.treehole-empty { padding: 32px 0; color: var(--xinyu-color-text-secondary); font-size: 14px; line-height: 22px; text-align: center; }
-.treehole-post { padding: 20px 0; border-top: 1px solid var(--xinyu-color-divider); }
-.treehole-post:last-child { border-bottom: 1px solid var(--xinyu-color-divider); }
-.treehole-post__meta { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; justify-content: space-between; overflow-wrap: anywhere; color: var(--xinyu-color-text-secondary); font-size: 14px; line-height: 22px; }
-.treehole-post__time { flex: 0 0 auto; }
-.treehole-post__excerpt { display: -webkit-box !important; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.treehole-post__excerpt, .treehole-post__status { display: block; margin-top: 8px; color: var(--xinyu-color-text); font-size: 16px; line-height: 26px; }
-.treehole-post__status { color: var(--xinyu-color-text-secondary); }
-.treehole-post__footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; color: var(--xinyu-color-primary); font-size: 14px; line-height: 22px; }
-.treehole-post__chevron { font-size: 20px; line-height: 20px; }
+.page-treehole--main {
+  max-width: 480px;
+  margin: 0 auto;
+  padding-top: 20px;
+  padding-bottom: 32px;
+}
+
+.page-treehole__page-heading {
+  margin-bottom: 24px;
+}
+
+.page-treehole__page-heading-title {
+  display: block;
+  margin-top: 2px;
+  color: var(--xinyu-color-text);
+  font-size: 28px;
+  line-height: 38px;
+  font-weight: 600;
+}
+
+.page-treehole__page-heading-greeting {
+  display: block;
+  margin-top: 4px;
+  color: var(--xinyu-color-text-secondary);
+  font-size: 16px;
+  line-height: 26px;
+}
+
+.page-treehole__treehole-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 72px;
+  padding: 16px 0;
+  border-top: 1px solid var(--xinyu-color-divider);
+  border-bottom: 1px solid var(--xinyu-color-divider);
+  box-sizing: border-box;
+}
+
+.page-treehole__treehole-action-title {
+  display: block;
+  color: var(--xinyu-color-primary);
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 500;
+}
+
+.page-treehole__treehole-action-body {
+  display: block;
+  margin-top: 2px;
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.page-treehole__treehole-action > view {
+  flex: 1;
+  min-width: 0;
+}
+
+.page-treehole__treehole-action-chevron {
+  flex: 0 0 auto;
+  margin-left: 16px;
+  color: var(--xinyu-color-primary);
+  font-size: 24px;
+  line-height: 24px;
+}
+
+.page-treehole__treehole-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 0 12px;
+}
+
+.page-treehole__treehole-toolbar-label {
+  color: var(--xinyu-color-text);
+  font-size: 16px;
+  line-height: 26px;
+  font-weight: 500;
+}
+
+.page-treehole__treehole-toolbar-sort {
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.page-treehole__treehole-empty {
+  padding: 32px 0;
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+}
+
+.page-treehole__treehole-post {
+  padding: 20px 0;
+  border-top: 1px solid var(--xinyu-color-divider);
+}
+
+.page-treehole__treehole-post:last-child {
+  border-bottom: 1px solid var(--xinyu-color-divider);
+}
+
+.page-treehole__treehole-post-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  justify-content: space-between;
+  overflow-wrap: anywhere;
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.page-treehole__treehole-post-time {
+  flex: 0 0 auto;
+}
+
+.page-treehole__treehole-post-excerpt {
+  display: -webkit-box !important;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.page-treehole__treehole-post-excerpt, .page-treehole__treehole-post-status {
+  display: block;
+  margin-top: 8px;
+  color: var(--xinyu-color-text);
+  font-size: 16px;
+  line-height: 26px;
+}
+
+.page-treehole__treehole-post-status {
+  color: var(--xinyu-color-text-secondary);
+}
+
+.page-treehole__treehole-post-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  color: var(--xinyu-color-primary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.page-treehole__treehole-post-chevron {
+  font-size: 20px;
+  line-height: 20px;
+}

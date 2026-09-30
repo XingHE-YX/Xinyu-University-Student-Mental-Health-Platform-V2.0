@@ -1,21 +1,21 @@
-.treehole-post__muted {
+.page-my-content__muted {
   color: var(--xinyu-color-text-secondary);
   font-size: 14px;
   line-height: 22px;
 }
 
-.treehole-post__surface {
+.page-my-content__surface {
   padding: 20px;
   background: var(--xinyu-color-surface);
   border: 1px solid var(--xinyu-color-divider);
   border-radius: 8px;
 }
 
-.treehole-post__surface + .treehole-post__surface {
+.page-my-content__surface + .page-my-content__surface {
   margin-top: 12px;
 }
 
-.treehole-post__status-chip {
+.page-my-content__status-chip {
   display: inline-block;
   padding: 4px 8px;
   border-radius: 4px;
@@ -24,15 +24,8 @@
   font-size: 12px;
   line-height: 18px;
 }
-
-.treehole-post__meta {
+.page-my-content__post-meta {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.treehole-post__excerpt {
-  margin-top: 12px;
-  font-size: 16px;
-  line-height: 26px;
 }

@@ -1,1 +1,1 @@
-<view class="option {{selected ? 'option--selected' : ''}}" bindtap="choose">{{label}}</view>
+<view class="question-option {{selected ? 'question-option--selected' : ''}}" bindtap="choose">{{label}}</view>

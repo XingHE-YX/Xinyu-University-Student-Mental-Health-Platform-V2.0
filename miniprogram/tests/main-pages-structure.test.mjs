@@ -25,8 +25,10 @@ test('main pages use the native tab bar as their only bottom navigation', async 
 
 test('the page container layout is available globally', async () => {
   const appWxss = await read('app.wxss')
-  assert.match(appWxss, /\.page-container\s*\{/)
-  assert.match(appWxss, /\.page-container--padded\s*\{/)
+  assert.match(appWxss, /@import.*ui\/shared\/styles\/global\.wxss/)
+  const globalWxss = await read('ui/shared/styles/global.wxss')
+  assert.match(globalWxss, /\.app-page\s*\{/)
+  assert.match(globalWxss, /\.app-page--padded\s*\{/)
 })
 
 test('main pages expose the reading-first design structure', async () => {
@@ -48,7 +50,7 @@ test('today mood entry follows the six-option bottom-sheet flow', async () => {
   const moodService = await read('services/mood.ts')
   assert.match(wxml, /记录此刻/)
   assert.match(wxml, /showMoodSheet/)
-  assert.match(wxml, /mood-sheet__error/)
+  assert.match(wxml, /page-today__mood-sheet-error/)
   assert.match(wxml, /稍后再说/)
   assert.match(wxml, /已记下此刻/)
   assert.match(wxml, /再看一眼/)

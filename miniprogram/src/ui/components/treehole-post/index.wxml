@@ -1,1 +1,1 @@
-<view class="surface post" bindtap="tap"><view class="post__meta"><text>{{displayName}}</text><text class="status-chip">{{status}}</text></view><view class="post__excerpt">{{excerpt}}</view><view class="muted">{{responseCount}} 条回应</view></view>
+<view class="treehole-post__surface treehole-post" bindtap="tap"><view class="treehole-post__meta"><text>{{displayName}}</text><text class="treehole-post__status-chip">{{status}}</text></view><view class="treehole-post__excerpt">{{excerpt}}</view><view class="treehole-post__muted">{{responseCount}} 条回应</view></view>

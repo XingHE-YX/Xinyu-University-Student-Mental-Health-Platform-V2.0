@@ -1,1 +1,39 @@
-.history-item{min-height:52px}.history-item+.history-item{margin-top:12px}
+.history-item__muted {
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.history-item__surface {
+  padding: 20px;
+  background: var(--xinyu-color-surface);
+  border: 1px solid var(--xinyu-color-divider);
+  border-radius: 8px;
+}
+
+.history-item__surface + .history-item__surface {
+  margin-top: 12px;
+}
+
+.history-item__status-chip {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--xinyu-color-primary-soft);
+  color: var(--xinyu-color-primary-pressed);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.history-item {
+  min-height: 52px;
+}
+
+.history-item+.history-item {
+  margin-top: 12px;
+}
+.history-item__post-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}

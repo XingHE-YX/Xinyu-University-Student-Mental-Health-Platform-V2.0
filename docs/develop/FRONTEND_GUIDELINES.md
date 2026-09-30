@@ -155,6 +155,17 @@ Lieflat Charts Skill 不属于当前前端依赖。只有在后续真正进入�
 
 学生端使用原生微信组件和项目内基础组件，不引入第三方 UI 组件库。
 
+源码位于 `miniprogram/src/`。`ui/shared/styles/` 只放所有页面通用的设计令牌、
+页面基础排版和 `app-page` 布局；仅部分页面使用的标题、列表、表单、弹层和业务状态样式，
+分别放在使用它们的 `ui/pages/<name>/index.wxss` 或 `ui/components/<name>/index.wxss` 中。
+组件需要的样式由自身提供，不能依赖页面样式穿透微信组件隔离边界。
+
+Class 使用 BEM 和小写 kebab-case：页面 block 为 `page-<页面目录名>`，组件 block 为
+`<组件目录名>`，元素用 `block__element`，状态用 `block--modifier` 或
+`block__element--modifier`。例如 `page-today__mood-sheet-error`、
+`question-option--selected`。全局布局只使用 `app-page` 和 `app-page--padded`。
+模板中的静态 class、动态状态 class 和 WXSS 选择器同步维护。
+
 ### 6.1 全局组件清单
 
 | 组件 | 必须支持的状态 | 说明 |

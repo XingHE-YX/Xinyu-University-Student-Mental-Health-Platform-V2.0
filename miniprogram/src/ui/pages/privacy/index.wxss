@@ -1,2 +1,42 @@
-.privacy-action { margin-top:16px; padding:0; border:0; background:transparent; color:var(--xinyu-color-primary); font-size:16px; text-align:left; }
-.privacy-action::after { border:0; }
+.page-privacy__section-title {
+  margin: 24px 0 12px;
+  color: var(--xinyu-color-text);
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 500;
+}
+
+.page-privacy__section-title--first {
+  margin-top: 0;
+}
+
+.page-privacy__muted {
+  color: var(--xinyu-color-text-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.page-privacy__surface {
+  padding: 20px;
+  background: var(--xinyu-color-surface);
+  border: 1px solid var(--xinyu-color-divider);
+  border-radius: 8px;
+}
+
+.page-privacy__surface + .page-privacy__surface {
+  margin-top: 12px;
+}
+
+.page-privacy__privacy-action {
+  margin-top: 16px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--xinyu-color-primary);
+  font-size: 16px;
+  text-align: left;
+}
+
+.page-privacy__privacy-action::after {
+  border: 0;
+}
