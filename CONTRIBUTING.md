@@ -42,22 +42,22 @@ npm ci
 
 ## 运行项目
 
-无需云凭据的界面演示见 [本地演示](docs/develop/deploy/LOCAL.md)。安装依赖后，
-在项目根目录的两个终端分别运行：
+安装依赖后，在项目根目录的两个终端分别运行：
 
 ```bash
-backend/.venv/bin/python deploy/local/backend_demo.py
+cd backend
+.venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 9000
 ```
 
 ```bash
-node deploy/local/admin_preview.mjs
+cd admin
+npm run dev
 ```
 
-该入口只使用合成身份、内存仓储和演示任务，不连接真实学校、CloudBase 数据库或 AI。
+当前仓库不提供预置合成身份和演示任务的本地演示入口。
 微信开发者工具打开 `miniprogram/`；本地预览配置只在开发者工具环境生效。
 
-开发真实后端功能时，可在 `backend/` 运行 `.venv/bin/python -m uvicorn app.main:app --reload`。
-后台开发服务在 `admin/` 运行 `npm run dev`。对应 API、CORS 和环境配置见
+对应 API、CORS 和环境配置见
 [环境配置](docs/develop/CONFIGURATION_REGISTRY.md) 和 [后台部署](docs/develop/deploy/ADMIN.md)。
 缺少配置的服务会保持未配置或降级状态，不应使用默认真实凭据绕过校验。
 

@@ -83,9 +83,9 @@
 
 ## 配置与部署
 
-配置字段统一维护在 [环境配置](docs/develop/CONFIGURATION_REGISTRY.md)。部署模板和可执行工具
-保留在 `deploy/`，说明位于 [部署规范](docs/develop/deploy/ARCHITECTURE_AND_DEPLOYMENT.md)。
+配置字段统一维护在 [环境配置](docs/develop/CONFIGURATION_REGISTRY.md)。部署要求
+位于 [部署规范](docs/develop/deploy/ARCHITECTURE_AND_DEPLOYMENT.md)，仓库不提供部署模板或打包工具。
 
-Python HTTP 云函数使用 `scf_bootstrap` 启动；后台发布 `admin/dist/`，小程序由微信开发者工具上传。
-`deploy/local/` 提供仅使用合成数据的回环演示入口。健康接口的 `status=ok` 表示配置就绪，
+Python HTTP 云函数发布时需按平台规范另行准备启动文件；后台发布 `admin/dist/`，小程序由微信开发者工具上传。
+健康接口的 `status=ok` 表示配置就绪，
 不等于已经探测数据库、微信、学校或 AI 的真实连通性。

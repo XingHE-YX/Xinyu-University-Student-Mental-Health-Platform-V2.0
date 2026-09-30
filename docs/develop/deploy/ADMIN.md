@@ -1,6 +1,6 @@
 # 后台静态托管
 
-后台是独立的 Vue 3 + Vite SPA。`deploy/admin/hosting.template.json` 为演示和真实授权环境
+后台是独立的 Vue 3 + Vite SPA。演示和真实授权环境需要
 分别登记 HTTPS 根来源、业务 API、构建产物和刷新回退规则；实际域名和 API 地址
 只能在被 Git 忽略的环境文件或 CloudBase 控制台填写。
 
@@ -22,10 +22,6 @@ npm run build
 会拒绝非 HTTPS 或路径不完整的地址，未配置时后台只显示未配置/不可用状态。
 
 ## 发布与刷新验证
-
-```text
-python3 deploy/admin/validate_hosting.py <ignored-rendered-hosting.json>
-```
 
 将 `admin/dist` 分别上传到两个 CloudBase 静态网站托管入口，配置 HTTPS、后端
 CORS/会话允许来源和 SPA fallback `/index.html`。验证登录、W-02 三任务区块、

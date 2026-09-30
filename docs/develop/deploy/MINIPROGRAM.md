@@ -1,7 +1,7 @@
 # 学生端发布
 
-`deploy/miniprogram/profile.template.json` 只登记两个环境的非秘密 AppID、CloudBase EnvID 和
-HTTPS 业务 API 地址。将它复制到被 Git 忽略的本地文件后替换占位符；不要把
+发布配置只登记两个环境的非秘密 AppID、CloudBase EnvID 和
+HTTPS 业务 API 地址；不要把
 AppSecret、CloudBase API Key、DeepSeek Key 或任何身份/支持资源写进小程序配置。
 
 当前普通小程序通过 `miniprogram/config/deployment-profiles.ts` 按运行时 AppID 选择
@@ -12,13 +12,8 @@ AppID 对应的 EnvID、HTTPS API 地址和环境类型。该文件只允许登�
 
 ## 发布前检查
 
-```text
-python3 deploy/miniprogram/validate_profile.py <ignored-rendered-profile.json>
-```
-
-校验器要求演示和授权的 AppID、EnvID 不同，API 地址使用 HTTPS 并以 `/api/v1`
-结尾，且不带查询参数或片段。模板本身可以用
-`--allow-placeholders` 做结构检查，但不能作为上传配置。
+检查演示和授权的 AppID、EnvID 不同，API 地址使用 HTTPS 并以 `/api/v1`
+结尾，且不带查询参数或片段。占位值不能作为上传配置。
 
 ## 微信开发者工具流程
 

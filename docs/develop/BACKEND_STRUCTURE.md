@@ -1052,7 +1052,6 @@ backend/
     security/               令牌、密码、脱敏和授权
     audit/                  审计写入
     config/                 环境配置模型
-  scf_bootstrap             CloudBase Python HTTP 启动文件
   requirements.in           直接依赖声明
   requirements.lock        完整锁定依赖
 ~~~

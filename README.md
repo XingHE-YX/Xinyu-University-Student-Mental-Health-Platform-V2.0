@@ -14,13 +14,12 @@
 | `miniprogram/` | 原生微信小程序，TypeScript / WXML / WXSS |
 | `admin/` | Vue 3 / TypeScript / Vite 桌面管理后台 |
 | `backend/` | Python 3.11 / FastAPI 业务 API、规则、仓储与集成 |
-| `deploy/` | 环境模板、发布工具及独立的本地演示入口 |
 | `docs/` | 产品、详细设计、开发、计划和软著材料 |
 
 ## 开始使用
 
 1. 按 [贡献指南](CONTRIBUTING.md) 准备 Node.js、npm、Python 3.11 和前端依赖。
-2. 需要离线查看界面时，使用 [本地演示](docs/develop/deploy/LOCAL.md)。该入口使用合成数据，不连接真实学校或云服务。
+2. 按贡献指南分别启动业务后端和管理后台；缺少环境配置时服务保持未配置状态。
 3. 使用微信开发者工具打开 `miniprogram/`；管理后台和业务后端分别运行，不能把后台当作小程序页面。
 4. 联网部署前阅读 [环境配置](docs/develop/CONFIGURATION_REGISTRY.md) 和 [CloudBase 部署](docs/develop/deploy/CLOUDBASE.md)。
 

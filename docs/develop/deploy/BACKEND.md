@@ -1,21 +1,13 @@
 # Python 云函数发布
 
-`backend/scripts/build_function_package.py` 使用 Python 3.11 和
-`backend/requirements.lock` 生成可上传的 CloudBase HTTP 函数包。包根目录包含
-`app/`、`scf_bootstrap` 和依赖目录，启动文件监听 `0.0.0.0:9000`；它不会把
-`.env`、密钥文件或测试夹具放入产物。
+仓库不提供云函数打包脚本或启动文件。发布时需按 CloudBase Python 3.11 HTTP
+函数规范另行准备应用、锁定依赖和平台要求的 `scf_bootstrap`，监听 `0.0.0.0:9000`。
+不要把 `.env`、密钥文件或测试夹具放入产物。
 
 ## 构建
 
-在项目根目录执行：
-
-```text
-backend/.venv/bin/python backend/scripts/build_function_package.py \
-  --python backend/.venv/bin/python \
-  --output backend/dist/xinyu-v2-python311.zip
-```
-
-上传 `backend/dist/xinyu-v2-python311.zip` 到 CloudBase 的 Python 3.11 HTTP
+依赖需兼容目标运行时和平台，不能直接上传本机虚拟环境。
+将另行准备并验证的函数包上传到 CloudBase 的 Python 3.11 HTTP
 函数入口，并在控制台配置 `scf_bootstrap`、9000 端口和对应环境变量。演示与
 真实授权环境必须分别构建/上传或分别绑定函数配置；不要把授权环境变量复制到
 演示函数。
@@ -35,7 +27,7 @@ backend/.venv/bin/python backend/scripts/verify_health_then_contract.py \
 
 ## 服务端变量
 
-变量名和演示/授权分离规则见 `docs/develop/CONFIGURATION_REGISTRY.md` 与
-`deploy/cloudbase/environment.template.yaml`。API Key、微信密钥、后台密码哈希
+变量名和演示/授权分离规则见 `docs/develop/CONFIGURATION_REGISTRY.md`。
+API Key、微信密钥、后台密码哈希
 和会话秘密只能在 CloudBase 加密环境变量或密钥管理中填写，不能写进压缩包、日志
 或 Git 跟踪文件。

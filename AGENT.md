@@ -7,7 +7,7 @@
 | 学生端 | 原生微信小程序、TypeScript、WXML、WXSS | `miniprogram/` |
 | 管理后台 | Vue 3、TypeScript、Vite、Vue Router、Pinia | `admin/` |
 | 业务后端 | Python 3.11、FastAPI、Pydantic、HTTPX、Uvicorn | `backend/` |
-| 数据与部署 | CloudBase 文档型数据库、Python HTTP 云函数、静态网站托管 | `deploy/` |
+| 数据与部署 | CloudBase 文档型数据库、Python HTTP 云函数、静态网站托管 | `docs/develop/deploy/` |
 | AI 接口 | 后端调用 DeepSeek Chat Completions | `backend/app/integrations/` |
 
 ## 文档内容
@@ -20,7 +20,7 @@
 | `docs/product/` | 产品需求、确认决策、每日短句与量表依据 |
 | `docs/design/` | 学生端与后台的页面、状态和应用流程 |
 | `docs/develop/` | 技术栈、前后端规范、配置、AI 接口与排错 |
-| `docs/develop/deploy/` | 本地运行、CloudBase、后端、后台与小程序部署 |
+| `docs/develop/deploy/` | CloudBase、后端、后台与小程序部署要求 |
 | `docs/plans/` | 后续实施计划与项目计划书 |
 | `docs/copyright/` | 软著申请、源程序和软件使用说明材料 |
 

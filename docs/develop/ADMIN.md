@@ -15,7 +15,7 @@
 | `admin/src/styles/` | 设计令牌和基础样式 |
 
 安装、运行与检查命令见 [贡献指南](../../CONTRIBUTING.md)。
-本地合成数据演示见 [本地演示](deploy/LOCAL.md)，生产 API 配置与托管见
+本地开发启动见 [贡献指南](../../CONTRIBUTING.md)，生产 API 配置与托管见
 [后台部署](deploy/ADMIN.md)。
 
 依赖见 [技术栈](TECH_STACK.md)，视觉、组件和尺寸约定见
