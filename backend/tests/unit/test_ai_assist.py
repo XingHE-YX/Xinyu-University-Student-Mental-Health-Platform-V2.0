@@ -10,8 +10,10 @@ from app.infra.ai.client.types import AIRequest, AIResponse
 from app.infra.ai.prompt.manager import PromptManager
 from app.infra.config.settings import Settings
 from app.infra.config.types import AIConfig
+from app.infra.database.common import RepositoryUnavailable
 from app.infra.database.memory.audit import InMemoryAuditRepository
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.database.records import AuditEventRecord
 from app.infra.logger.audit import AuditWriter
 from app.services.v2.ai_assist_service import AiAssistService
 from app.services.v2.rules.ai_policy import (
@@ -308,3 +310,23 @@ async def test_ai_snapshot_persists_and_can_be_reloaded() -> None:
     assert projection is not None
     assert projection["status"] == "adopted"
     assert projection["output_projection"]["task_type"] == "assessment_explanation"
+
+
+async def test_snapshot_and_audit_rollback_together_without_leaving_cached_output() -> None:
+    class FailingAudit(InMemoryAuditRepository):
+        async def append(self, event: AuditEventRecord) -> AuditEventRecord:
+            raise RepositoryUnavailable("test audit failure")
+
+    repository = InMemoryDomainDataRepository()
+    service = AiAssistService(
+        settings_for(api_key=None),
+        repository=repository,
+        audit_writer=AuditWriter(FailingAudit()),
+    )
+    with pytest.raises(RepositoryUnavailable):
+        await service.assessment_explanation(
+            resource_id="result", owner_user_id="user", input_data=ASSESSMENT_INPUT
+        )
+    assert await repository.extra_collection("ai_assist_snapshots") == []
+    assert service.snapshots == {}
+    await service.aclose()

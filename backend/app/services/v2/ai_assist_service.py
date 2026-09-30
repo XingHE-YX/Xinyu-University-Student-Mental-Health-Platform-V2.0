@@ -20,6 +20,7 @@ from app.infra.ai.prompt.templates.common import (
     RESOLVED_MODEL_VERSION,
 )
 from app.infra.config.settings import Settings
+from app.infra.database.memory.transaction import share_memory_transaction
 from app.infra.logger.audit import AuditWriter
 from app.infra.logger.common import get_logger, traced
 from app.services.v2.repositories import DomainRepository
@@ -101,13 +102,19 @@ class AiAssistService:
             environment_id=settings.cloudbase_env_id or settings.environment_kind.value
         )
         self.repository = repository
+        if repository is not None:
+            share_memory_transaction(repository, self.audit.repository)
         self.snapshots: dict[str, AiAssistSnapshot] = {}
 
     @traced
     async def snapshot_projection(self, snapshot_id: str | None) -> dict[str, Any] | None:
         if not snapshot_id:
             return None
-        snapshot = self.snapshots.get(snapshot_id) or (await self._load_snapshot(snapshot_id))
+        snapshot = (
+            await self._load_snapshot(snapshot_id)
+            if self.repository is not None
+            else self.snapshots.get(snapshot_id)
+        )
         if snapshot is None:
             return None
         return {
@@ -278,8 +285,9 @@ class AiAssistService:
             output_status="rejected" if reason == "output_rejected" else "fallback",
             output_projection=None,
             adopted_copy=None,
+            audit_outcome="fallback",
+            audit_reason=reason,
         )
-        (await self._audit(task_type, "fallback", reason))
         if task_type == "assessment_explanation":
             return AiAssistResult(
                 **self._metadata(task_type),
@@ -328,8 +336,9 @@ class AiAssistService:
             output_status="adopted",
             output_projection=output,
             adopted_copy=adopted_copy if isinstance(adopted_copy, str) else None,
+            audit_outcome="adopted",
+            audit_reason=None,
         )
-        (await self._audit(task_type, "adopted", None))
         route = output.get("recommended_route") if task_type == "treehole_review_assist" else None
         return AiAssistResult(
             **self._metadata(task_type),
@@ -353,6 +362,8 @@ class AiAssistService:
         output_status: Literal["adopted", "fallback", "rejected"],
         output_projection: dict[str, Any] | None,
         adopted_copy: str | None,
+        audit_outcome: str,
+        audit_reason: str | None,
     ) -> AiAssistSnapshot:
         now = datetime.now(UTC)
         snapshot = AiAssistSnapshot(
@@ -371,14 +382,15 @@ class AiAssistService:
             created_at=now,
             updated_at=now,
         )
-        self.snapshots[snapshot.snapshot_id] = snapshot
         if self.repository is not None:
-            try:
+            async with self.repository.transaction():
                 document = snapshot.model_dump(mode="python")
                 document["_id"] = document.pop("snapshot_id")
-                (await self.repository.append_extra_document("ai_assist_snapshots", document))
-            except Exception:
-                logger.warning("ai_snapshot_write_failed")
+                await self.repository.append_extra_document("ai_assist_snapshots", document)
+                await self._audit(task_type, audit_outcome, audit_reason)
+        else:
+            await self._audit(task_type, audit_outcome, audit_reason)
+            self.snapshots[snapshot.snapshot_id] = snapshot
         return snapshot
 
     @traced
@@ -392,7 +404,6 @@ class AiAssistService:
                 values = dict(document)
                 values["snapshot_id"] = values.pop("_id")
                 snapshot = AiAssistSnapshot.model_validate(values)
-                self.snapshots[snapshot.snapshot_id] = snapshot
                 return snapshot
         except Exception:
             logger.warning("ai_snapshot_read_failed")

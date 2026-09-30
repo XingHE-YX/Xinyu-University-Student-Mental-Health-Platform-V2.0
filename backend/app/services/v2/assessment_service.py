@@ -91,6 +91,9 @@ class AssessmentService:
         if self.ai_assist is None:
             return
         subject = await self.tokens.authenticate_access(access_token, self.sessions)
+        if subject.subject_type != "student":
+            raise ApiException(403, "FORBIDDEN")
+        await self._ensure_assessment_access(subject.subject_id)
         result = await self.repository.get_assessment_result(result_id)
         if (
             subject.subject_type != "student"
@@ -99,6 +102,7 @@ class AssessmentService:
             or result.safety_state != "not_triggered"
             or result.result_state == "safety_support"
             or result.ai_assist_snapshot_id is not None
+            or result.deleted_at is not None
             or result.score is None
             or result.reference_band is None
         ):
@@ -120,15 +124,16 @@ class AssessmentService:
         )
         if assist.snapshot_id is None:
             return
-        latest = await self.repository.get_assessment_result(result_id)
-        if latest.ai_assist_snapshot_id is not None:
-            return
-        (
+        async with self.repository.transaction():
+            await self.tokens.authenticate_access(access_token, self.sessions)
+            await self._ensure_assessment_access(subject.subject_id)
+            latest = await self.repository.get_assessment_result(result_id)
+            if latest.ai_assist_snapshot_id is not None or latest.version != result.version:
+                return
             await self.repository.save_assessment_result(
                 latest.model_copy(update={"ai_assist_snapshot_id": assist.snapshot_id}),
                 expected_version=latest.version,
             )
-        )
 
     @traced
     async def start_session(

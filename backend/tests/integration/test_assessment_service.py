@@ -131,9 +131,16 @@ def build_service(repository: InMemoryDomainDataRepository) -> object:
 
 
 @pytest.mark.asyncio
-async def test_completed_assessment_persists_and_returns_ai_assist() -> None:
+@pytest.mark.parametrize("delete_during_ai", [False, True])
+async def test_completed_assessment_persists_and_returns_ai_assist(delete_during_ai: bool) -> None:
     class StubClient(AIClient):
         async def complete(self, request: AIRequest) -> AIResponse:
+            if delete_during_ai:
+                latest = await repository.get_assessment_result(completed.result_id or "")
+                await repository.save_assessment_result(
+                    latest.model_copy(update={"deleted_at": datetime.now(UTC)}),
+                    expected_version=latest.version,
+                )
             payload = json.loads(request.messages[-1].content)
             task_type = payload["task_type"]
             assert payload["module"] == "GAD7"
@@ -192,6 +199,11 @@ async def test_completed_assessment_persists_and_returns_ai_assist() -> None:
     )
 
     await service.attach_ai_assist(access_token, result_id=completed.result_id or "")
+    if delete_during_ai:
+        latest = await repository.get_assessment_result(completed.result_id or "")
+        assert latest.deleted_at is not None
+        assert latest.ai_assist_snapshot_id is None
+        return
     projection = await service.get_result(access_token, result_id=completed.result_id or "")
 
     assert projection.ai_assist is not None

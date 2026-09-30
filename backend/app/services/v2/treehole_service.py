@@ -71,12 +71,15 @@ class TreeholeService:
         body: str,
     ) -> TreeholeMutationResponse:
         subject = await self._student(access_token)
+        await self.consent.ensure_community_write_allowed(access_token)
         post = await self.repository.get_treehole_post(post_id)
         self._check_owner(post.author_user_id, subject.subject_id)
         if (
             self.ai_assist is None
             or post.ai_assist_snapshot_id is not None
             or post.safety_state != "not_triggered"
+            or post.deleted_at is not None
+            or post.visibility_state not in {"checking", "pending_confirmation"}
         ):
             return await self._mutation(post, subject.subject_id)
         sanitized, flags = _sanitize_for_ai(body)
@@ -94,9 +97,10 @@ class TreeholeService:
         )
         if assist.snapshot_id is None:
             return await self._mutation(post, subject.subject_id)
-        latest = await self.repository.get_treehole_post(post_id)
-        if latest.ai_assist_snapshot_id is None:
-            async with self.repository.transaction():
+        async with self.repository.transaction():
+            await self.consent.ensure_community_write_allowed(access_token)
+            latest = await self.repository.get_treehole_post(post_id)
+            if latest.ai_assist_snapshot_id is None and latest.version == post.version:
                 latest = await self.repository.save_treehole_post(
                     latest.model_copy(
                         update={
@@ -126,9 +130,15 @@ class TreeholeService:
         body: str,
     ) -> TreeholeResponseProjection:
         subject = await self._student(access_token)
+        await self.consent.ensure_community_write_allowed(access_token)
         response = await self.repository.get_treehole_response(response_id)
         self._check_owner(response.author_user_id, subject.subject_id)
-        if self.ai_assist is None or response.ai_assist_snapshot_id is not None:
+        if (
+            self.ai_assist is None
+            or response.ai_assist_snapshot_id is not None
+            or response.deleted_at is not None
+            or response.state != "checking"
+        ):
             return _response_projection(response, viewer_id=subject.subject_id, public=False)
         sanitized, flags = _sanitize_for_ai(body)
         assist = await self.ai_assist.treehole_review_assist(
@@ -145,9 +155,10 @@ class TreeholeService:
         )
         if assist.snapshot_id is None:
             return _response_projection(response, viewer_id=subject.subject_id, public=False)
-        latest = await self.repository.get_treehole_response(response_id)
-        if latest.ai_assist_snapshot_id is None:
-            async with self.repository.transaction():
+        async with self.repository.transaction():
+            await self.consent.ensure_community_write_allowed(access_token)
+            latest = await self.repository.get_treehole_response(response_id)
+            if latest.ai_assist_snapshot_id is None and latest.version == response.version:
                 latest = await self.repository.save_treehole_response(
                     latest.model_copy(update={"ai_assist_snapshot_id": assist.snapshot_id}),
                     expected_version=latest.version,
