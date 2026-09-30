@@ -2,16 +2,105 @@
 
 ## 0. 文档信息
 
-- 文档版本：BACKEND-1.0
+- 文档版本：BACKEND-2.0
 - 维护范围：数据库、认证、权限与 HTTP API 契约
-- 后端主语言：Python 3.11
+- 后端主语言：Python 3.14
 - HTTP 框架：FastAPI 0.128.8
-- 部署形态：CloudBase Python 3.11 HTTP 云函数
+- 部署形态：Python 3.14 容器 / 自定义运行时
 - 数据库：CloudBase 文档型数据库
 - API 前缀：/api/v2
 - 文档用途：与后端实现共同维护的接口合同；路由标题供契约测试读取
 
 本文定义数据库集合、字段类型、关系、权限、认证和接口契约。客户端不得通过猜测字段、修改请求体或伪造状态绕过本文规则。
+
+## 0.1 源码目录与异步执行
+
+```text
+backend/
+  app/
+    main.py                          # 应用入口
+    bootstrap.py                     # Container、Overrides、lifespan
+    models/v2/
+      documents/                     # 按领域划分的持久化模型
+      requests/
+      responses/
+    routers/
+      router.py                      # 唯一 /api/v2 父路由
+      dependencies.py
+      middleware/
+        request_context.py
+        access_log.py
+        cors.py
+      controller/v2/
+        admin/                       # auth、workbench、identity_access、audit、demo
+        *.py                         # 按学生端业务领域划分
+    services/v2/
+      repositories.py                # 领域仓储 Protocol
+      rules/                         # 评分、安全及 AI 固定规则
+      *_service.py
+    infra/
+      database/
+        common.py                    # 通用异步文档 CRUD
+        atomic.py                    # CAS 与 UnitOfWork
+        query.py                     # 查询、分页与游标类型
+        records.py                   # 会话、幂等与审计记录
+        collections.py
+        cloudbase/                   # client、codec、transaction、各仓储
+        memory/                      # 各仓储及共享事务
+      password/
+        common.py
+        algorithm/
+          argon2id.py
+          pbkdf2_sha256.py
+      ai/
+        client/                      # ABC、types、factory、DeepSeek
+        prompt/                      # manager 和版本化 templates
+      config/                        # settings、types、validation、deployment
+      logger/                        # 上下文、格式、队列、业务审计
+      serializer/
+        error/                       # 类型化错误
+      security/
+      integrations/
+  tests/
+    unit/
+    integration/
+    contracts/
+    helpers/
+  scripts/
+  Dockerfile
+  pyproject.toml
+  uv.lock
+  .python-version
+```
+
+Controller 调用异步服务；服务通过 Protocol 调用仓储。HTTP、会话、数据库、
+审计和外部接口沿调用链使用 `async` / `await`。短小的评分及字段校验为普通函数，
+密码操作由有并发限制的 AnyIO 工作线程执行。lifespan 复用并关闭异步连接池，
+启动失败也关闭已创建资源。各 ASGI 中间件独立实现，请求上下文在结束或取消时重置。
+
+CloudBase 使用 NoSQL REST 原生事务和版本条件更新；事务只能由创建它的任务使用，
+继承上下文的子任务不能共享该事务。Memory 通过任务拥有的异步锁及共享快照回滚，
+一致性范围为单进程。关键业务变更、成功审计和成功幂等结果同事务提交。
+取消请求先回滚，再有界清理失败幂等记录并重新抛出取消；清理失败记录日志。
+提交响应丢失或提交期间取消属于结果未知，不自动重试，也不写入确定失败。
+相同幂等键重试会读取终态，仍为 `processing` 时返回冲突；24 小时有效期内须核对
+记录与业务状态，不能通过更换幂等键跳过核对。
+
+## 0.2 审计与密码
+
+日志固定使用 `<level> <time> <code-pos> <scope> <content>`，时间为 UTC，内容为
+单行 JSON。调用位置和请求编号可关联控制器、服务、规则、仓储和外部接口结果。
+输出通过有界队列处理，持久化审计独立于输出队列；日志不包含参数、返回对象或
+密码、令牌、身份字段、树洞正文、自测答案、供应商原文。
+
+```text
+INFO 2026-09-30T08:00:00.000Z app/services/v2/auth_service.py:72 auth.admin {"event":"login.succeeded","request_id":"req_x","outcome":"success"}
+```
+
+新哈希只生成标准 PHC 格式 Argon2id。PBKDF2-SHA256 仅验证旧哈希，损坏格式、
+未知算法和越界成本拒绝验证。当前固定管理员通过受控配置更新哈希；旧哈希不能
+直接转成 Argon2id。更新后通过会话中的 `credential_version` 拒绝旧管理员会话，
+学生微信会话仍沿用既有认证方案。
 
 ## 1. 类型、命名和通用规则
 
@@ -62,7 +151,7 @@
 
 服务组成：
 
-1. Python HTTP 函数：接收所有学生端和后台业务 API。
+1. Python 3.14 ASGI 容器服务：接收所有学生端和后台业务 API。
 2. 文档数据库访问适配器：只在后端使用 CloudBase HTTP API 凭据。
 3. 微信登录适配器：服务端交换微信一次性登录凭证。
 4. 学校身份核验适配器：真实环境配置后才能返回核验成功。
@@ -104,18 +193,23 @@
 | _id | string | 是 | 会话 ID |
 | subject_type | string | 是 | student、admin |
 | subject_id | string | 是 | user_accounts 或 admin_accounts 的内部 ID |
+| capability | string | 否 | 服务端确定的账号能力 |
 | access_token_hash | hash_string | 是 | 短期访问令牌摘要 |
 | refresh_token_hash | hash_string | 否 | 轮换刷新令牌摘要 |
 | status | string | 是 | active、revoked、expired |
 | access_expires_at | datetime | 是 | 访问令牌到期时间 |
 | refresh_expires_at | datetime | 否 | 刷新令牌到期时间 |
-| last_seen_at | datetime | 是 | 最近活动时间 |
+| last_seen_at | datetime | 是 | 最近签发、刷新或撤销时间；不在每次读取时写入 |
 | device_hash | hash_string | 否 | 设备摘要，仅用于异常会话提示 |
+| credential_version | hash_string | 否 | 管理员密码配置的受控摘要，改密后旧会话失效 |
 | created_at | datetime | 是 | 创建时间 |
 | updated_at | datetime | 是 | 更新时间 |
 | version | integer | 是 | 乐观锁版本 |
 
-访问令牌不明文入库。学生访问令牌有效期 15 分钟，刷新令牌有效期 30 天并且每次使用后轮换；后台访问令牌有效期 15 分钟，刷新令牌有效期 8 小时。退出、改密或环境切换立即撤销会话。
+访问令牌不明文入库。默认学生访问令牌有效期 15 分钟，刷新令牌有效期 30 天且每次
+使用后轮换；后台默认访问令牌有效期 15 分钟，刷新令牌有效期 8 小时。
+这些时长由验证后的 `SessionConfig` 控制，刷新使用版本 CAS 防止重复消费。
+退出撤销会话，管理员改密后的首次验证或刷新拒绝旧会话；环境凭据分别隔离。
 
 ### 3.3 identity_records：身份核验记录
 

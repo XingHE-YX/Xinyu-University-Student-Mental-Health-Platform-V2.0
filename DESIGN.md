@@ -42,13 +42,14 @@
 
 | 目录 | 职责 |
 | --- | --- |
-| `api/` | 请求入口、参数及端侧数据投影 |
-| `schemas/` | 请求和响应模型 |
-| `services/` | 功能编排、权限约束和状态变更 |
-| `domain/` | 固定评分、环境和业务状态规则 |
-| `repositories/` | 内存与 CloudBase 持久化适配 |
-| `integrations/` | 微信、学校身份与 AI 等外部接口 |
-| `security/`、`audit/`、`config/` | 会话、审计和配置 |
+| `main.py`、`bootstrap.py` | ASGI 入口、类型化依赖容器、资源初始化与关闭 |
+| `routers/controller/v2/`、`routers/middleware/` | 业务控制器和逐文件独立的 ASGI 中间件 |
+| `models/v2/` | 按领域拆分的文档、请求和响应模型 |
+| `services/v2/` | 异步业务编排、仓储 Protocol 和固定业务规则 |
+| `infra/database/` | 通用异步 CRUD、CAS、CloudBase 原生事务和 Memory 回滚 |
+| `infra/ai/`、`infra/integrations/` | 可替换 AI 客户端、提示词、微信和学校接口 |
+| `infra/password/`、`infra/security/` | Argon2id、旧 PBKDF2 验证和异步会话 |
+| `infra/logger/`、`infra/serializer/`、`infra/config/` | 安全审计、公共响应与错误、代码配置及类型验证 |
 
 接口使用 `/api/v2` 前缀。数据库集合、索引、字段及完整路由契约集中在
 [后端规范](docs/develop/BACKEND_STRUCTURE.md)，契约测试读取该文档并与实际路由比较。
@@ -89,8 +90,8 @@
 ## 配置与部署
 
 配置字段统一维护在 [环境配置](docs/develop/CONFIGURATION_REGISTRY.md)。部署要求
-位于 [部署规范](docs/develop/deploy/ARCHITECTURE_AND_DEPLOYMENT.md)，仓库不提供部署模板或打包工具。
+位于 [部署规范](docs/develop/deploy/ARCHITECTURE_AND_DEPLOYMENT.md)，后端提供 `backend/Dockerfile`。
 
-Python HTTP 云函数发布时需按平台规范另行准备启动文件；后台发布 `admin/dist/`，小程序由微信开发者工具上传。
+后端使用 Python 3.14 容器或具备该解释器的自定义运行时，监听 9000 端口；后台发布 `admin/dist/`，小程序由微信开发者工具上传。
 健康接口的 `status=ok` 表示配置就绪，
 不等于已经探测数据库、微信、学校或 AI 的真实连通性。

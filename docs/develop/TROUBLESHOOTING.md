@@ -5,7 +5,7 @@
 
 ## 依赖安装与类型检查
 
-- 后端要求 Python 3.11，使用 uv 按 `backend/.python-version` 准备解释器和环境。自动下载不可用时使用 `uv python install 3.11.11` 或准备匹配的本地解释器；不要修改项目版本约束来绕过安装错误。
+- 后端要求 Python 3.14，使用 uv 按 `backend/.python-version` 准备解释器和环境。自动下载不可用时使用 `uv python install 3.14.7` 或准备匹配的本地解释器；不要修改项目版本约束来绕过安装错误。
 - 后台当前 TypeScript 与 `@typescript-eslint/parser` 的 peer 声明不匹配，使用 `npm ci --legacy-peer-deps` 安装现有锁文件。
 - 当前 `vue-tsc` 与 TypeScript 组合存在兼容限制；后台 `typecheck` 使用 `tsc`，并未证明 Vue 模板类型正确。
 - 后台 `lint` 脚本当前只检查 ESLint 配置。升级兼容工具链与恢复源码检查属于独立改动，不通过修改脚本名称伪装覆盖范围。

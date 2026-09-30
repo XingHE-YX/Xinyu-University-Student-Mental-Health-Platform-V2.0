@@ -13,7 +13,7 @@
 | --- | --- |
 | `miniprogram/` | 原生微信小程序，源码位于 `src/`，分类测试位于 `tests/` |
 | `admin/` | Vue 3 / TypeScript / Vite 桌面管理后台 |
-| `backend/` | Python 3.11 / FastAPI 业务 API、规则、仓储与集成 |
+| `backend/` | Python 3.14 / FastAPI 业务 API、规则、仓储与集成 |
 | `docs/` | 产品、详细设计、开发、计划和软著材料 |
 
 ## 开始使用
