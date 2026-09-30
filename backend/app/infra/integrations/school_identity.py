@@ -76,8 +76,9 @@ class HttpSchoolIdentityProvider:
         transport: AsyncBaseTransport | None = None,
     ) -> None:
         self._provider_url = provider_url
-        self._timeout = timeout
-        self._transport = transport
+        self._client = httpx.AsyncClient(
+            timeout=timeout, transport=transport, follow_redirects=False
+        )
 
     @traced
     async def verify_student(
@@ -89,18 +90,11 @@ class HttpSchoolIdentityProvider:
         if not self._provider_url:
             return SchoolIdentityVerificationResult(status="unavailable")
         try:
-            async with httpx.AsyncClient(
-                timeout=self._timeout,
-                transport=self._transport,
-            ) as client:
-                response = await client.post(
-                    self._provider_url,
-                    json={
-                        "student_name": student_name,
-                        "student_number": student_number,
-                    },
-                )
-                response.raise_for_status()
+            response = await self._client.post(
+                self._provider_url,
+                json={"student_name": student_name, "student_number": student_number},
+            )
+            response.raise_for_status()
             body = response.json()
             if not isinstance(body, dict):
                 return SchoolIdentityVerificationResult(status="unavailable")
@@ -127,3 +121,7 @@ class HttpSchoolIdentityProvider:
             return SchoolIdentityVerificationResult(status="unavailable")
         except Exception:
             return SchoolIdentityVerificationResult(status="unavailable")
+
+    @traced
+    async def aclose(self) -> None:
+        await self._client.aclose()

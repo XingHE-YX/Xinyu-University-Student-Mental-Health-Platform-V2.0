@@ -10,9 +10,14 @@ from app.models.v2.responses.identity_access import (
     IdentityAccessIdentityProjection,
     IdentityAccessRequestProjection,
 )
-from app.routers.dependencies import bearer_token, request_id, require_idempotency_key
+from app.routers.dependencies import (
+    bearer_token,
+    get_container,
+    request_id,
+    require_idempotency_key,
+)
 
-router = APIRouter(prefix="/api/v1/admin/identity-access-requests", tags=["admin-identity"])
+router = APIRouter(prefix="/admin/identity-access-requests", tags=["admin-identity"])
 AuthHeader = Annotated[str | None, Header()]
 
 
@@ -22,7 +27,7 @@ async def create_identity_access_request(
     body: IdentityAccessRequestCreate,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[IdentityAccessRequestProjection]:
-    data = await request.app.state.identity_access_service.create_request(
+    data = await get_container(request).identity_access_service.create_request(
         bearer_token(authorization),
         payload=body,
         request_id=request_id(request),
@@ -37,7 +42,7 @@ async def get_identity_access_request(
     identity_request_id: str,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[IdentityAccessRequestProjection]:
-    data = await request.app.state.identity_access_service.get_request(
+    data = await get_container(request).identity_access_service.get_request(
         bearer_token(authorization), request_id=identity_request_id
     )
     return ApiEnvelope.success(request_id(request), data=data)
@@ -49,7 +54,7 @@ async def read_identity(
     identity_request_id: str,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[IdentityAccessIdentityProjection]:
-    data = await request.app.state.identity_access_service.read_identity(
+    data = await get_container(request).identity_access_service.read_identity(
         bearer_token(authorization),
         request_id=identity_request_id,
         audit_request_id=request_id(request),

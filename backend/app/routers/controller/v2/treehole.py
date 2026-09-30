@@ -17,10 +17,15 @@ from app.models.v2.responses.treehole import (
     TreeholePostProjection,
     TreeholeResponseProjection,
 )
-from app.routers.dependencies import bearer_token, request_id, require_idempotency_key
+from app.routers.dependencies import (
+    bearer_token,
+    get_container,
+    request_id,
+    require_idempotency_key,
+)
 
-router = APIRouter(prefix="/api/v1/treehole", tags=["treehole"])
-student_router = APIRouter(prefix="/api/v1", tags=["treehole"])
+router = APIRouter(prefix="/treehole", tags=["treehole"])
+student_router = APIRouter(prefix="", tags=["treehole"])
 AuthHeader = Annotated[str | None, Header()]
 
 
@@ -32,7 +37,7 @@ async def list_posts(
     cursor: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> ApiEnvelope[TreeholePostListResponse]:
-    data = await request.app.state.treehole_service.list_public(
+    data = await get_container(request).treehole_service.list_public(
         bearer_token(authorization), sort=sort, cursor=cursor, limit=limit
     )
     return ApiEnvelope.success(request_id(request), data=data)
@@ -45,13 +50,13 @@ async def create_post(
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeMutationResponse]:
     access_token = bearer_token(authorization)
-    data = await request.app.state.treehole_service.create_post(
+    data = await get_container(request).treehole_service.create_post(
         access_token,
         body=body.body,
         request_id=request_id(request),
         idempotency_key=body.client_idempotency_key,
     )
-    data = await request.app.state.treehole_service.attach_post_ai_review(
+    data = await get_container(request).treehole_service.attach_post_ai_review(
         access_token,
         post_id=data.post_id,
         body=body.body,
@@ -65,7 +70,7 @@ async def get_post(
     post_id: str,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholePostProjection]:
-    data = await request.app.state.treehole_service.get_post(
+    data = await get_container(request).treehole_service.get_post(
         bearer_token(authorization), post_id=post_id
     )
     return ApiEnvelope.success(request_id(request), data=data)
@@ -78,7 +83,7 @@ async def list_my_posts(
     cursor: str | None = None,
     limit: int = Query(default=20, ge=1, le=100),
 ) -> ApiEnvelope[TreeholePostListResponse]:
-    data = await request.app.state.treehole_service.list_mine(
+    data = await get_container(request).treehole_service.list_mine(
         bearer_token(authorization), cursor=cursor, limit=limit
     )
     return ApiEnvelope.success(request_id(request), data=data)
@@ -91,7 +96,7 @@ async def withdraw_post(
     body: TreeholeObjectVersionRequest,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeMutationResponse]:
-    data = await request.app.state.treehole_service.withdraw_post(
+    data = await get_container(request).treehole_service.withdraw_post(
         bearer_token(authorization),
         post_id=post_id,
         object_version=body.object_version,
@@ -108,7 +113,7 @@ async def delete_post(
     body: TreeholeObjectVersionRequest,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeDeleteResponse]:
-    data = await request.app.state.treehole_service.delete_post(
+    data = await get_container(request).treehole_service.delete_post(
         bearer_token(authorization),
         post_id=post_id,
         object_version=body.object_version,
@@ -126,7 +131,7 @@ async def create_response(
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeResponseProjection]:
     access_token = bearer_token(authorization)
-    data = await request.app.state.treehole_service.create_response(
+    data = await get_container(request).treehole_service.create_response(
         access_token,
         post_id=post_id,
         body=body.body,
@@ -134,7 +139,7 @@ async def create_response(
         request_id=request_id(request),
         idempotency_key=body.client_idempotency_key,
     )
-    data = await request.app.state.treehole_service.attach_response_ai_review(
+    data = await get_container(request).treehole_service.attach_response_ai_review(
         access_token,
         response_id=data.response_id,
         body=body.body,
@@ -149,7 +154,7 @@ async def delete_response(
     body: TreeholeObjectVersionRequest,
     authorization: AuthHeader = None,
 ) -> ApiEnvelope[TreeholeDeleteResponse]:
-    data = await request.app.state.treehole_service.delete_response(
+    data = await get_container(request).treehole_service.delete_response(
         bearer_token(authorization),
         response_id=response_id,
         object_version=body.object_version,

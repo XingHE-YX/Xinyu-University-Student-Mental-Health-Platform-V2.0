@@ -27,8 +27,9 @@ class WechatAuthClient:
         self.appid = appid
         self.appsecret = appsecret
         self.endpoint = endpoint
-        self.transport = transport
-        self.timeout = timeout
+        self._client = httpx.AsyncClient(
+            timeout=timeout, transport=transport, follow_redirects=False
+        )
 
     @traced
     async def exchange_code(self, code: str) -> WechatIdentity:
@@ -43,12 +44,11 @@ class WechatAuthClient:
             "grant_type": "authorization_code",
         }
         try:
-            async with httpx.AsyncClient(timeout=self.timeout, transport=self.transport) as client:
-                response = await client.get(self.endpoint, params=params)
-                response.raise_for_status()
-                body = response.json()
-        except (httpx.HTTPError, ValueError) as error:
-            raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "微信登录服务暂时不可用") from error
+            response = await self._client.get(self.endpoint, params=params)
+            response.raise_for_status()
+            body = response.json()
+        except httpx.HTTPError, ValueError:
+            raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "微信登录服务暂时不可用") from None
         if not isinstance(body, dict):
             raise ApiException(503, "DEPENDENCY_UNAVAILABLE", "微信登录服务暂时不可用")
         if body.get("errcode") not in (None, 0):
@@ -60,3 +60,7 @@ class WechatAuthClient:
         identity_key = unionid if isinstance(unionid, str) and unionid else openid
         subject_id = hashlib.sha256(f"{self.appid}:{identity_key}".encode()).hexdigest()
         return WechatIdentity(subject_id=subject_id)
+
+    @traced
+    async def aclose(self) -> None:
+        await self._client.aclose()

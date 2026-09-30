@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from fastapi.testclient import TestClient
 
+from app.bootstrap import install_container
 from app.infra.security.tokens import TokenManager
 from app.main import create_app
 
@@ -11,8 +14,9 @@ from .test_safety_service import build_services, phq9_safety_answers
 async def test_safety_confirmation_api_rejects_client_state_tampering() -> None:
     assessment, safety, _, sessions, _, _ = build_services()
     app = create_app()
-    app.state.assessment_service = assessment
-    app.state.safety_service = safety
+    install_container(
+        app, replace(app.state.container, assessment_service=assessment, safety_service=safety)
+    )
     client = TestClient(app)
     access_token = await TokenManager("student-session-secret").issue("student", "user-1", sessions)
     started = await assessment.start_session(
@@ -49,8 +53,9 @@ async def test_safety_confirmation_and_resource_ack_api_return_enveloped_minimal
 ):
     assessment, safety, _, sessions, _, _ = build_services()
     app = create_app()
-    app.state.assessment_service = assessment
-    app.state.safety_service = safety
+    install_container(
+        app, replace(app.state.container, assessment_service=assessment, safety_service=safety)
+    )
     client = TestClient(app)
     access_token = await TokenManager("student-session-secret").issue("student", "user-1", sessions)
     started = await assessment.start_session(

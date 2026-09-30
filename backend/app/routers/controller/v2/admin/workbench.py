@@ -1,7 +1,6 @@
 """HTTP adapter for the read/write admin workbench projection."""
 
-from datetime import datetime
-from typing import Annotated, Any, Literal, cast
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Header, Query, Request
 from pydantic import BaseModel, ValidationError
@@ -14,27 +13,28 @@ from app.models.v2.requests.admin_workbench import (
     FollowupDecisionRequest,
     IdentityDecisionRequest,
     ObjectVersionRequest,
-    ResetRequest,
     SafetyDecisionRequest,
 )
 from app.models.v2.responses.admin_workbench import (
-    AuditPage,
-    ResetCollectionResult,
-    ResetResult,
     TaskDetail,
     TaskMutationResult,
     WorkbenchPage,
     WorkbenchSection,
 )
-from app.routers.dependencies import admin_subject, request_id, require_idempotency_key
+from app.routers.dependencies import (
+    admin_subject,
+    get_container,
+    request_id,
+    require_idempotency_key,
+)
 from app.services.v2.admin_workbench_service import AdminWorkbenchService
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin-workbench"])
+router = APIRouter(prefix="/admin", tags=["admin-workbench"])
 AuthorizationHeader = Annotated[str | None, Header()]
 
 
 def _service(request: Request) -> AdminWorkbenchService:
-    return cast(AdminWorkbenchService, request.app.state.admin_workbench_service)
+    return get_container(request).admin_workbench_service
 
 
 async def _admin(request: Request, authorization: str | None) -> AuthenticatedSubject:
@@ -201,58 +201,3 @@ def _decision_model(task_kind: str, body: dict[str, Any]) -> Any:
     except ValidationError as error:
         del error
         raise ApiException(422, "VALIDATION_FAILED") from None
-
-
-@router.get("/audit-events")
-async def audit_events(
-    request: Request,
-    authorization: AuthorizationHeader = None,
-    from_at: Annotated[datetime | None, Query(alias="from")] = None,
-    to_at: Annotated[datetime | None, Query(alias="to")] = None,
-    resource_type: str | None = None,
-    action: str | None = None,
-    outcome: Literal["success", "denied", "conflict", "failure"] | None = None,
-    cursor: str | None = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
-) -> ApiEnvelope[AuditPage]:
-    (await _admin(request, authorization))
-    items, next_cursor = await _service(request).list_audit_page(
-        from_at=from_at,
-        to_at=to_at,
-        resource_type=resource_type,
-        action=action,
-        outcome=outcome,
-        cursor=cursor,
-        limit=limit,
-    )
-    return ApiEnvelope.success(request_id(request), AuditPage(items=items, next_cursor=next_cursor))
-
-
-@router.post("/demo/reset")
-async def reset_demo(
-    request: Request,
-    body: ResetRequest,
-    authorization: AuthorizationHeader = None,
-) -> ApiEnvelope[ResetResult]:
-    subject = await _admin(request, authorization)
-    _ = require_idempotency_key(request)
-    service = _service(request)
-    results = await service.reset_demo(
-        request_id=request_id(request),
-        admin_id=subject.subject_id,
-        scopes=list(body.reset_scope),
-    )
-    collections = [
-        ResetCollectionResult(
-            collection=item["collection"],
-            state=cast(Literal["completed", "failed", "skipped"], item["state"]),
-            message=item.get("message"),
-        )
-        for item in results
-    ]
-    data = ResetResult(
-        success=all(item.state == "completed" for item in collections),
-        request_id=request_id(request),
-        collections=collections,
-    )
-    return ApiEnvelope.success(request_id(request), data)

@@ -8,20 +8,20 @@ from app.infra.serializer.envelope import ApiEnvelope
 from app.infra.serializer.error.common import ApiException
 from app.models.v2.requests.auth import AdminLoginRequest, RefreshRequest
 from app.models.v2.responses.auth import AdminMeData, AdminSessionData
-from app.routers.dependencies import admin_subject, bearer_token, request_id
+from app.routers.dependencies import admin_subject, bearer_token, get_container, request_id
 
-router = APIRouter(prefix="/api/v1/admin", tags=["admin-auth"])
+router = APIRouter(prefix="/admin", tags=["admin-auth"])
 
 
 @router.post("/auth/login")
 async def login(request: Request, body: AdminLoginRequest) -> ApiEnvelope[AdminSessionData]:
-    data = await request.app.state.auth_service.login_admin(body.login_name, body.password)
+    data = await get_container(request).auth_service.login_admin(body.login_name, body.password)
     return ApiEnvelope.success(request_id(request), data=data)
 
 
 @router.post("/auth/refresh")
 async def refresh(request: Request, body: RefreshRequest) -> ApiEnvelope[object]:
-    data = await request.app.state.auth_service.refresh(
+    data = await get_container(request).auth_service.refresh(
         body.refresh_token,
         expected_subject_type="admin",
     )
@@ -36,7 +36,7 @@ async def logout(
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[dict[str, bool]]:
     token = bearer_token(authorization)
-    (await request.app.state.auth_service.logout(token, expected_subject_type="admin"))
+    (await get_container(request).auth_service.logout(token, expected_subject_type="admin"))
     return ApiEnvelope.success(request_id(request), data={"success": True})
 
 
@@ -46,7 +46,7 @@ async def me(
     authorization: Annotated[str | None, Header()] = None,
 ) -> ApiEnvelope[AdminMeData]:
     subject = await admin_subject(request, authorization)
-    settings = request.app.state.settings
+    settings = get_container(request).settings
     data = AdminMeData(
         display_name="心理健康中心工作人员",
         capability_label="超级管理员",

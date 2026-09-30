@@ -3,7 +3,8 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.infra.logger.context import request_id_context
 from app.infra.serializer.error.common import ApiException
-from app.routers.dependencies import _error_response, resolve_request_id
+from app.infra.serializer.handlers import _error_response
+from app.routers.dependencies import resolve_request_id
 
 
 class RequestContextMiddleware:
