@@ -12,7 +12,7 @@ AppID 对应的 EnvID、HTTPS API 地址和环境类型。该文件只允许登�
 
 ## 发布前检查
 
-检查演示和授权的 AppID、EnvID 不同，API 地址使用 HTTPS 并以 `/api/v1`
+检查演示和授权的 AppID、EnvID 不同，API 地址使用 HTTPS 并以 `/api/v2`
 结尾，且不带查询参数或片段。占位值不能作为上传配置。
 
 ## 微信开发者工具流程

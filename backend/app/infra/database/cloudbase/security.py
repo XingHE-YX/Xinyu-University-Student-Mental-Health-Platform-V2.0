@@ -1,0 +1,247 @@
+"""Persistent session, idempotency and audit records for the Python backend."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import asdict, fields, replace
+from datetime import datetime
+from typing import Any
+
+from pydantic import TypeAdapter, ValidationError
+
+from app.infra.database.cloudbase.client import CloudBaseStore
+from app.infra.database.common import (
+    RepositoryNotFound,
+    RepositoryUnavailable,
+    RepositoryVersionConflict,
+)
+from app.infra.database.records import (
+    AuditEventRecord,
+    AuthSessionRecord,
+    IdempotencyOutcome,
+    IdempotencyRecord,
+)
+from app.infra.logger.common import traced
+from app.infra.serializer.error.common import ApiException
+from app.models.v2.documents.account import AuthSessionDocument
+
+
+@traced
+def parse_record[R: (AuthSessionRecord, IdempotencyRecord, AuditEventRecord)](
+    model: type[R], data: dict[str, Any]
+) -> R:
+    try:
+        return TypeAdapter(model).validate_python(
+            {f.name: data[f.name] for f in fields(model) if f.name in data}
+        )
+    except KeyError, ValidationError:
+        raise RepositoryUnavailable("stored security record is invalid") from None
+
+
+class CloudBaseSessionRepository:
+    def __init__(self, store: CloudBaseStore) -> None:
+        self.store = store
+
+    @staticmethod
+    def _document(record: AuthSessionRecord) -> dict[str, Any]:
+        document = asdict(record)
+        document.pop("session_id")
+        return AuthSessionDocument.model_validate(
+            {"_id": record.session_id, "last_seen_at": record.updated_at, **document}
+        ).model_dump(by_alias=True)
+
+    @traced
+    async def save(self, record: AuthSessionRecord) -> None:
+        await self.store.insert("auth_sessions", self._document(record))
+
+    @traced
+    async def replace(self, record: AuthSessionRecord) -> None:
+        try:
+            (await self.store.replace("auth_sessions", self._document(record), record.version - 1))
+        except RepositoryVersionConflict:
+            # A concurrent refresh/logout consumes or revokes the old token only once.
+            raise ApiException(401, "SESSION_EXPIRED") from None
+
+    @traced
+    async def _find(self, where: dict[str, Any]) -> AuthSessionRecord | None:
+        rows = await self.store.query("auth_sessions", where, limit=1)
+        return (
+            parse_record(AuthSessionRecord, {"session_id": rows[0]["_id"], **rows[0]})
+            if rows
+            else None
+        )
+
+    @traced
+    async def get_by_session_id(self, session_id: str) -> AuthSessionRecord | None:
+        return await self._find({"_id": session_id})
+
+    @traced
+    async def get_by_access_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
+        return await self._find({"access_token_hash": token_hash})
+
+    @traced
+    async def get_by_refresh_token_hash(self, token_hash: str) -> AuthSessionRecord | None:
+        return await self._find({"refresh_token_hash": token_hash})
+
+    @traced
+    async def revoke(self, session_id: str, *, now: datetime) -> AuthSessionRecord | None:
+        async with self.store.transaction():
+            record = await self.get_by_session_id(session_id)
+            if record is None or record.status == "revoked":
+                return record
+            revoked = replace(record, status="revoked", updated_at=now, version=record.version + 1)
+            (await self.replace(revoked))
+            return revoked
+
+
+class CloudBaseIdempotencyRepository:
+    def __init__(self, store: CloudBaseStore) -> None:
+        self.store = store
+
+    @staticmethod
+    def _key(record: IdempotencyRecord) -> tuple[str, str, str, str]:
+        return record.actor_type, record.actor_id, record.route_key, record.idempotency_key
+
+    @staticmethod
+    @traced
+    def _document_id(actor_type: str, actor_id: str, route_key: str, idempotency_key: str) -> str:
+        value = json.dumps([actor_type, actor_id, route_key, idempotency_key])
+        return "idem_" + hashlib.sha256(value.encode()).hexdigest()
+
+    @traced
+    async def get(
+        self, actor_type: str, actor_id: str, route_key: str, idempotency_key: str, *, now: datetime
+    ) -> IdempotencyRecord | None:
+        document_id = self._document_id(actor_type, actor_id, route_key, idempotency_key)
+        try:
+            record = parse_record(
+                IdempotencyRecord, (await self.store.get("idempotency_records", document_id))
+            )
+        except RepositoryNotFound:
+            return None
+        return record if record.expires_at > now else None
+
+    @traced
+    async def reserve(
+        self, record: IdempotencyRecord, *, now: datetime
+    ) -> IdempotencyRecord | None:
+        document_id = self._document_id(*self._key(record))
+        try:
+            async with self.store.transaction():
+                rows = await self.store.query("idempotency_records", {"_id": document_id}, limit=1)
+                if rows:
+                    current = parse_record(IdempotencyRecord, rows[0])
+                    if current.expires_at > now:
+                        return current
+                    updated = replace(record, version=current.version + 1)
+                    (
+                        await self.store.replace(
+                            "idempotency_records",
+                            {"_id": document_id, **asdict(updated)},
+                            current.version,
+                        )
+                    )
+                else:
+                    (
+                        await self.store.insert(
+                            "idempotency_records", {"_id": document_id, **asdict(record)}
+                        )
+                    )
+        except RepositoryVersionConflict:
+            existing = await self.get(*self._key(record), now=now)
+            if existing is not None:
+                return existing
+            raise
+        return None
+
+    @traced
+    async def complete(
+        self,
+        record_id: str,
+        *,
+        outcome: IdempotencyOutcome,
+        response_status: int,
+        response_digest: str,
+        now: datetime,
+    ) -> IdempotencyRecord:
+        async with self.store.transaction():
+            rows = await self.store.query("idempotency_records", {"record_id": record_id}, limit=1)
+            if not rows:
+                raise RepositoryNotFound("idempotency reservation not found")
+            record = parse_record(IdempotencyRecord, rows[0])
+            if record.outcome != "processing":
+                return record
+            completed = replace(
+                record,
+                outcome=outcome,
+                response_status=response_status,
+                response_digest=response_digest,
+                updated_at=now,
+                version=record.version + 1,
+            )
+            (
+                await self.store.replace(
+                    "idempotency_records",
+                    {"_id": rows[0]["_id"], **asdict(completed)},
+                    record.version,
+                )
+            )
+            return completed
+
+
+class CloudBaseAuditRepository:
+    def __init__(self, store: CloudBaseStore) -> None:
+        self.store = store
+
+    @traced
+    async def append(self, event: AuditEventRecord) -> AuditEventRecord:
+        (
+            await self.store.insert(
+                "audit_events",
+                {
+                    "_id": event.event_id,
+                    "request_id": event.request_id,
+                    "environment_id": event.environment_id,
+                    "actor_type": event.actor_type,
+                    "actor_id": event.actor_id,
+                    "actor_capability": event.capability,
+                    "action": event.action,
+                    "resource_type": event.resource_type,
+                    "resource_id": event.resource_id,
+                    "data_scope": [part for part in event.data_scope.split(",") if part],
+                    "outcome": event.outcome,
+                    "reason_code": event.reason_code,
+                    "occurred_at": event.occurred_at,
+                    "details": event.details,
+                    "created_at": event.occurred_at,
+                    "updated_at": event.occurred_at,
+                    "version": event.version,
+                },
+            )
+        )
+        return event
+
+    @traced
+    async def list(self) -> tuple[AuditEventRecord, ...]:
+        events = [
+            AuditEventRecord(
+                event_id=str(row["_id"]),
+                request_id=str(row["request_id"]),
+                environment_id=str(row["environment_id"]),
+                actor_type=str(row["actor_type"]),
+                actor_id=str(row["actor_id"] or ""),
+                capability=(str(row["actor_capability"]) if row.get("actor_capability") else None),
+                action=str(row["action"]),
+                resource_type=str(row["resource_type"]),
+                resource_id=str(row["resource_id"]),
+                data_scope=",".join(str(item) for item in row.get("data_scope", [])),
+                outcome=str(row["outcome"]),
+                reason_code=str(row["reason_code"]) if row.get("reason_code") else None,
+                occurred_at=TypeAdapter(datetime).validate_python(row["occurred_at"]),
+                details=dict(row.get("details", {})),
+                version=int(row.get("version", 1)),
+            )
+            for row in (await self.store.all("audit_events"))
+        ]
+        return tuple(sorted(events, key=lambda event: (event.occurred_at, event.event_id)))

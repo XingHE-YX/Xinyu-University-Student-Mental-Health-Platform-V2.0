@@ -1,0 +1,872 @@
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import pytest
+
+from app.infra.ai.client.abstract import AIClient
+from app.infra.ai.client.types import AIRequest, AIResponse
+from app.infra.config.settings import Settings
+from app.infra.database.common import RepositoryNotFound
+from app.infra.database.memory.audit import InMemoryAuditRepository
+from app.infra.database.memory.domain import InMemoryDomainDataRepository
+from app.infra.database.memory.idempotency import InMemoryIdempotencyRepository
+from app.infra.database.memory.session import InMemorySessionRepository
+from app.infra.logger.audit import AuditWriter
+from app.infra.security.tokens import TokenManager
+from app.infra.serializer.error.common import ApiException
+from app.models.v2.documents import (
+    AssessmentQuestionnaireDocument,
+    IdentityRecordDocument,
+    UserAccountDocument,
+)
+from app.services.v2.ai_assist_service import AiAssistService
+from app.services.v2.idempotency_service import IdempotencyService
+
+
+def configured_settings() -> Settings:
+    return Settings.from_environment(
+        {
+            "WECHAT_APPID": "wx-demo",
+            "WECHAT_APPSECRET": "wechat-secret",
+            "CLOUDBASE_ENV_ID": "demo-env",
+            "CLOUDBASE_API_KEY": "cloudbase-secret",
+            "DEEPSEEK_API_KEY": "deepseek-secret",
+            "ADMIN_PASSWORD_HASH": "password-hash",
+            "ADMIN_SESSION_SECRET": "admin-session-secret",
+            "SCHOOL_IDENTITY_PROVIDER_URL": "https://identity.example.test",
+            "SUPPORT_RESOURCE_VERSION": "support-v1",
+            "DEMO_MODE": "true",
+        },
+        demo_env_ids={"demo-env"},
+    )
+
+
+def build_user(**overrides: Any) -> UserAccountDocument:
+    data: dict[str, Any] = {
+        "_id": "user-1",
+        "auth_subject_hash": "student-subject-hash",
+        "status": "active",
+        "base_consent_status": "accepted",
+        "base_consent_version": "base-v1",
+        "base_consent_at": datetime(2026, 8, 30, tzinfo=UTC),
+        "community_consent_status": "accepted",
+        "community_consent_version": "community-v1",
+        "community_consent_at": datetime(2026, 8, 30, tzinfo=UTC),
+        "identity_record_id": "identity-1",
+        "anonymous_identity_id": "anonymous-1",
+        "created_at": datetime(2026, 8, 30, tzinfo=UTC),
+        "updated_at": datetime(2026, 8, 30, tzinfo=UTC),
+        "version": 3,
+    }
+    data.update(overrides)
+    return UserAccountDocument(**data)
+
+
+async def issue_student_access_token(
+    sessions: InMemorySessionRepository,
+    *,
+    subject_id: str = "user-1",
+) -> str:
+    pair = await TokenManager("student-session-secret").issue("student", subject_id, sessions)
+    return pair.access_token
+
+
+def seed_rules_repository(
+    *,
+    module_updates: dict[str, dict[str, Any]] | None = None,
+    questionnaire_updates: dict[tuple[str, str], dict[str, Any]] | None = None,
+    extra_questionnaires: list[AssessmentQuestionnaireDocument] | None = None,
+) -> InMemoryDomainDataRepository:
+    rules = pytest.importorskip("app.services.v2.rules.assessment")
+    seed_documents = rules.build_seed_documents()
+    modules = [
+        module.model_copy(update=(module_updates or {}).get(module.module_code, {}))
+        for module in seed_documents["assessment_modules"]
+    ]
+    questionnaires = [
+        questionnaire.model_copy(
+            update=(questionnaire_updates or {}).get(
+                (questionnaire.module_code, questionnaire.questionnaire_version), {}
+            )
+        )
+        for questionnaire in seed_documents["assessment_questionnaires"]
+    ]
+    questionnaires.extend(extra_questionnaires or [])
+    return InMemoryDomainDataRepository(
+        users=[build_user()],
+        identities=[
+            IdentityRecordDocument(
+                _id="identity-1",
+                user_id="user-1",
+                verification_status="verified",
+                student_name_ciphertext="cipher-name",
+                student_number_ciphertext="cipher-number",
+                provider_reference_hash="provider-ref",
+                verified_at=datetime(2026, 8, 30, tzinfo=UTC),
+                failed_reason_code=None,
+                access_version=1,
+                created_at=datetime(2026, 8, 30, tzinfo=UTC),
+                updated_at=datetime(2026, 8, 30, tzinfo=UTC),
+                version=1,
+            )
+        ],
+        assessment_modules=modules,
+        assessment_questionnaires=questionnaires,
+    )
+
+
+def build_service(repository: InMemoryDomainDataRepository) -> object:
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    return service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=InMemorySessionRepository(),
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("delete_during_ai", [False, True])
+async def test_completed_assessment_persists_and_returns_ai_assist(delete_during_ai: bool) -> None:
+    class StubClient(AIClient):
+        async def complete(self, request: AIRequest) -> AIResponse:
+            if delete_during_ai:
+                latest = await repository.get_assessment_result(completed.result_id or "")
+                await repository.save_assessment_result(
+                    latest.model_copy(update={"deleted_at": datetime.now(UTC)}),
+                    expected_version=latest.version,
+                )
+            payload = json.loads(request.messages[-1].content)
+            task_type = payload["task_type"]
+            assert payload["module"] == "GAD7"
+            return AIResponse(
+                content=json.dumps(
+                    {
+                        "task_type": task_type,
+                        "status": "ok",
+                        "summary": (
+                            "这段说明帮助你阅读已经完成的固定结果，并保持原有分层不变，"
+                            "你可以按自己的节奏决定是否查看支持资源。"
+                        ),
+                        "observations": ["本次结果只作为自我观察参考。"],
+                        "practical_steps": ["可以先查看支持资源。"],
+                        "boundary_notice": "这段说明用于帮助你阅读固定结果，不是诊断或专业评估。",
+                    },
+                    ensure_ascii=False,
+                ),
+                model="fake-model",
+            )
+
+        async def aclose(self) -> None:
+            pass
+
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    settings = configured_settings()
+    ai_assist = AiAssistService(settings, client=StubClient(), repository=repository)
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=settings,
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+        ai_assist_service=ai_assist,
+    )
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
+        access_token,
+        module_code="gad7",
+        request_id="req-ai-start",
+        idempotency_key="ai-start",
+    )
+    completed = await service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=started.object_version,
+        answers=[
+            {"question_key": f"q{question_number}", "option_key": "0"}
+            for question_number in range(1, 8)
+        ],
+        request_id="req-ai-complete",
+        idempotency_key="ai-complete",
+    )
+
+    await service.attach_ai_assist(access_token, result_id=completed.result_id or "")
+    if delete_during_ai:
+        latest = await repository.get_assessment_result(completed.result_id or "")
+        assert latest.deleted_at is not None
+        assert latest.ai_assist_snapshot_id is None
+        return
+    projection = await service.get_result(access_token, result_id=completed.result_id or "")
+
+    assert projection.ai_assist is not None
+    assert projection.ai_assist["status"] == "adopted"
+    assert (await repository.get_assessment_result(completed.result_id or "")).ai_assist_snapshot_id
+    assert len(await repository.extra_collection("ai_assist_snapshots")) == 1
+
+
+async def test_start_session_freezes_enabled_questionnaire_version_without_score_rules() -> None:
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = await issue_student_access_token(sessions)
+
+    started = await service.start_session(
+        access_token,
+        module_code="phq9",
+        request_id="req-start-1",
+        idempotency_key="start-1",
+    )
+
+    assert started.questionnaire_version == "phq9-cn-v1"
+    assert started.state == "in_progress"
+    assert len(started.questions) == 10
+    assert all(not hasattr(question, "score_rule") for question in started.questions)
+
+    session = await repository.get_assessment_session(started.session_id)
+    assert session.questionnaire_version == "phq9-cn-v1"
+    assert session.answers is None
+    assert session.answered_count is None
+
+
+async def test_assessment_audit_events_use_allowed_assessment_resource_type() -> None:
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    audit_repository = InMemoryAuditRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
+    )
+
+    await service.start_session(
+        (await issue_student_access_token(sessions)),
+        module_code="phq9",
+        request_id="req-start-audit-resource",
+        idempotency_key="start-audit-resource",
+    )
+
+    start_events = [
+        event for event in (await audit_repository.list()) if event.action == "assessment_session"
+    ]
+    assert len(start_events) == 1
+    assert start_events[0].resource_type == "assessment"
+
+
+async def test_start_session_rejects_disabled_module_from_repository() -> None:
+    repository = seed_rules_repository(module_updates={"phq9": {"enabled": False}})
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    with pytest.raises(ApiException) as error:
+        await service.start_session(
+            (await issue_student_access_token(sessions)),
+            module_code="phq9",
+            request_id="req-start-disabled-module",
+            idempotency_key="start-disabled-module",
+        )
+
+    assert error.value.code == "NOT_FOUND"
+    with pytest.raises(RepositoryNotFound):
+        (await repository.get_assessment_session("assessment_session_0001"))
+
+
+async def test_start_session_rejects_disabled_questionnaire_from_repository() -> None:
+    repository = seed_rules_repository(
+        questionnaire_updates={("phq9", "phq9-cn-v1"): {"enabled": False}}
+    )
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    with pytest.raises(ApiException) as error:
+        await service.start_session(
+            (await issue_student_access_token(sessions)),
+            module_code="phq9",
+            request_id="req-start-disabled-questionnaire",
+            idempotency_key="start-disabled-questionnaire",
+        )
+
+    assert error.value.code == "NOT_FOUND"
+
+
+async def test_start_session_uses_repository_current_version_and_question_projection() -> None:
+    rules = pytest.importorskip("app.services.v2.rules.assessment")
+    seed_documents = rules.build_seed_documents()
+    phq9_v1 = next(
+        questionnaire
+        for questionnaire in seed_documents["assessment_questionnaires"]
+        if questionnaire.module_code == "phq9"
+    )
+    phq9_v2 = phq9_v1.model_copy(
+        update={
+            "_id": "assessment-questionnaire-phq9-v2",
+            "questionnaire_version": "phq9-cn-v2",
+            "questions": [
+                question.model_copy(update={"text": "仓储发布的 v2 题干。"})
+                if question.question_key == "q1"
+                else question
+                for question in phq9_v1.questions
+            ],
+        }
+    )
+    repository = seed_rules_repository(
+        module_updates={"phq9": {"current_questionnaire_version": "phq9-cn-v2"}},
+        extra_questionnaires=[phq9_v2],
+    )
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    started = await service.start_session(
+        (await issue_student_access_token(sessions)),
+        module_code="phq9",
+        request_id="req-start-v2",
+        idempotency_key="start-v2",
+    )
+
+    assert started.questionnaire_version == "phq9-cn-v2"
+    assert started.questions[0].text == "仓储发布的 v2 题干。"
+    assert all(not hasattr(question, "score_rule") for question in started.questions)
+
+
+async def test_start_session_rejects_missing_current_questionnaire() -> None:
+    repository = seed_rules_repository(
+        module_updates={"phq9": {"current_questionnaire_version": "phq9-cn-v2"}}
+    )
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    with pytest.raises(ApiException) as error:
+        await service.start_session(
+            (await issue_student_access_token(sessions)),
+            module_code="phq9",
+            request_id="req-start-missing-questionnaire",
+            idempotency_key="start-missing-questionnaire",
+        )
+
+    assert error.value.code == "NOT_FOUND"
+
+
+async def test_start_session_rejects_questionnaire_with_mismatched_module() -> None:
+    rules = pytest.importorskip("app.services.v2.rules.assessment")
+    repository = seed_rules_repository()
+    gad7 = next(
+        questionnaire
+        for questionnaire in rules.build_seed_documents()["assessment_questionnaires"]
+        if questionnaire.module_code == "gad7"
+    )
+    mismatch: AssessmentQuestionnaireDocument = gad7.model_copy(
+        update={"questionnaire_version": "phq9-cn-v1", "_id": "mismatched-questionnaire"}
+    )
+    original_get = repository.get_assessment_questionnaire
+
+    async def get_mismatched_questionnaire(
+        module_code: str, questionnaire_version: str
+    ) -> AssessmentQuestionnaireDocument:
+        assert module_code == "phq9"
+        assert questionnaire_version == "phq9-cn-v1"
+        return mismatch
+
+    repository.get_assessment_questionnaire = get_mismatched_questionnaire  # type: ignore[method-assign]
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+
+    with pytest.raises(ApiException) as error:
+        await service.start_session(
+            (await issue_student_access_token(sessions)),
+            module_code="phq9",
+            request_id="req-start-mismatched-questionnaire",
+            idempotency_key="start-mismatched-questionnaire",
+        )
+
+    assert error.value.code == "NOT_FOUND"
+    repository.get_assessment_questionnaire = original_get  # type: ignore[method-assign]
+
+
+async def test_completion_scores_from_the_session_questionnaire_document() -> None:
+    rules = pytest.importorskip("app.services.v2.rules.assessment")
+    seed_documents = rules.build_seed_documents()
+    gad7_v1 = next(
+        questionnaire
+        for questionnaire in seed_documents["assessment_questionnaires"]
+        if questionnaire.module_code == "gad7"
+    )
+    gad7_v2 = gad7_v1.model_copy(
+        update={
+            "_id": "assessment-questionnaire-gad7-v2",
+            "questionnaire_version": "gad7-cn-v2",
+            "questions": [
+                question.model_copy(
+                    update={
+                        "options": [
+                            option.model_copy(update={"score": 1})
+                            if option.option_key == "0"
+                            else option
+                            for option in question.options
+                        ]
+                    }
+                )
+                if question.question_key == "q1"
+                else question
+                for question in gad7_v1.questions
+            ],
+        }
+    )
+    repository = seed_rules_repository(
+        module_updates={"gad7": {"current_questionnaire_version": "gad7-cn-v2"}},
+        extra_questionnaires=[gad7_v2],
+    )
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
+        access_token,
+        module_code="gad7",
+        request_id="req-start-gad-v2",
+        idempotency_key="start-gad-v2",
+    )
+
+    result = await service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=started.object_version,
+        answers=[
+            {"question_key": f"q{question_number}", "option_key": "0"}
+            for question_number in range(1, 8)
+        ],
+        request_id="req-complete-gad-v2",
+        idempotency_key="complete-gad-v2",
+    )
+
+    assert result.score == 1
+    stored_result = await repository.get_assessment_result(result.result_id or "")
+    assert stored_result.answers_snapshot is not None
+    assert stored_result.answers_snapshot[0].score_snapshot == 1
+
+
+async def test_completion_persists_result_atomically_and_replays_duplicate_submit() -> None:
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
+        access_token,
+        module_code="gad7",
+        request_id="req-start-1",
+        idempotency_key="start-1",
+    )
+
+    result = await service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=started.object_version,
+        answers=[
+            {"question_key": "q1", "option_key": "2"},
+            {"question_key": "q2", "option_key": "2"},
+            {"question_key": "q3", "option_key": "2"},
+            {"question_key": "q4", "option_key": "2"},
+            {"question_key": "q5", "option_key": "2"},
+            {"question_key": "q6", "option_key": "0"},
+            {"question_key": "q7", "option_key": "0"},
+        ],
+        request_id="req-complete-1",
+        idempotency_key="complete-1",
+    )
+
+    replay = await service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=started.object_version,
+        answers=[
+            {"question_key": "q1", "option_key": "2"},
+            {"question_key": "q2", "option_key": "2"},
+            {"question_key": "q3", "option_key": "2"},
+            {"question_key": "q4", "option_key": "2"},
+            {"question_key": "q5", "option_key": "2"},
+            {"question_key": "q6", "option_key": "0"},
+            {"question_key": "q7", "option_key": "0"},
+        ],
+        request_id="req-complete-1b",
+        idempotency_key="complete-1",
+    )
+
+    assert result.completion_state == "result_ready"
+    assert result.result_id is not None
+    assert result.score == 10
+    assert result.result_state == "higher_score"
+    assert replay.result_id == result.result_id
+
+    session = await repository.get_assessment_session(started.session_id)
+    stored_result = await repository.get_assessment_result(result.result_id)
+    assert session.state == "completed"
+    assert session.answered_count == 7
+    assert stored_result.session_id == started.session_id
+    assert stored_result.score == 10
+    assert len(await repository.list_assessment_results_by_session(started.session_id)) == 1
+
+
+async def test_phq9_q9_requires_confirmation_without_persisting_answers() -> None:
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    audit_repository = InMemoryAuditRepository()
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
+    )
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
+        access_token,
+        module_code="phq9",
+        request_id="req-start-1",
+        idempotency_key="start-1",
+    )
+
+    result = await service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=started.object_version,
+        answers=[
+            {"question_key": "q1", "option_key": "0"},
+            {"question_key": "q2", "option_key": "0"},
+            {"question_key": "q3", "option_key": "0"},
+            {"question_key": "q4", "option_key": "0"},
+            {"question_key": "q5", "option_key": "0"},
+            {"question_key": "q6", "option_key": "0"},
+            {"question_key": "q7", "option_key": "0"},
+            {"question_key": "q8", "option_key": "0"},
+            {"question_key": "q9", "option_key": "1"},
+            {"question_key": "impact", "option_key": "some"},
+        ],
+        request_id="req-complete-1",
+        idempotency_key="complete-1",
+    )
+
+    assert result.completion_state == "safety_confirmation_required"
+    assert result.result_id is None
+    assert result.safety_triggered is True
+
+    session = await repository.get_assessment_session(started.session_id)
+    assert session.state == "in_progress"
+    assert session.answers is None
+    assert session.answered_count is None
+    assert session.safety_triggered is True
+    assert (await repository.list_assessment_results_by_session(started.session_id)) == ()
+    first_event = (await audit_repository.list())[0]
+    assert "question_key" not in str(first_event)
+    assert "option_key" not in str(first_event)
+
+
+async def test_cannot_be_safe_blocks_completion_without_persisting_answers_or_result() -> None:
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    idempotency_repository = InMemoryIdempotencyRepository()
+    audit_repository = InMemoryAuditRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(idempotency_repository),
+        audit_writer=AuditWriter(audit_repository, environment_id="demo-env"),
+    )
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
+        access_token,
+        module_code="phq9",
+        request_id="req-start-cannot-be-safe",
+        idempotency_key="start-cannot-be-safe",
+    )
+    blocked_session = (await repository.get_assessment_session(started.session_id)).model_copy(
+        update={
+            "safety_triggered": True,
+            "safety_confirmation_state": "cannot_be_safe",
+        }
+    )
+    (
+        await repository.save_assessment_session(
+            blocked_session, expected_version=started.object_version
+        )
+    )
+    answers = [
+        {"question_key": "q1", "option_key": "0"},
+        {"question_key": "q2", "option_key": "0"},
+        {"question_key": "q3", "option_key": "0"},
+        {"question_key": "q4", "option_key": "0"},
+        {"question_key": "q5", "option_key": "0"},
+        {"question_key": "q6", "option_key": "0"},
+        {"question_key": "q7", "option_key": "0"},
+        {"question_key": "q8", "option_key": "0"},
+        {"question_key": "q9", "option_key": "1"},
+        {"question_key": "impact", "option_key": "some"},
+    ]
+
+    result = await service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=blocked_session.version + 1,
+        answers=answers,
+        request_id="req-complete-cannot-be-safe",
+        idempotency_key="complete-cannot-be-safe",
+    )
+    replay = await service.complete_session(
+        access_token,
+        session_id=started.session_id,
+        object_version=blocked_session.version + 1,
+        answers=answers,
+        request_id="req-complete-cannot-be-safe-replay",
+        idempotency_key="complete-cannot-be-safe",
+    )
+
+    assert result.completion_state == "safety_support_blocked"
+    assert result.result_id is None
+    assert result.score is None
+    assert result.result_state is None
+    assert replay == result
+    session = await repository.get_assessment_session(started.session_id)
+    assert session.state == "in_progress"
+    assert session.answers is None
+    assert session.answered_count is None
+    assert (await repository.list_assessment_results_by_session(started.session_id)) == ()
+    idempotency_record = await idempotency_repository.get(
+        "student",
+        "user-1",
+        f"/assessment-sessions/{started.session_id}/complete",
+        "complete-cannot-be-safe",
+        now=datetime.now(UTC),
+    )
+    assert idempotency_record is not None
+    assert idempotency_record.outcome == "success"
+    assert idempotency_record.response_status == 200
+    blocked_events = [
+        event
+        for event in (await audit_repository.list())
+        if event.action == "assessment_complete" and event.reason_code == "safety_support_blocked"
+    ]
+    assert len(blocked_events) == 1
+    assert "question_key" not in str(blocked_events[0])
+    assert "option_key" not in str(blocked_events[0])
+
+
+async def test_completion_rejects_missing_duplicate_invalid_or_extra_answers() -> None:
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
+        access_token,
+        module_code="sleep_observation",
+        request_id="req-start-1",
+        idempotency_key="start-1",
+    )
+
+    with pytest.raises(ApiException) as missing:
+        await service.complete_session(
+            access_token,
+            session_id=started.session_id,
+            object_version=started.object_version,
+            answers=[
+                {"question_key": "q1", "option_key": "stable"},
+                {"question_key": "q2", "option_key": "7_to_9"},
+            ],
+            request_id="req-missing",
+            idempotency_key="complete-missing",
+        )
+    assert missing.value.code == "VALIDATION_FAILED"
+
+    with pytest.raises(ApiException) as duplicate:
+        await service.complete_session(
+            access_token,
+            session_id=started.session_id,
+            object_version=started.object_version,
+            answers=[
+                {"question_key": "q1", "option_key": "stable"},
+                {"question_key": "q1", "option_key": "occasional_variation"},
+                {"question_key": "q2", "option_key": "7_to_9"},
+                {"question_key": "q3", "option_key": "within_15"},
+                {"question_key": "q4", "option_key": "easy_to_resume"},
+                {"question_key": "q5", "option_key": "good"},
+                {"question_key": "q6", "option_key": "none"},
+                {"question_key": "q7", "option_key": "never"},
+            ],
+            request_id="req-duplicate",
+            idempotency_key="complete-duplicate",
+        )
+    assert duplicate.value.code == "VALIDATION_FAILED"
+
+    with pytest.raises(ApiException) as invalid:
+        await service.complete_session(
+            access_token,
+            session_id=started.session_id,
+            object_version=started.object_version,
+            answers=[
+                {"question_key": "q1", "option_key": "stable"},
+                {"question_key": "q2", "option_key": "not-an-option"},
+                {"question_key": "q3", "option_key": "within_15"},
+                {"question_key": "q4", "option_key": "easy_to_resume"},
+                {"question_key": "q5", "option_key": "good"},
+                {"question_key": "q6", "option_key": "none"},
+                {"question_key": "q7", "option_key": "never"},
+            ],
+            request_id="req-invalid",
+            idempotency_key="complete-invalid",
+        )
+    assert invalid.value.code == "VALIDATION_FAILED"
+
+
+async def test_completion_rejects_version_conflict_expired_and_abandoned_sessions() -> None:
+    repository = seed_rules_repository()
+    sessions = InMemorySessionRepository()
+    service_module = pytest.importorskip("app.services.v2.assessment_service")
+    service = service_module.AssessmentService(
+        settings=configured_settings(),
+        repository=repository,
+        session_repository=sessions,
+        token_manager=TokenManager("student-session-secret"),
+        idempotency_service=IdempotencyService(InMemoryIdempotencyRepository()),
+        audit_writer=AuditWriter(InMemoryAuditRepository(), environment_id="demo-env"),
+    )
+    access_token = await issue_student_access_token(sessions)
+    started = await service.start_session(
+        access_token,
+        module_code="gad7",
+        request_id="req-start-1",
+        idempotency_key="start-1",
+    )
+
+    (
+        await repository.replace_assessment_module(
+            (await repository.get_assessment_module("gad7")).model_copy(
+                update={"current_questionnaire_version": "gad7-cn-v2"}
+            ),
+            expected_version=1,
+        )
+    )
+    with pytest.raises(ApiException) as version_error:
+        await service.complete_session(
+            access_token,
+            session_id=started.session_id,
+            object_version=started.object_version,
+            answers=[
+                {"question_key": "q1", "option_key": "0"},
+                {"question_key": "q2", "option_key": "0"},
+                {"question_key": "q3", "option_key": "0"},
+                {"question_key": "q4", "option_key": "0"},
+                {"question_key": "q5", "option_key": "0"},
+                {"question_key": "q6", "option_key": "0"},
+                {"question_key": "q7", "option_key": "0"},
+            ],
+            request_id="req-version-conflict",
+            idempotency_key="complete-version-conflict",
+        )
+    assert version_error.value.code == "VERSION_CONFLICT"
+
+    expired_session = (await repository.get_assessment_session(started.session_id)).model_copy(
+        update={"expires_at": datetime.now(UTC) - timedelta(minutes=1)}
+    )
+    (await repository.save_assessment_session(expired_session, expected_version=1))
+    with pytest.raises(ApiException) as expired:
+        await service.complete_session(
+            access_token,
+            session_id=started.session_id,
+            object_version=2,
+            answers=[
+                {"question_key": "q1", "option_key": "0"},
+                {"question_key": "q2", "option_key": "0"},
+                {"question_key": "q3", "option_key": "0"},
+                {"question_key": "q4", "option_key": "0"},
+                {"question_key": "q5", "option_key": "0"},
+                {"question_key": "q6", "option_key": "0"},
+                {"question_key": "q7", "option_key": "0"},
+            ],
+            request_id="req-expired",
+            idempotency_key="complete-expired",
+        )
+    assert expired.value.code == "NOT_FOUND"

@@ -4,16 +4,17 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-from app.config.environments import EnvironmentKind
-from app.config.settings import Settings
-from app.repositories.cloudbase_store import CloudBaseStore
-from app.repositories.collection_registry import COLLECTIONS, build_index_projection
-from app.repositories.protocols import RepositoryVersionConflict
+from app.infra.config.settings import Settings
+from app.infra.config.validation import EnvironmentKind
+from app.infra.database.cloudbase.client import CloudBaseStore
+from app.infra.database.collections import COLLECTIONS, build_index_projection
+from app.infra.database.common import RepositoryVersionConflict
 from scripts.seed_assessments import build_assessment_seed_bundle
 from scripts.seed_demo import build_demo_seed_bundle
 
@@ -49,12 +50,12 @@ def demo_seed_collections() -> dict[str, list[dict[str, Any]]]:
     return {name: [*basic.get(name, []), *assessments.get(name, [])] for name in COLLECTIONS}
 
 
-def refresh_demo_support_resources(store: CloudBaseStore) -> int:
+async def refresh_demo_support_resources(store: CloudBaseStore) -> int:
     """Update only the three known demo placeholders using optimistic versions."""
     resources = build_demo_seed_bundle(EnvironmentKind.DEMO)["collections"]["support_resources"]
     refreshed = 0
     for desired in resources:
-        current = store.query("support_resources", {"_id": desired["_id"]}, limit=1)
+        current = await store.query("support_resources", {"_id": desired["_id"]}, limit=1)
         if not current:
             raise RuntimeError(f"demo support resource is missing: {desired['_id']}")
         existing = current[0]
@@ -76,53 +77,55 @@ def refresh_demo_support_resources(store: CloudBaseStore) -> int:
             "updated_at": datetime.now(UTC),
             "version": version + 1,
         }
-        store.replace("support_resources", updated, version)
+        (await store.replace("support_resources", updated, version))
         refreshed += 1
     return refreshed
 
 
-def initialize_demo(
+async def initialize_demo(
     store: CloudBaseStore, *, seed: bool = True, refresh_support: bool = False
 ) -> InitializationReport:
     created = existing = indexes = inserted = present = 0
     index_plan = build_index_projection()
     for collection in COLLECTIONS:
         try:
-            store.create_collection(collection)
+            (await store.create_collection(collection))
             created += 1
         except RepositoryVersionConflict:
             existing += 1
         definitions = cast(list[dict[str, Any]], index_plan[collection])
         if definitions:
-            store.commands(
-                [
-                    {
-                        "createIndexes": collection,
-                        "indexes": [
-                            {
-                                "name": item["name"],
-                                "key": {field: 1 for field in cast(list[str], item["fields"])},
-                                "unique": item["unique"],
-                            }
-                            for item in definitions
-                        ],
-                    }
-                ]
+            (
+                await store.commands(
+                    [
+                        {
+                            "createIndexes": collection,
+                            "indexes": [
+                                {
+                                    "name": item["name"],
+                                    "key": {field: 1 for field in cast(list[str], item["fields"])},
+                                    "unique": item["unique"],
+                                }
+                                for item in definitions
+                            ],
+                        }
+                    ]
+                )
             )
             indexes += len(definitions)
     if seed:
         for collection, documents in demo_seed_collections().items():
             for document in documents:
-                if store.query(collection, {"_id": document["_id"]}, limit=1):
+                if await store.query(collection, {"_id": document["_id"]}, limit=1):
                     present += 1
                     continue
-                store.insert(collection, document)
+                (await store.insert(collection, document))
                 inserted += 1
-    refreshed = refresh_demo_support_resources(store) if refresh_support else 0
+    refreshed = (await refresh_demo_support_resources(store)) if refresh_support else 0
     return InitializationReport(created, existing, indexes, inserted, present, refreshed)
 
 
-def main() -> int:
+async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("environment_file", type=Path)
     parser.add_argument("--without-seed", action="store_true")
@@ -144,13 +147,13 @@ def main() -> int:
         return 1
     store = CloudBaseStore(settings.cloudbase_env_id or "", settings.cloudbase_secret or "")
     try:
-        report = initialize_demo(
+        report = await initialize_demo(
             store,
             seed=not args.without_seed,
             refresh_support=args.refresh_demo_support_resources,
         )
     finally:
-        store.close()
+        await store.aclose()
     print(
         "CloudBase demo initialized: "
         f"collections_created={report.collections_created} "
@@ -164,4 +167,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(asyncio.run(main()))

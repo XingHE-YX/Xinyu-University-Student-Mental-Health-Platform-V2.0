@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | 学生端 | 原生微信小程序、TypeScript、WXML、WXSS | `miniprogram/` |
 | 管理后台 | Vue 3、TypeScript、Vite、Vue Router、Pinia | `admin/` |
-| 业务后端 | Python 3.11、FastAPI、Pydantic、HTTPX、Uvicorn | `backend/` |
-| 数据与部署 | CloudBase 文档型数据库、Python HTTP 云函数、静态网站托管 | `docs/develop/deploy/` |
-| AI 接口 | 后端调用 DeepSeek Chat Completions | `backend/app/integrations/` |
+| 业务后端 | Python 3.14、FastAPI、Pydantic、HTTPX、Uvicorn | `backend/` |
+| 数据与部署 | CloudBase 文档型数据库、Python 3.14 容器、静态网站托管 | `docs/develop/deploy/` |
+| AI 接口 | 后端调用 DeepSeek Chat Completions | `backend/app/infra/ai/` |
 
 ## 文档内容
 
@@ -31,7 +31,7 @@
 | --- | --- |
 | Node.js | `22.21.0`，见 `.nvmrc` |
 | npm | `10.9.4`，见两个前端的 `package.json`；依赖由锁文件记录 |
-| Python | `>=3.11,<3.12`，见 `backend/pyproject.toml` |
+| Python | `>=3.14,<3.15`，见 `backend/pyproject.toml` |
 | uv | 管理 Python、`backend/.venv` 与依赖；清单为 `pyproject.toml`，锁文件为 `uv.lock` |
 | just | 根目录命令编排：`just init`、`just venv`、`just run backend` / `admin`、`just check`、`just test` |
 | 微信开发者工具 | 小程序预览、真机调试与上传 |

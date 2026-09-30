@@ -10,7 +10,7 @@ const rawEnvironmentKind =
   "unconfigured";
 
 export const adminRuntime = {
-  apiBaseUrl: /^https:\/\/[^\s]+\/api\/v1$/.test(normalizedApiBaseUrl)
+  apiBaseUrl: /^https:\/\/[^\s]+\/api\/v2$/.test(normalizedApiBaseUrl)
     ? normalizedApiBaseUrl
     : "",
   environmentKind: (rawEnvironmentKind === "demo" ||

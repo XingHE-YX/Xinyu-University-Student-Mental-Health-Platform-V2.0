@@ -8,7 +8,7 @@
 | --- | --- |
 | Node.js | `22.21.0`，见 `.nvmrc` |
 | npm | `10.9.4`，见 `admin/package.json` 和 `miniprogram/package.json` |
-| Python | 3.11，`backend/pyproject.toml` 要求 `>=3.11,<3.12` |
+| Python | 3.14，`backend/pyproject.toml` 要求 `>=3.14,<3.15` |
 | uv | Python 版本、虚拟环境、依赖与锁文件管理 |
 | just | 根目录 `Justfile` 的开发命令编排 |
 | 微信开发者工具 | 小程序预览、真机调试与上传 |
@@ -29,7 +29,7 @@
 | `just check backend` | Ruff、格式和 mypy 检查；省略 backend 效果相同 |
 | `just test backend` | 后端 pytest；省略 backend 效果相同 |
 
-首次使用若 uv 禁止自动下载解释器，先执行 `uv python install 3.11.11`。
+首次使用若 uv 禁止自动下载解释器，先执行 `uv python install 3.14.7`。
 后端地址可以通过 `BACKEND_HOST`、`BACKEND_PORT` 覆盖，例如
 `BACKEND_PORT=9001 just run backend`。未知模块会返回错误，不启动服务。
 uv 命令不需要激活环境；需要交互使用时，在当前 shell 执行
@@ -47,7 +47,7 @@ just init
 也可以按模块单独安装。后端在项目根目录执行：
 
 ```bash
-uv python install 3.11.11
+uv python install 3.14.7
 uv sync --project backend --locked
 ```
 
@@ -131,13 +131,13 @@ npm test
 
 后端运行依赖统一声明在 `backend/pyproject.toml` 的 `project.dependencies`，
 开发工具声明在 `dependency-groups.dev`，传递依赖锁定在提交的 `backend/uv.lock`。
-虚拟环境位于 `backend/.venv`；uv 会按 `.python-version` 选择 Python 3.11.11，
+虚拟环境位于 `backend/.venv`；uv 会按 `.python-version` 选择 Python 3.14.7，
 缺少解释器时可由 uv 下载。同步默认包含开发依赖，运行环境使用 `uv sync --no-dev --locked`。
 在 `backend/` 使用 `uv add <package>` 或 `uv add --dev <package>` 添加依赖，
 修改清单后执行 `uv lock` 并同时提交清单和锁文件。不要手工维护 requirements 文件。
 
 - 先了解 [系统设计](DESIGN.md)，再阅读相关专题文档；修改范围围绕实际需求。
-- API 路由变更同步维护 [后端规范](docs/develop/BACKEND_STRUCTURE.md)；`backend/tests/test_api_contract_registry.py` 会读取其中的路由标题。
+- API 路由变更同步维护 [后端规范](docs/develop/BACKEND_STRUCTURE.md)；`backend/tests/contracts/test_api_contract_registry.py` 会读取其中的路由标题。
 - 依赖调整同步维护模块清单、锁文件和 [技术栈](docs/develop/TECH_STACK.md)。
 - 配置、权限和 AI 边界变更同步维护对应开发文档；页面状态变更同步维护 [应用流程](docs/design/APP_FLOW.md)。
 - 真实密钥、账号密码、身份信息和环境私有配置不进入 Git；合成演示数据不能冒充真实用户或学校资源。
