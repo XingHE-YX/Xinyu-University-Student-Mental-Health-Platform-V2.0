@@ -11,6 +11,7 @@ node_modules/
 admin/dist/
 admin/.vite/
 miniprogram/miniprogram_npm/
+miniprogram/src/miniprogram_npm/
 
 # Python caches, virtual environments, and build output
 __pycache__/
@@ -31,5 +32,6 @@ backend/dist/
 .worktrees/
 miniprogram/project.private.config.json
 miniprogram/ext.json
+miniprogram/src/ext.json
 *.swp
 *.swo

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { deploymentProfileForAppId } from '../config/deployment-profiles.ts'
+import { deploymentProfileForAppId } from '../src/infra/config/deployment-profiles.ts'
 
 test('selects the deployed demo API from the running mini-program AppID', () => {
   assert.deepEqual(deploymentProfileForAppId('wx22f399558d68bc7f'), {

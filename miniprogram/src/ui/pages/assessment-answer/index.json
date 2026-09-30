@@ -1,0 +1,9 @@
+{
+  "usingComponents": {
+    "top-bar": "/ui/components/top-bar/index",
+    "assessment-progress": "/ui/components/assessment-progress/index",
+    "primary-button": "/ui/components/primary-button/index",
+    "state-message": "/ui/components/state-message/index",
+    "confirm-sheet": "/ui/components/confirm-sheet/index"
+  }
+}

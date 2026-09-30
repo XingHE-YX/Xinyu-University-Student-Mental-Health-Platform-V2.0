@@ -1,1 +1,0 @@
-Component({ properties: { title: { type: String, value: '' }, back: { type: Boolean, value: false } }, methods: { onBack() { wx.navigateBack({ fail: () => wx.switchTab({ url: '/pages/today/index' }) }) } } })

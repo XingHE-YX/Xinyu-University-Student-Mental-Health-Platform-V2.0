@@ -22,5 +22,5 @@
   "compileType": "miniprogram",
   "appid": "wx22f399558d68bc7f",
   "projectname": "xinyu-v2",
-  "miniprogramRoot": "./"
+  "miniprogramRoot": "src/"
 }

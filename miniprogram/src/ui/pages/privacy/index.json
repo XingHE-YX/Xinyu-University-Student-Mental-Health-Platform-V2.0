@@ -1,0 +1,6 @@
+{
+  "usingComponents": {
+    "top-bar": "/ui/components/top-bar/index",
+    "state-message": "/ui/components/state-message/index"
+  }
+}

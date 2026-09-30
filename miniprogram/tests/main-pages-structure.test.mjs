@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { access, readFile } from 'node:fs/promises'
 import { test } from 'node:test'
 
-const root = new URL('../', import.meta.url)
+const root = new URL('../src/', import.meta.url)
 
 async function read(relativePath) {
   return readFile(new URL(relativePath, root), 'utf8')
@@ -18,7 +18,7 @@ test('main pages use the native tab bar as their only bottom navigation', async 
   }
 
   for (const page of ['today', 'assessment-center', 'treehole', 'my']) {
-    const wxml = await read(`pages/${page}/index.wxml`)
+    const wxml = await read(`ui/pages/${page}/index.wxml`)
     assert.doesNotMatch(wxml, /<bottom-nav\b/)
   }
 })
@@ -38,13 +38,13 @@ test('main pages expose the reading-first design structure', async () => {
   }
 
   for (const [page, markers] of Object.entries(expectedMarkers)) {
-    const wxml = await read(`pages/${page}/index.wxml`)
+    const wxml = await read(`ui/pages/${page}/index.wxml`)
     for (const marker of markers) assert.match(wxml, new RegExp(marker))
   }
 })
 
 test('today mood entry follows the six-option bottom-sheet flow', async () => {
-  const wxml = await read('pages/today/index.wxml')
+  const wxml = await read('ui/pages/today/index.wxml')
   const moodService = await read('services/mood.ts')
   assert.match(wxml, /记录此刻/)
   assert.match(wxml, /showMoodSheet/)
@@ -56,7 +56,7 @@ test('today mood entry follows the six-option bottom-sheet flow', async () => {
 })
 
 test('the account page provides identity recovery and logout actions', async () => {
-  const wxml = await read('pages/my/index.wxml')
+  const wxml = await read('ui/pages/my/index.wxml')
   assert.match(wxml, /完成身份核验/)
   assert.match(wxml, /pages\/identity-verification\/index\?from=my/)
   assert.match(wxml, /退出登录/)
@@ -65,8 +65,8 @@ test('the account page provides identity recovery and logout actions', async () 
 
 test('support resource views disclose placeholder availability and source', async () => {
   for (const path of [
-    'pages/support-resources/index.wxml',
-    'components/support-resource-list/index.wxml',
+    'ui/pages/support-resources/index.wxml',
+    'ui/components/support-resource-list/index.wxml',
   ]) {
     const wxml = await read(path)
     assert.match(wxml, /item\.availabilityText/)

@@ -1,0 +1,64 @@
+{
+  "pages": [
+    "ui/pages/onboarding/index",
+    "ui/pages/identity-verification/index",
+    "ui/pages/today/index",
+    "ui/pages/assessment-center/index",
+    "ui/pages/assessment-answer/index",
+    "ui/pages/assessment-result/index",
+    "ui/pages/safety-confirmation/index",
+    "ui/pages/support-resources/index",
+    "ui/pages/history/index",
+    "ui/pages/treehole/index",
+    "ui/pages/treehole-publish/index",
+    "ui/pages/treehole-status/index",
+    "ui/pages/treehole-detail/index",
+    "ui/pages/my/index",
+    "ui/pages/anonymous-identity/index",
+    "ui/pages/my-content/index",
+    "ui/pages/privacy/index",
+    "ui/pages/account-stop/index",
+    "ui/pages/account-recover/index",
+    "ui/pages/delete-confirmation/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "心语",
+    "navigationBarBackgroundColor": "#F7F4EE",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F7F4EE",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#5F6E6A",
+    "selectedColor": "#2E6F68",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "ui/pages/today/index",
+        "text": "今日",
+        "iconPath": "assets/tabbar/today.png",
+        "selectedIconPath": "assets/tabbar/today-selected.png"
+      },
+      {
+        "pagePath": "ui/pages/assessment-center/index",
+        "text": "自测",
+        "iconPath": "assets/tabbar/assessment.png",
+        "selectedIconPath": "assets/tabbar/assessment-selected.png"
+      },
+      {
+        "pagePath": "ui/pages/treehole/index",
+        "text": "树洞",
+        "iconPath": "assets/tabbar/treehole.png",
+        "selectedIconPath": "assets/tabbar/treehole-selected.png"
+      },
+      {
+        "pagePath": "ui/pages/my/index",
+        "text": "我的",
+        "iconPath": "assets/tabbar/my.png",
+        "selectedIconPath": "assets/tabbar/my-selected.png"
+      }
+    ]
+  },
+  "sitemapLocation": "sitemap.json"
+}

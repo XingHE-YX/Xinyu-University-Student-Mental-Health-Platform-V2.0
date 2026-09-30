@@ -1,0 +1,5 @@
+{
+  "usingComponents": {
+    "state-message": "/ui/components/state-message/index"
+  }
+}

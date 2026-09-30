@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict'
 import { beforeEach, test } from 'node:test'
-import { fetchModules, fetchResources } from '../services/assessment.ts'
-import { fetchPosts } from '../services/treehole.ts'
-import { fetchToday, saveMood } from '../services/today.ts'
-import { fetchHistory } from '../services/me.ts'
-import { logoutSession } from '../services/auth.ts'
-import { sessionStore } from '../stores/session.ts'
+import { fetchModules, fetchResources } from '../src/services/assessment.ts'
+import { fetchPosts } from '../src/services/treehole.ts'
+import { fetchToday, saveMood } from '../src/services/today.ts'
+import { fetchHistory } from '../src/services/me.ts'
+import { logoutSession } from '../src/services/auth.ts'
+import { sessionStore } from '../src/infra/store/session.ts'
 
 let pageDefinition
 globalThis.Page = (page) => { pageDefinition = page }
-await import('../pages/today/index.ts')
+await import('../src/ui/pages/today/index.ts')
 const makeTodayPage = () => {
   const page = { ...pageDefinition, data: structuredClone(pageDefinition.data) }
   page.setData = (value) => Object.assign(page.data, value)

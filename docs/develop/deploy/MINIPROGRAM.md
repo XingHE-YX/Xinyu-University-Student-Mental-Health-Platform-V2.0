@@ -4,9 +4,9 @@
 HTTPS 业务 API 地址；不要把
 AppSecret、CloudBase API Key、DeepSeek Key 或任何身份/支持资源写进小程序配置。
 
-当前普通小程序通过 `miniprogram/config/deployment-profiles.ts` 按运行时 AppID 选择
+当前普通小程序通过 `miniprogram/src/infra/config/deployment-profiles.ts` 按运行时 AppID 选择
 AppID 对应的 EnvID、HTTPS API 地址和环境类型。该文件只允许登记非秘密构建值；
-未知 AppID 保持未配置，不能回退到演示环境。`miniprogram/ext.json` 仅作为被 Git
+未知 AppID 保持未配置，不能回退到演示环境。`miniprogram/src/ext.json` 仅作为被 Git
 忽略的开发者工具/第三方代开发覆盖配置，不作为普通真机发布的唯一配置来源。
 两种方式都不得包含 AppSecret 或任意服务端 Key。
 
@@ -18,7 +18,7 @@ AppID 对应的 EnvID、HTTPS API 地址和环境类型。该文件只允许登�
 ## 微信开发者工具流程
 
 1. 使用微信开发者工具 `2.01.2510290` 打开 `miniprogram/`，在项目设置填入用户
-   提供的目标 AppID；演示构建选择演示 CloudBase 环境。
+   提供的目标 AppID；源码根目录由 `project.config.json` 指定为 `src/`，演示构建选择演示 CloudBase 环境。
 2. 将本地构建配置中的 API 地址指向对应 Python 业务 API，确认它是 HTTPS；后台
    Web 目录不属于小程序项目，不要把 `admin/dist` 复制到 `miniprogram/`。
 3. 编译并依次检查首次使用、今日、自测（含 PHQ-9 第 9 题安全确认）、树洞和我

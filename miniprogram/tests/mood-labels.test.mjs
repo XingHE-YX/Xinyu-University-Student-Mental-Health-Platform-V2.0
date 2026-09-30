@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
-import { MOOD_OPTIONS, formatMoodTime, moodLabel, moodDateKey } from '../services/mood.ts'
+import { MOOD_OPTIONS, formatMoodTime, moodLabel, moodDateKey } from '../src/services/mood.ts'
 
 test('mood codes use the six confirmed Chinese labels', () => {
   assert.deepEqual(MOOD_OPTIONS, [
