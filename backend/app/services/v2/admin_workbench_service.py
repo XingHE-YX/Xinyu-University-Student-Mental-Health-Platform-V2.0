@@ -10,7 +10,6 @@ from functools import wraps
 from typing import Any, Literal, cast
 
 from app.infra.config.settings import Settings
-from app.infra.database.cloudbase.tasks import AdminTaskRepository
 from app.infra.database.common import (
     RepositoryError,
     RepositoryNotFound,
@@ -35,7 +34,7 @@ from app.models.v2.responses.admin_workbench import (
     WorkbenchSection,
 )
 from app.services.v2.idempotency_service import IdempotencyService, serialize_api_error
-from app.services.v2.repositories import DomainRepository
+from app.services.v2.repositories import AdminTaskRepository, DomainRepository
 
 
 def task_mutation(

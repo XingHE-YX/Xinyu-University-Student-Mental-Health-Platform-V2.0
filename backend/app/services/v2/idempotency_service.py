@@ -9,11 +9,11 @@ from uuid import uuid4
 
 from app.infra.database.memory.idempotency import (
     IdempotencyRecord,
-    IdempotencyRepository,
     InMemoryIdempotencyRepository,
 )
 from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiError, ApiException
+from app.services.v2.repositories import IdempotencyRepository
 
 
 @dataclass(frozen=True, slots=True)

@@ -4,57 +4,23 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import AsyncIterator, Mapping
-from contextlib import asynccontextmanager
+from collections.abc import Mapping
+from contextlib import AbstractAsyncContextManager
 from contextvars import ContextVar
-from datetime import UTC, datetime
 from typing import Any
-from urllib.parse import quote
 
-import anyio
 import httpx
 
 from app.infra.config.types import DatabaseConfig
+from app.infra.database.cloudbase.codec import decode_ejson as decode_ejson
+from app.infra.database.cloudbase.codec import encode_ejson as encode_ejson
+from app.infra.database.cloudbase.transaction import transaction
 from app.infra.database.common import (
     RepositoryNotFound,
     RepositoryUnavailable,
     RepositoryVersionConflict,
 )
-from app.infra.logger.common import get_logger, traced
-from app.infra.serializer.error.database import RepositoryCommitUncertain
-
-
-@traced
-def encode_ejson(value: Any) -> Any:
-    if isinstance(value, datetime):
-        return {"$date": {"$numberLong": str(int(value.timestamp() * 1000))}}
-    if isinstance(value, Mapping):
-        return {key: encode_ejson(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [encode_ejson(item) for item in value]
-    return value
-
-
-@traced
-def decode_ejson(value: Any) -> Any:
-    if isinstance(value, list):
-        return [decode_ejson(item) for item in value]
-    if isinstance(value, dict):
-        if len(value) == 1:
-            for key in ("$numberInt", "$numberLong"):
-                if key in value:
-                    return int(value[key])
-            if "$numberDouble" in value:
-                return float(value["$numberDouble"])
-            if "$oid" in value:
-                return str(value["$oid"])
-            if "$date" in value:
-                raw = decode_ejson(value["$date"])
-                if isinstance(raw, (int, float)):
-                    return datetime.fromtimestamp(raw / 1000, UTC)
-                return datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
-        return {key: decode_ejson(item) for key, item in value.items()}
-    return value
+from app.infra.logger.common import traced
 
 
 class CloudBaseStore:
@@ -147,33 +113,8 @@ class CloudBaseStore:
         except ValueError, TypeError, OverflowError:
             raise RepositoryUnavailable("CloudBase EJSON is invalid") from None
 
-    @asynccontextmanager
-    async def transaction(self) -> AsyncIterator[None]:
-        if self._transaction.get() is not None:
-            yield
-            return
-        data = await self.request("POST", "/transactions", in_transaction=False)
-        transaction_id = data.get("transactionId")
-        if not isinstance(transaction_id, str) or not transaction_id:
-            raise RepositoryUnavailable("CloudBase transaction ID is missing")
-        token = self._transaction.set(transaction_id)
-        path = f"/transactions/{quote(transaction_id, safe='')}"
-        try:
-            yield
-            try:
-                await self.request("POST", path + "/commit", in_transaction=False)
-            except RepositoryUnavailable:
-                raise RepositoryCommitUncertain("CloudBase commit outcome is unknown") from None
-        except BaseException:
-            with anyio.CancelScope(shield=True):
-                with anyio.move_on_after(self.config.rollback_timeout_seconds):
-                    try:
-                        await self.request("POST", path + "/rollback", in_transaction=False)
-                    except RepositoryUnavailable, RepositoryNotFound, RepositoryVersionConflict:
-                        get_logger(__name__).error("transaction_rollback_failed")
-            raise
-        finally:
-            self._transaction.reset(token)
+    def transaction(self) -> AbstractAsyncContextManager[None]:
+        return transaction(self)
 
     @staticmethod
     @traced

@@ -16,12 +16,12 @@ from app.infra.database.common import (
     RepositoryUnavailable,
     RepositoryVersionConflict,
 )
-from app.infra.database.memory.audit import AuditEventRecord
-from app.infra.database.memory.idempotency import (
+from app.infra.database.records import (
+    AuditEventRecord,
+    AuthSessionRecord,
     IdempotencyOutcome,
     IdempotencyRecord,
 )
-from app.infra.database.records import AuthSessionRecord
 from app.infra.logger.common import traced
 from app.infra.serializer.error.common import ApiException
 

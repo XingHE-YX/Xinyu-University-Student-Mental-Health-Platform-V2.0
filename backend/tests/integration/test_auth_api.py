@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from app.infra.config.settings import Settings
 from app.infra.integrations.wechat import WechatIdentity
 from app.main import create_app
-from tests.password_fixtures import ADMIN_HASH
+from tests.helpers.password_fixtures import ADMIN_HASH
 
 
 class FakeWechatClient:

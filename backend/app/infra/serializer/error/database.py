@@ -29,6 +29,8 @@ class RepositoryUnavailable(RepositoryError):
 class RepositoryCommitUncertain(RepositoryUnavailable):
     """A write may have committed; callers must reconcile rather than retry blindly."""
 
+    code = ErrorCode.REPOSITORY_COMMIT_UNKNOWN
+
 
 class RepositoryCommitUnknown(RepositoryUnavailable):
     """Commit was sent but its result could not be confirmed."""

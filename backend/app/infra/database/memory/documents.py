@@ -1,7 +1,5 @@
 """Small in-memory repository used by unit tests and local development."""
 
-import base64
-import binascii
 from collections.abc import Mapping
 from contextlib import AbstractAsyncContextManager
 from copy import deepcopy
@@ -15,6 +13,7 @@ from app.infra.database.common import (
     RepositoryVersionConflict,
 )
 from app.infra.database.memory.transaction import MemoryUnitOfWork
+from app.infra.database.query import decode_cursor, encode_cursor
 from app.infra.logger.common import traced
 
 
@@ -68,11 +67,11 @@ class InMemoryDocumentRepository:
                 and all(document.get(key) == value for key, value in filters.items())
             ]
             matched.sort(key=lambda document: str(document.get("_id", "")))
-            offset = self._decode_cursor(cursor)
+            offset = decode_cursor(cursor)
             page_size = max(1, min(limit, 100))
             page = matched[offset : offset + page_size]
             next_offset = offset + page_size
-            next_cursor = self._encode_cursor(next_offset) if next_offset < len(matched) else None
+            next_cursor = encode_cursor(next_offset) if next_offset < len(matched) else None
             return DocumentPage(tuple(deepcopy(item) for item in page), next_cursor)
 
     @traced
@@ -122,22 +121,3 @@ class InMemoryDocumentRepository:
         if document is None:
             raise RepositoryNotFound("document not found")
         return document
-
-    @staticmethod
-    @traced
-    def _encode_cursor(offset: int) -> str:
-        return base64.urlsafe_b64encode(str(offset).encode("ascii")).decode("ascii")
-
-    @staticmethod
-    @traced
-    def _decode_cursor(cursor: str | None) -> int:
-        if not cursor:
-            return 0
-        try:
-            value = base64.urlsafe_b64decode(cursor.encode("ascii")).decode("ascii")
-            offset = int(value)
-        except (ValueError, UnicodeDecodeError, binascii.Error) as error:
-            raise ValueError("invalid cursor") from error
-        if offset < 0:
-            raise ValueError("invalid cursor")
-        return offset

@@ -13,8 +13,7 @@ from app.infra.config.settings import Settings
 from app.infra.config.types import AIConfig
 from app.infra.serializer.error.config import ConfigurationError
 from app.services.v2.ai_assist_service import AiAssistService
-
-from .test_ai_assist import ASSESSMENT_INPUT
+from tests.unit.test_ai_assist import ASSESSMENT_INPUT
 
 
 class AlternateClient(AIClient):

@@ -4,26 +4,12 @@ from __future__ import annotations
 
 from contextlib import AbstractAsyncContextManager
 from copy import deepcopy
-from typing import Any, Protocol
+from typing import Any
 
 from app.infra.database.cloudbase.client import CloudBaseStore
 from app.infra.database.common import RepositoryNotFound
 from app.infra.logger.common import traced
-
-
-class AdminTaskRepository(Protocol):
-    def transaction(self) -> AbstractAsyncContextManager[None]: ...
-    @traced
-    async def list(self) -> tuple[dict[str, Any], ...]: ...
-
-    @traced
-    async def get(self, task_id: str) -> dict[str, Any] | None: ...
-
-    @traced
-    async def create(self, task: dict[str, Any]) -> None: ...
-
-    @traced
-    async def save(self, task: dict[str, Any], *, expected_version: int) -> None: ...
+from app.services.v2.repositories import AdminTaskRepository as AdminTaskRepository
 
 
 class CloudBaseAdminTaskRepository:

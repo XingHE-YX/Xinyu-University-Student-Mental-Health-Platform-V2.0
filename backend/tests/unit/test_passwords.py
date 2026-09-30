@@ -7,8 +7,8 @@ from pydantic import SecretStr
 from app.infra.database.memory.session import InMemorySessionRepository
 from app.infra.password.common import PasswordManager
 from app.main import create_app
-from tests.password_fixtures import ADMIN_HASH, LEGACY_HASH
-from tests.test_auth_api import configured_settings
+from tests.helpers.password_fixtures import ADMIN_HASH, LEGACY_HASH
+from tests.integration.test_auth_api import configured_settings
 
 
 async def test_argon2id_generation_and_legacy_verification() -> None:

@@ -2,7 +2,7 @@ from fastapi.testclient import TestClient
 
 from app.infra.config.settings import Settings
 from app.main import create_app
-from tests.password_fixtures import ADMIN_HASH
+from tests.helpers.password_fixtures import ADMIN_HASH
 
 
 def settings_for(environment: str = "demo") -> Settings:

@@ -10,7 +10,7 @@ from app.infra.config.validation import (
     EnvironmentMismatchError,
 )
 from app.main import create_app
-from tests.password_fixtures import TEST_HASH
+from tests.helpers.password_fixtures import TEST_HASH
 
 
 def complete_environment() -> dict[str, str]:

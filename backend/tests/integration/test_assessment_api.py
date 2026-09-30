@@ -7,8 +7,7 @@ from fastapi.testclient import TestClient
 from app.bootstrap import install_container
 from app.infra.security.tokens import TokenManager
 from app.main import create_app
-
-from .test_safety_service import build_services, phq9_safety_answers
+from tests.integration.test_safety_service import build_services, phq9_safety_answers
 
 
 async def test_safety_confirmation_api_rejects_client_state_tampering() -> None:

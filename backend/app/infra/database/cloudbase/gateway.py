@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import binascii
 from collections.abc import Mapping
 from contextlib import AbstractAsyncContextManager
 from datetime import UTC, datetime
@@ -20,6 +18,7 @@ from app.infra.database.common import (
     RepositoryUnavailable,
     RepositoryVersionConflict,
 )
+from app.infra.database.query import decode_cursor, encode_cursor
 from app.infra.logger.common import traced
 
 __all__ = [
@@ -79,7 +78,7 @@ class CloudBaseGateway:
         limit: int = 20,
     ) -> DocumentPage:
         page_size = max(1, min(limit, 100))
-        offset = _decode_cursor(cursor)
+        offset = decode_cursor(cursor)
         documents = await self.store.query(
             collection,
             where,
@@ -87,7 +86,7 @@ class CloudBaseGateway:
             offset=offset,
         )
         next_cursor = (
-            _encode_cursor(offset + len(documents)) if len(documents) >= page_size else None
+            encode_cursor(offset + len(documents)) if len(documents) >= page_size else None
         )
         return DocumentPage(tuple(documents), next_cursor)
 
@@ -134,18 +133,3 @@ class CloudBaseGateway:
 def _version(document: Mapping[str, Any]) -> int | None:
     value = document.get("version")
     return value if isinstance(value, int) else None
-
-
-@traced
-def _encode_cursor(offset: int) -> str:
-    return base64.urlsafe_b64encode(str(offset).encode("ascii")).decode("ascii")
-
-
-@traced
-def _decode_cursor(cursor: str | None) -> int:
-    if not cursor:
-        return 0
-    try:
-        return max(0, int(base64.urlsafe_b64decode(cursor.encode("ascii")).decode("ascii")))
-    except ValueError, UnicodeDecodeError, binascii.Error:
-        return 0

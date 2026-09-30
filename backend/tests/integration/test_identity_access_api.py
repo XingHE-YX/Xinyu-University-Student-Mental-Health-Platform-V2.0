@@ -8,8 +8,7 @@ from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.main import create_app
 from app.models.v2.documents import IdentityRecordDocument, UserAccountDocument
 from app.services.v2.identity_service import HmacIdentityCipher
-
-from .test_assessment_service import configured_settings
+from tests.integration.test_assessment_service import configured_settings
 
 
 async def build_client() -> tuple[TestClient, str, InMemoryDomainDataRepository]:

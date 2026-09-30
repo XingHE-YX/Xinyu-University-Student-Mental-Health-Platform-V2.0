@@ -3,8 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.main import create_app
-
-from .test_assessment_service import configured_settings, seed_rules_repository
+from tests.integration.test_assessment_service import configured_settings, seed_rules_repository
 
 
 async def build_client() -> tuple[TestClient, str]:

@@ -18,9 +18,8 @@ from app.models.v2.documents import (
     UserAccountDocument,
 )
 from app.services.v2.ai_assist_service import AiAssistService
-from tests.password_fixtures import ADMIN_HASH
-
-from .test_assessment_service import configured_settings
+from tests.helpers.password_fixtures import ADMIN_HASH
+from tests.integration.test_assessment_service import configured_settings
 
 
 async def build_client() -> tuple[TestClient, InMemoryDomainDataRepository, str]:

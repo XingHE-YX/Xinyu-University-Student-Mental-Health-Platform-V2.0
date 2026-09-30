@@ -35,7 +35,7 @@ def test_five_columns_single_line_safe_fields_and_real_callsite() -> None:
     assert len(lines) == 1
     level, timestamp, position, scope, content = lines[0].split(" ", 4)
     assert level == "INFO" and timestamp.endswith("Z")
-    assert position.startswith("tests/test_audit_logger.py:")
+    assert position.startswith("tests/unit/test_audit_logger.py:")
     assert scope == "auth.admin"
     assert json.loads(content)["error_code"] == "INVALID_CREDENTIALS"
     assert "secret" not in lines[0] and "private" not in lines[0]

@@ -1,10 +1,11 @@
 """Repository contracts shared by CloudBase and local test implementations."""
 
 from collections.abc import Mapping
-from contextlib import AbstractAsyncContextManager
-from dataclasses import dataclass
 from typing import Any, Protocol
 
+from app.infra.database.atomic import UnitOfWork
+from app.infra.database.query import DocumentPage as DocumentPage
+from app.infra.database.query import JsonDocument as JsonDocument
 from app.infra.logger.common import traced
 from app.infra.serializer.error.database import RepositoryError as RepositoryError
 from app.infra.serializer.error.database import RepositoryNotFound as RepositoryNotFound
@@ -13,18 +14,8 @@ from app.infra.serializer.error.database import (
     RepositoryVersionConflict as RepositoryVersionConflict,
 )
 
-JsonDocument = dict[str, Any]
 
-
-@dataclass(frozen=True, slots=True)
-class DocumentPage:
-    items: tuple[JsonDocument, ...]
-    next_cursor: str | None
-
-
-class DocumentRepository(Protocol):
-    def transaction(self) -> AbstractAsyncContextManager[None]: ...
-
+class DocumentRepository(UnitOfWork, Protocol):
     async def get(self, collection: str, document_id: str) -> JsonDocument: ...
 
     async def insert(self, collection: str, document: Mapping[str, Any]) -> None: ...

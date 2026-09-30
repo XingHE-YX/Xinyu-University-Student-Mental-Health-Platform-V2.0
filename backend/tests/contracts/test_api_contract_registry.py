@@ -8,8 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.infra.database.memory.domain import InMemoryDomainDataRepository
 from app.main import create_app
-
-from .test_auth_api import FakeWechatClient, configured_settings
+from tests.integration.test_auth_api import FakeWechatClient, configured_settings
 
 
 def _normalize_route(path: str) -> str:
@@ -20,7 +19,7 @@ def _declared_contract() -> set[tuple[str, str]]:
     document = (
         Path(__file__)
         .resolve()
-        .parents[2]
+        .parents[3]
         .joinpath("docs/develop/BACKEND_STRUCTURE.md")
         .read_text()
     )
