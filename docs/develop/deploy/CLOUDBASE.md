@@ -23,7 +23,7 @@ CloudBase 控制台的“API Key 设置”会以 `CLOUDBASE_APIKEY` 注入所选
 演示环境私有配置准备完成后，在 `backend/` 目录初始化：
 
 ```text
-.venv/bin/python -m scripts.initialize_cloudbase .env.demo.local
+uv run --locked python -m scripts.initialize_cloudbase .env.demo.local
 ```
 
 命令可安全重跑：已有集合、索引和相同 `_id` 的冻结种子会被识别并保留；它不会显示密钥。

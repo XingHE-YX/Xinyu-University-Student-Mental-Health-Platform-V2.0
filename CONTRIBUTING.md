@@ -9,6 +9,7 @@
 | Node.js | `22.21.0`，见 `.nvmrc` |
 | npm | `10.9.4`，见 `admin/package.json` 和 `miniprogram/package.json` |
 | Python | 3.11，`backend/pyproject.toml` 要求 `>=3.11,<3.12` |
+| uv | Python 版本、虚拟环境、依赖与锁文件管理 |
 | 微信开发者工具 | 小程序预览、真机调试与上传 |
 
 依赖以各模块的清单和锁文件为准；本仓库没有根目录统一的 npm 安装入口。
@@ -19,8 +20,8 @@
 后端在项目根目录执行：
 
 ```bash
-python3.11 -m venv backend/.venv
-backend/.venv/bin/python -m pip install -r backend/requirements.lock
+uv python install 3.11.11
+uv sync --project backend --locked
 ```
 
 管理后台：
@@ -46,7 +47,7 @@ npm ci
 
 ```bash
 cd backend
-.venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 9000
+uv run --locked python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 9000
 ```
 
 ```bash
@@ -66,10 +67,10 @@ npm run dev
 后端，在 `backend/` 执行：
 
 ```bash
-.venv/bin/python -m pytest
-.venv/bin/python -m ruff check .
-.venv/bin/python -m ruff format --check .
-.venv/bin/python -m mypy
+uv run --locked python -m pytest
+uv run --locked ruff check .
+uv run --locked ruff format --check .
+uv run --locked mypy
 ```
 
 管理后台，在 `admin/` 执行：
@@ -94,6 +95,13 @@ npm run test:structure
 不代表全量源码检查。自动测试或构建也不能替代微信真机、浏览器及真实授权环境验证。
 
 ## 代码与文档
+
+后端运行依赖统一声明在 `backend/pyproject.toml` 的 `project.dependencies`，
+开发工具声明在 `dependency-groups.dev`，传递依赖锁定在提交的 `backend/uv.lock`。
+虚拟环境位于 `backend/.venv`；uv 会按 `.python-version` 选择 Python 3.11.11，
+缺少解释器时可由 uv 下载。同步默认包含开发依赖，运行环境使用 `uv sync --no-dev --locked`。
+在 `backend/` 使用 `uv add <package>` 或 `uv add --dev <package>` 添加依赖，
+修改清单后执行 `uv lock` 并同时提交清单和锁文件。不要手工维护 requirements 文件。
 
 - 先了解 [系统设计](DESIGN.md)，再阅读相关专题文档；修改范围围绕实际需求。
 - API 路由变更同步维护 [后端规范](docs/develop/BACKEND_STRUCTURE.md)；`backend/tests/test_api_contract_registry.py` 会读取其中的路由标题。

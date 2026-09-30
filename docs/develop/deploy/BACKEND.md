@@ -6,6 +6,8 @@
 
 ## 构建
 
+运行依赖以 `backend/pyproject.toml` 和 `backend/uv.lock` 为准，可在 `backend/`
+使用 `uv export --locked --no-dev --no-emit-project --format requirements-txt` 导出供发布使用。
 依赖需兼容目标运行时和平台，不能直接上传本机虚拟环境。
 将另行准备并验证的函数包上传到 CloudBase 的 Python 3.11 HTTP
 函数入口，并在控制台配置 `scf_bootstrap`、9000 端口和对应环境变量。演示与

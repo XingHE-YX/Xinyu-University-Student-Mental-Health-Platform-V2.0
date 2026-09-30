@@ -83,11 +83,13 @@
 | pytest-asyncio | 1.2.0 | 开发依赖 | 异步接口测试 |
 | ruff | 0.16.5 | 开发依赖 | Python 格式化与静态检查 |
 | mypy | 1.19.1 | 开发依赖 | Python 类型检查 |
-| pip-tools | 7.6.1 | 构建依赖 | 从直接依赖生成完整 requirements.lock |
 
 后端不使用 DeepSeek 官方或第三方 Python SDK，直接使用 httpx 调用 OpenAI 兼容接口，以便锁定请求字段、超时和脱敏边界。后端不使用 ORM；通过项目内的文档数据库访问适配器调用 CloudBase HTTP API。
 
-Python 的传递依赖必须在实施阶段由 Python 3.11.11 环境生成完整锁文件，并在构建中使用锁文件安装。直接依赖版本不得使用脱字符号、波浪号或 latest 标签。
+Python 项目使用 uv 管理。运行依赖与开发依赖统一声明在 `backend/pyproject.toml`，
+开发工具使用 `dependency-groups.dev`；完整传递依赖记录在提交的 `backend/uv.lock`。
+本地解释器由 `.python-version` 指定为 3.11.11，使用 `uv sync --locked` 安装。
+直接依赖版本不得使用脱字符号、波浪号或 latest 标签。
 
 ## 3. 平台 API 与外部接口
 

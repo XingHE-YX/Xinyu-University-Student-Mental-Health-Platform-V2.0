@@ -1052,8 +1052,9 @@ backend/
     security/               令牌、密码、脱敏和授权
     audit/                  审计写入
     config/                 环境配置模型
-  requirements.in           直接依赖声明
-  requirements.lock        完整锁定依赖
+  pyproject.toml            项目、运行依赖、开发依赖与检查配置
+  uv.lock                   uv 完整锁定依赖
+  .python-version           本地 Python 版本
 ~~~
 
 路由层不直接写数据库，不计算分数，不决定安全分支，不读取密钥。所有业务动作经服务层执行，状态变化和审计写入必须在同一个用例中完成。

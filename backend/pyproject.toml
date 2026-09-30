@@ -14,6 +14,17 @@ dependencies = [
   "uvicorn==0.39.0",
 ]
 
+[dependency-groups]
+dev = [
+  "pytest==8.4.2",
+  "pytest-asyncio==1.2.0",
+  "ruff==0.16.5",
+  "mypy==1.19.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*", "scripts*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
