@@ -8,7 +8,7 @@ test('app initializes development logging and captures global failures without n
   let registrations = 0
   configureLogger({ sink: (entry) => entries.push(entry) })
   globalThis.wx = {
-    getExtConfigSync: () => ({ apiBaseUrl: 'https://example.test/api/v1', environmentKind: 'demo' }),
+    getExtConfigSync: () => ({ apiBaseUrl: 'https://example.test/api/v2', environmentKind: 'demo' }),
     getAccountInfoSync: () => ({ miniProgram: { appId: 'unknown', envVersion: 'develop' } }),
     getDeviceInfo: () => ({ platform: 'devtools' }),
     request: () => assert.fail('startup must not request the backend'),

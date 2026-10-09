@@ -28,7 +28,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def fetch_health(url: str) -> dict[str, object]:
-    endpoint = f"{url.rstrip('/')}/api/v1/health"
+    endpoint = f"{url.rstrip('/')}/api/v2/health"
     request = Request(endpoint, headers={"Accept": "application/json"})
     try:
         with urlopen(request, timeout=8) as response:  # noqa: S310 - operator-provided HTTPS endpoint

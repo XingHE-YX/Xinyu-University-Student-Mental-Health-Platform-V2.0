@@ -11,6 +11,16 @@
 
 AI 是可失败的辅助服务。固定规则、权限、脱敏、内容状态机和人工决定在 AI 不可用时仍必须正常运行。
 
+客户端位于 `app/infra/ai/client/`：`AIClient` 抽象基类声明异步
+`complete(AIRequest) -> AIResponse` 与 `aclose()`，DeepSeek 是当前实现。
+`factory.py` 注册供应商并由验证后的 `AIConfig` 选择，未知供应商在启动时拒绝。
+新增供应商实现相同契约，业务层不读取供应商原始响应。
+
+`app/infra/ai/prompt/manager.py` 根据任务和版本选择模板，两个模板位于
+`prompt/templates/`，请求与快照均保存提示词版本。远程调用在业务事务外完成，
+回写时再次验证权限和对象版本。持久化快照与对应审计同事务提交，写入失败不
+返回可采用快照；持久化模式读取仓储，避免进程缓存返回已删除数据。
+
 ## 2. 服务端配置
 
 按 DeepSeek 官方兼容接口调用：
@@ -32,7 +42,7 @@ AI 是可失败的辅助服务。固定规则、权限、脱敏、内容状态�
 | 单实例并发 | 4 个 DeepSeek 请求 |
 | 预算 | 由环境配置和供应商控制台管理，不影响产品状态机 |
 
-API Key 只能保存在云函数的加密环境变量或密钥管理中，不进入小程序包、Web 构建产物、日志、审计详情或错误提示。前端不得直接调用 DeepSeek。
+API Key 只保存在后端运行时秘密配置或密钥管理中，不进入镜像、小程序包、Web 构建产物、日志、审计详情或错误提示。前端不得直接调用 DeepSeek。
 
 DeepSeek 官方说明 `deepseek-v4-flash` 会指向当前 DeepSeek-V4-Flash-0731 版本，因此请求保存两个字段：`request_model=deepseek-v4-flash` 与 `resolved_model_version=DeepSeek-V4-Flash-0731`。升级版本时必须新建结果与提示词版本，历史结果不重算。
 

@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from app.config.environments import EnvironmentKind
-from app.domain.assessment_rules import SCORING_RULE_VERSION, build_seed_documents
-from app.domain.models import AssessmentModuleDocument, AssessmentQuestionnaireDocument
+from app.infra.config.validation import EnvironmentKind
+from app.models.v2.documents import AssessmentModuleDocument, AssessmentQuestionnaireDocument
+from app.services.v2.rules.assessment import SCORING_RULE_VERSION, build_seed_documents
 
 
 def build_assessment_seed_bundle(

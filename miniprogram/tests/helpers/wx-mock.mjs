@@ -7,7 +7,7 @@ export const installWxMock = () => {
   const requests = []
   const navigations = []
   let tabBarVisible = true
-  const baseUrl = 'https://example.test/api/v1'
+  const baseUrl = 'https://example.test/api/v2'
   sessionStore.clear()
   assessmentStore.clear()
   configureLogger({ level: 'warn', sink: () => {} })

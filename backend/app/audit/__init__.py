@@ -1,1 +1,0 @@
-"""Minimal audit event writers."""

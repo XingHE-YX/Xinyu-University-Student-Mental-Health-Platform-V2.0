@@ -1,1 +1,0 @@
-"""CloudBase document database adapters."""

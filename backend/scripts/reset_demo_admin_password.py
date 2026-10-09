@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import getpass
 import html
 import os
@@ -13,7 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 
-from app.security.passwords import hash_password
+from app.infra.password.common import hash_password
 from scripts.initialize_cloudbase import read_environment
 
 FORM = """<!doctype html>
@@ -29,7 +30,7 @@ input{height:42px;padding:0 12px;border:1px solid #aebac1;border-radius:4px;font
 button{width:100%;height:44px;margin-top:22px;border:0;border-radius:4px;background:#16624f;color:#fff;font-size:16px}
 .error{color:#a52a2a}.success{color:#16624f;font-weight:600}
 </style></head><body><main><h1>重置演示后台密码</h1>
-<p>仅在本机回环地址处理。明文不会写入文件；提交成功后只保存 PBKDF2 哈希。</p>
+<p>仅在本机回环地址处理。明文不会写入文件；提交成功后只保存 Argon2id 哈希。</p>
 {message}<form method="post" autocomplete="off"><label>新密码（至少 12 位）
 <input name="password" type="password" minlength="12" required></label>
 <label>再次输入<input name="confirmation" type="password" minlength="12" required></label>
@@ -90,7 +91,7 @@ def serve_local_form(path: Path, port: int) -> None:
             if len(password) < 12 or password.isspace():
                 self._respond('<p class="error">密码至少需要 12 位。</p>')
                 return
-            replace_hash(path, hash_password(password))
+            replace_hash(path, asyncio.run(hash_password(password)))
             password = confirmation = ""
             self._respond('<p class="success">本机哈希已更新，可以关闭此页面。</p>')
             threading.Thread(target=self.server.shutdown, daemon=True).start()
@@ -102,7 +103,7 @@ def serve_local_form(path: Path, port: int) -> None:
 
 def serve_hash_once(path: Path, port: int) -> None:
     encoded_hash = read_environment(path).get("ADMIN_PASSWORD_HASH", "")
-    if not encoded_hash.startswith("pbkdf2_sha256$"):
+    if not encoded_hash.startswith(("$argon2id$", "pbkdf2_sha256$")):
         raise SystemExit("the local admin password hash is invalid")
     route = "/" + secrets.token_urlsafe(24)
 
@@ -154,7 +155,7 @@ def main() -> int:
         raise SystemExit("两次密码不一致，未作任何修改")
     if len(password) < 12 or password.isspace():
         raise SystemExit("密码至少需要 12 位，未作任何修改")
-    replace_hash(args.environment_file, hash_password(password))
+    replace_hash(args.environment_file, asyncio.run(hash_password(password)))
     print("演示后台密码哈希已在本机私有配置中更新；明文未保存。")
     return 0
 

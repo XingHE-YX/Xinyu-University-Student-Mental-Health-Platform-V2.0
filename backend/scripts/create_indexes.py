@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from app.repositories.collection_registry import build_index_projection
+from app.infra.database.collections import build_index_projection
 
 
 def serialize_index_plan() -> dict[str, list[dict[str, object]]]:

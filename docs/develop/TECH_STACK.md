@@ -7,7 +7,7 @@
 - 后端主语言：Python
 - 小程序部署工具：微信开发者工具
 - 文档用途：运行单元、现有依赖与工具链说明；安装和检查命令见 `CONTRIBUTING.md`
-- 版本解释：本文列出的第三方依赖使用精确版本号；CloudBase 云端运行时的补丁版本由平台维护，因此按平台公开的 Python 3.11 运行时锁定，不人为假定不可见的补丁号
+- 版本解释：直接依赖与解释器由仓库锁定；Python 3.14.7 是本地和容器基线，部署平台对镜像及依赖的支持需单独验证
 
 ## 1. 总体技术选择
 
@@ -16,7 +16,7 @@
 | 运行单元 | 技术形态 | 运行位置 | 责任 |
 | --- | --- | --- | --- |
 | 学生端 | 原生微信小程序、TypeScript、WXML、WXSS | 微信客户端 | 今日、自测、树洞、我的 |
-| 业务后端 | Python 3.11、FastAPI 0.128.8、HTTP 云函数 | CloudBase | 认证、规则、数据、权限、审计、AI 调用 |
+| 业务后端 | Python 3.14、异步 FastAPI 0.128.8 | 支持该镜像的容器平台 | 认证、规则、数据、权限、审计、AI 调用 |
 | 管理后台 | Vue 3、TypeScript、Vite 桌面单页应用 | 浏览器与 CloudBase 静态托管 | W-01 至 W-05 |
 
 数据库使用 CloudBase 文档型数据库。所有端都通过业务后端访问业务数据，不让学生端或管理后台直接调用数据库管理接口。
@@ -30,7 +30,7 @@
 | 微信开发者工具 | 2.01.2510290 | 小程序预览、真机核验、上传 | 这是当前项目的参考版本；开发机不得低于该版本验证结果 |
 | Node.js | 22.21.0 | 管理后台构建 | 只用于前端工具链，不运行 Python 后端 |
 | npm | 10.9.4 | 管理后台包安装和脚本执行 | 使用 package-lock.json 锁定安装结果 |
-| Python | 3.11.11 | 后端本地开发与测试 | CloudBase 云端选择 Python 3.11 运行时 |
+| Python | 3.14.7 | 后端开发、测试与镜像 | `>=3.14,<3.15`；部署使用仓库 Dockerfile 或经过验证的自定义运行时 |
 | Git | 2.50.1 | 版本管理 | 不在本文规定分支和提交流程 |
 
 微信小程序基础库属于微信客户端平台能力，不由 npm 锁定。验收基线为支持 CloudBase 和本项目所用原生接口的基础库，最低能力参考为 2.2.3；真机验收必须记录实际微信版本和基础库版本。
@@ -79,8 +79,9 @@
 | --- | --- | --- | --- |
 | fastapi | 0.128.8 | 运行依赖 | HTTP 路由、请求校验、响应序列化 |
 | pydantic | 2.13.4 | 运行依赖 | 请求、响应和配置模型 |
+| argon2-cffi | 25.1.0 | 运行依赖 | Argon2id 哈希与验证；PBKDF2 仅兼容历史密码 |
 | httpx | 0.28.1 | 运行依赖 | DeepSeek 与 CloudBase HTTP API 出站请求 |
-| uvicorn | 0.39.0 | 运行依赖 | CloudBase HTTP 函数的 9000 端口启动服务 |
+| uvicorn | 0.39.0 | 运行依赖 | ASGI 应用的 9000 端口启动服务 |
 | pytest | 8.4.2 | 开发依赖 | 后端单元与契约测试 |
 | pytest-asyncio | 1.2.0 | 开发依赖 | 异步接口测试 |
 | ruff | 0.16.5 | 开发依赖 | Python 格式化与静态检查 |
@@ -90,7 +91,7 @@
 
 Python 项目使用 uv 管理。运行依赖与开发依赖统一声明在 `backend/pyproject.toml`，
 开发工具使用 `dependency-groups.dev`；完整传递依赖记录在提交的 `backend/uv.lock`。
-本地解释器由 `.python-version` 指定为 3.11.11，使用 `uv sync --locked` 安装。
+本地解释器由 `.python-version` 指定为 3.14.7，使用 `uv sync --locked` 安装。
 直接依赖版本不得使用脱字符号、波浪号或 latest 标签。
 
 ## 3. 平台 API 与外部接口
@@ -111,7 +112,7 @@ Python 项目使用 uv 管理。运行依赖与开发依赖统一声明在 `back
 
 ### 3.2 项目业务 API
 
-业务 API 的公共前缀为 /api/v1，传输格式为 HTTPS JSON。完整端点、字段和错误码见 [后端结构文档](BACKEND_STRUCTURE.md)。
+业务 API 的公共前缀为 /api/v2，传输格式为 HTTPS JSON。完整端点、字段和错误码见 [后端结构文档](BACKEND_STRUCTURE.md)。
 
 统一响应格式为：
 
@@ -167,12 +168,14 @@ Python 项目使用 uv 管理。运行依赖与开发依赖统一声明在 `back
 
 | 平台能力 | 采用方式 | 说明 |
 | --- | --- | --- |
-| 云函数 | Python 3.11 HTTP 云函数 | FastAPI 应用监听 9000 端口 |
+| 后端服务 | Python 3.14 容器 | FastAPI 应用监听 9000 端口，平台需验证镜像支持 |
 | 文档数据库 | 后端 HTTP 访问适配器 | 只允许后端服务凭据访问 |
 | 静态托管 | CloudBase 静态网站托管 | 发布后台构建产物 |
 | 环境 | 演示环境与真实授权环境 | 使用不同环境 ID、密钥和数据命名空间 |
 
-Python HTTP 函数发布包必须有平台启动文件 scf_bootstrap，启动命令指向应用入口并监听 9000 端口。微信开发者工具负责小程序项目的预览、真机验证和上传；如果当前工具版本不提供 Python 函数模板，Python 函数按 CloudBase Python 上传入口发布，不得伪装成其他运行时函数。
+后端通过 `backend/Dockerfile` 构建，运行入口为 `app.main:app`。微信开发者工具负责
+小程序预览、真机验证和上传，容器服务单独发布。托管 Python 云函数的运行时支持
+应以平台当前说明为准，本文不声称其支持 Python 3.14。
 
 ## 4. 环境变量与配置
 
@@ -192,7 +195,7 @@ Python HTTP 函数发布包必须有平台启动文件 scf_bootstrap，启动命
 | --- | --- | --- |
 | WECHAT_APPID | 微信登录交换 | 服务端密钥配置 |
 | WECHAT_APPSECRET | 微信登录交换 | 只在服务端密钥配置 |
-| CLOUDBASE_ENV_ID | 数据库和云函数环境 | 环境级配置 |
+| CLOUDBASE_ENV_ID | 后端所连接的数据库环境 | 环境级配置 |
 | CLOUDBASE_ENV_ID_DEMO | 已登记的演示环境 ID，供启动时核对白名单 | 服务端非秘密配置；不得从 DEMO_MODE 自动推导 |
 | CLOUDBASE_ENV_ID_AUTHORIZED | 已登记的真实授权环境 ID，供启动时核对白名单 | 服务端非秘密配置；不得与演示 ID 相同 |
 | CLOUDBASE_API_KEY | CloudBase HTTP 访问 | 只在服务端密钥配置 |
@@ -243,7 +246,7 @@ lint 仅检查 ESLint 配置；这些覆盖范围限制见 [排错文档](TROUBL
 ## 7. 技术禁用清单
 
 - 禁止在小程序或后台前端写入 DeepSeek API Key。
-- 禁止使用 Node.js 作为业务后端运行时；Python 3.11 是唯一后端运行时。
+- 禁止使用 Node.js 作为业务后端运行时；Python 3.14 是唯一后端运行时。
 - 禁止客户端直连 CloudBase 数据库管理接口。
 - 禁止引入会自动生成诊断、风险标签或跨量表总分的第三方心理分析包。
 - 禁止使用红黄绿颜色表达风险等级。
@@ -253,9 +256,8 @@ lint 仅检查 ESLint 配置；这些覆盖范围限制见 [排错文档](TROUBL
 
 ## 8. 官方依据
 
-- [CloudBase 云函数运行时支持](https://docs.cloudbase.net/cloud-function/runtime-support)：确认 Python 3.11 运行时以及 Python HTTP 函数支持。
-- [CloudBase Python HTTP 云函数快速开始](https://docs.cloudbase.net/cloud-function/quickstart/httpfunc/python)：确认 Python HTTP 函数打包、依赖和发布方式。
-- [CloudBase 云函数代码编写与启动文件](https://docs.cloudbase.net/cloud-function/develop/how-to-writing-functions-code)：确认 scf_bootstrap、9000 端口和 Python HTTP 入口约束。
+- [CloudBase 云函数运行时支持](https://docs.cloudbase.net/cloud-function/runtime-support)：选用托管运行时时核对平台当前版本，不能由本地版本推断支持。
+- [Python Docker 镜像](https://hub.docker.com/_/python)：部署镜像基础及标签，实际构建需确认目标架构可用。
 - [CloudBase 静态网站托管](https://docs.cloudbase.net/hosting/quick-start)：确认后台静态构建产物托管方式。
 - [DeepSeek API 文档](https://api-docs.deepseek.com/zh-cn/)：确认 Chat Completions 接口形态。
 - [DeepSeek JSON 输出](https://api-docs.deepseek.com/zh-cn/guides/json_mode/)：确认 JSON Object 输出方式。

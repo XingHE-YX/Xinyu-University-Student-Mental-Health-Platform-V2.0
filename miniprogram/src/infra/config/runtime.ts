@@ -53,10 +53,10 @@ const isLocalPreview = (): boolean => {
   try { return wx.getDeviceInfo().platform === 'devtools' && environmentKind === 'demo' }
   catch { return false }
 }
-const localApi = isLocalPreview() && /^http:\/\/127\.0\.0\.1:\d+\/api\/v1\/?$/.test(apiBaseUrl)
+const localApi = isLocalPreview() && /^http:\/\/127\.0\.0\.1:\d+\/api\/v2\/?$/.test(apiBaseUrl)
 
 export const runtimeConfig: RuntimeConfig = {
-  apiBaseUrl: /^https:\/\/[^\s]+\/api\/v1\/?$/.test(apiBaseUrl) || localApi ? apiBaseUrl.replace(/\/$/, '') : '',
+  apiBaseUrl: /^https:\/\/[^\s]+\/api\/v2\/?$/.test(apiBaseUrl) || localApi ? apiBaseUrl.replace(/\/$/, '') : '',
   cloudbaseEnvId,
   environmentKind,
 }
