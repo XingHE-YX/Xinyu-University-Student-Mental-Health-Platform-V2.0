@@ -3,6 +3,7 @@ import AdminLoginView from "@/views/AdminLoginView.vue";
 import WorkbenchView from "@/views/WorkbenchView.vue";
 import TaskDetailView from "@/views/TaskDetailView.vue";
 import AuditDemoView from "@/views/AuditDemoView.vue";
+import { adminRuntime } from "@/config/runtime";
 import { useAdminSessionStore } from "@/stores/adminSession";
 
 const router = createRouter({
@@ -16,6 +17,15 @@ const router = createRouter({
       meta: { requiresAuth: true },
     },
     { path: "/audit", component: AuditDemoView, meta: { requiresAuth: true } },
+    ...(adminRuntime.environmentKind === "demo"
+      ? [
+          {
+            path: "/defense",
+            component: () => import("@/views/DefenseOverviewView.vue"),
+            meta: { requiresAuth: true },
+          },
+        ]
+      : []),
   ],
 });
 

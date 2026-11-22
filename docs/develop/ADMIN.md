@@ -20,3 +20,5 @@
 
 依赖见 [技术栈](TECH_STACK.md)，视觉、组件和尺寸约定见
 [前端规范](FRONTEND_GUIDELINES.md)，页面与权限状态见 [应用流程](../design/APP_FLOW.md)。
+
+答辩分支的演示数据、后台入口及验收方式见 [2026 答辩演示](DEFENSE_2026.md)。

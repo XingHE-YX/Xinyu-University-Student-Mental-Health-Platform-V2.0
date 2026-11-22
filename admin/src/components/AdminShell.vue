@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useRouter } from "vue-router";
+import { adminRuntime } from "@/config/runtime";
 import { useAdminSessionStore } from "@/stores/adminSession";
 
 defineProps<{
@@ -36,6 +37,12 @@ async function signOut(): Promise<void> {
         <RouterLink class="admin-shell__nav-item" to="/">工作台</RouterLink>
         <RouterLink class="admin-shell__nav-item" to="/audit"
           >审计与演示</RouterLink
+        >
+        <RouterLink
+          v-if="adminRuntime.environmentKind === 'demo'"
+          class="admin-shell__nav-item"
+          to="/defense"
+          >答辩数据总览</RouterLink
         >
         <button
           class="admin-shell__nav-item admin-shell__logout"
@@ -180,7 +187,7 @@ h1 {
     border-bottom: 1px solid var(--xinyu-color-divider);
   }
   .admin-shell__nav {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     margin-top: var(--xinyu-space-4);
   }
 }
