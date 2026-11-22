@@ -4,7 +4,7 @@ import test from 'node:test'
 import { deploymentProfileForAppId } from '../../src/infra/config/deployment-profiles.ts'
 
 test('selects the deployed demo API from the running mini-program AppID', () => {
-  assert.deepEqual(deploymentProfileForAppId('wx22f399558d68bc7f'), {
+  assert.deepEqual(deploymentProfileForAppId('wxd9415049ad9ab8a7'), {
     apiBaseUrl:
       'https://xinyu-v2-demo-d3g8qbyfu11a452ff-1489915847.ap-shanghai.app.tcloudbase.com/api/v2',
     cloudbaseEnvId: 'xinyu-v2-demo-d3g8qbyfu11a452ff',
@@ -13,6 +13,7 @@ test('selects the deployed demo API from the running mini-program AppID', () => 
 })
 
 test('keeps unknown AppIDs unconfigured instead of falling back to demo', () => {
+  assert.equal(deploymentProfileForAppId('wx22f399558d68bc7f'), null)
   assert.equal(deploymentProfileForAppId('wx-unknown'), null)
   assert.equal(deploymentProfileForAppId(''), null)
 })

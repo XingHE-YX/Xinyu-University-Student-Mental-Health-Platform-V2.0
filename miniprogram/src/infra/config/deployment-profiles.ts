@@ -7,7 +7,7 @@ export interface DeploymentProfile {
 }
 
 const profiles: Readonly<Record<string, DeploymentProfile>> = {
-  wx22f399558d68bc7f: {
+  wxd9415049ad9ab8a7: {
     apiBaseUrl:
       'https://xinyu-v2-demo-d3g8qbyfu11a452ff-1489915847.ap-shanghai.app.tcloudbase.com/api/v2',
     cloudbaseEnvId: 'xinyu-v2-demo-d3g8qbyfu11a452ff',
